@@ -23,7 +23,7 @@ with open("test.raw", 'rb') as fileobj:
     feta = data[0,:,:]      # take first frame 
     
     ax1 = fig.add_subplot(gs[0,0])
-    imshow(feta,cmap='gray') 
+    imshow(feta,cmap='gray',interpolation='none') 
     plt.colorbar()
    
     # FRAME HISTOGRAM
@@ -36,7 +36,7 @@ with open("test.raw", 'rb') as fileobj:
     # SMOOTH FILTERING
     ax3 = fig.add_subplot(gs[1,0])
     out = cv2.blur(feta, (2, 2))  # BLUR = SMOOTH BY AVERAGE
-    imshow(out,cmap='gray')
+    imshow(out,cmap='gray',interpolation='none')
     plt.colorbar()
     ax4 = fig.add_subplot(gs[1,1])
     plt.hist(out.flatten(), bins=60)    

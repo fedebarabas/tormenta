@@ -25,9 +25,13 @@ with open("test.raw", 'rb') as fileobj:
     print dt, "s blurring stack"
     print round(1000000*dt/shape[0],1), "us blurring per image frame" 
 
-    # imshow(data_blurred[0],cmap='gray')       # Would you like to plot one of them?
+    # imshow(data_blurred[0],cmap='gray',interpolation='none')       # Would you like to plot one of them?
     # plt.colorbar()
     # show()
+   
+    
 
-    data_binary = [cv2.threshold(data_blurred[i], 500, 1, thresh_binary) for i in np.arange(shape[0])]
+    flag, dsds = cv2.threshold(data_blurred[0], 500, 255, cv2.THRESH_BINARY)
+    
+    # data_binary = [cv2.threshold(data_blurred[i], 500, 255, cv2.THRESH_BINARY) for i in np.arange(shape[0])]
 
