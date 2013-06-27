@@ -24,7 +24,7 @@ shape = px_size*shape         # shape conversion to um
 i3_data_in = readinsight3.loadI3GoodOnly(sys.argv[1])
 x_locs = i3_data_in['xc']*px_size                 # px -> um conversion
 y_locs = i3_data_in['yc']*px_size
-fit_error = i3_data_in['i']
+chi2 = i3_data_in['i']
 fit_sigma = 0.5*i3_data_in['w']     # 0.5 factor to turn the width of the gaussian into a sigma
 n_photons = i3_data_in['a']
 
@@ -59,17 +59,19 @@ ax1.axis('image')
 # axes[0].plot([punto1[0], punto2[0]], [punto1[1], punto2[1]], 'ro-')
 # ax1.plot([4.5, 5.2], [10, 8.6], 'ro-')
 
-# ERROR HISTOGRAM
+# CHI^2 OF THE FIT
 ax2 = plt.subplot(gs[0,1])
-plt.hist(fit_error, bins=np.arange(0,200))
-plt.xlabel('Fit error [nm?]')
+plt.hist(chi2, bins=np.arange(0,200))
+plt.xlabel('$\chi ^2 $ of the fit ')
 plt.grid(True)
 
+# SIGMA DETERMINED BY THE FIT
 ax3 = plt.subplot(gs[1,1])
 plt.hist(fit_sigma, bins=np.arange(50,300))
-plt.xlabel('Fit sigma [nm?]')
+plt.xlabel('$\sigma $ of the gaussian [nm]')
 plt.grid(True)
 
+# PHOTONS PER LOCALIZATION
 ax4 = plt.subplot(gs[2,1])
 plt.hist(n_photons, bins=np.arange(0,3000), histtype='step')
 plt.xlabel('Number of photons per localization')
