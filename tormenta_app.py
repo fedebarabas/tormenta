@@ -78,12 +78,6 @@ class Stack(object):
 #        n = self.image.tell()
 
 
-def ch_frame(stack, n, widget):
-    frame = stack.frame
-    stack.frame = frame + n
-    widget.setImage(stack.data(frame + n))
-
-
 class TormentaGui(QtGui.QMainWindow):
 
     def __init__(self, *args, **kwargs):
@@ -138,16 +132,23 @@ class TormentaGui(QtGui.QMainWindow):
         w5.setImage(stack.data(50))
         d5.addWidget(w5)
 
-        next_frame = QtGui.QAction('&Go to next frame', self)
-        next_frame.setShortcut('right arrow')
-        next_frame.triggered.connect(ch_frame(stack, 1, w5))
+        def update_frame(n):
+            frame = stack.frame
+            stack.frame = frame + n
+            w5.setImage(stack.data(frame + 1))
+
+        next_frame = QtGui.QShortcut(self)
+        next_frame.setKey('Right')
+        next_frame.activated.connect(lambda: update_frame(1))
+        prev_frame = QtGui.QShortcut(self)
+        prev_frame.setKey('Left')
+        prev_frame.activated.connect(lambda: update_frame(-1))
 
         w6 = pg.PlotWidget(title="Dock 6 plot")
         w6.plot(np.random.normal(size=100))
         d6.addWidget(w6)
 
 
-## Start Qt event loop unless running in interactive mode or using pyside.
 if __name__ == '__main__':
 
     app = QtGui.QApplication([])
