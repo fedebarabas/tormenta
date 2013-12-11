@@ -72,10 +72,23 @@ class Stack(object):
         data = data.reshape(self.image.size[::-1])
         return np.transpose(data)
 
+class Crosshair(pg.GraphicsObject):
+    def paint(self, p, *args):
+        p.setPen(pg.mkPen('g'))
+        p.drawLine(-2, 0, 2, 0)
+        p.drawLine(0, -2, 0, 2)
+
+    def boundingRect(self):
+        return QtCore.QRectF(-2, -2, 4, 4)
+
+    def mouseDragEvent(self, ev):
+        ev.accept()
+        if ev.isStart():
+            self.startPos = self.pos()
+        self.setPos(self.startPos + ev.pos() - ev.buttonDownPos())
+
+#class FrameText(pg.TextItem):
 #
-#    def goto_frame(self, k):
-#
-#        n = self.image.tell()
 
 
 class TormentaGui(QtGui.QMainWindow):
@@ -128,14 +141,22 @@ class TormentaGui(QtGui.QMainWindow):
 
         stack = Stack('muestra.tif')
 
-        w5 = pg.ImageView()
-        w5.setImage(stack.data(50))
+        w5 = pg.ImageView(view=pg.PlotItem())
+        w5.setImage(stack.data(0))
+        frameText = pg.TextItem(text='Frame 0')
+        w5.getView().addItem(frameText)
         d5.addWidget(w5)
 
         def update_frame(n):
             frame = stack.frame
-            stack.frame = frame + n
-            w5.setImage(stack.data(frame + 1))
+            newFrame = frame + n
+            if newFrame >= 0:
+                stack.frame = newFrame
+                w5.setImage(stack.data(newFrame))
+                frameText.setText('frame {}'.format(newFrame))
+
+        c = Crosshair()
+        w5.getView().addItem(c)
 
         next_frame = QtGui.QShortcut(self)
         next_frame.setKey('Right')
