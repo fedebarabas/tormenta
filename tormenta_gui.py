@@ -153,7 +153,7 @@ class TormentaGui(QtGui.QMainWindow):
             if newFrame >= 0:
                 stack.frame = newFrame
                 w5.setImage(stack.data(newFrame))
-                frameText.setText('frame {}'.format(newFrame))
+                frameText.setText('Frame {}'.format(newFrame))
 
         c = Crosshair()
         w5.getView().addItem(c)
