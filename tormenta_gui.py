@@ -47,7 +47,7 @@ class Binary_stack(object):
 
         self.image = np.memmap(filename, dtype=datatype, mode='r', shape=shape)
         self.size = self.image.size
-        self.nframes = None
+        self.nframes = shape[2]
         self.frame = 0
 
     @property
@@ -57,12 +57,13 @@ class Binary_stack(object):
     @frame.setter
     def frame(self, value):
 
-        if self.nframes is None:
-            try:
-                self.image.seek(value)
+        if abs(value) < self.nframes:
 
-            except EOFError:
-                print(n, "is greater than the number of frames of the stack")
+            self.frame = value
+
+        else:
+            print(value, "is greater than the number of frames of the stack")
+
 
 class Tiff_stack(object):
 
@@ -164,7 +165,7 @@ class TormentaGui(QtGui.QMainWindow):
         w4.plot(np.random.normal(size=100))
         d4.addWidget(w4)
 
-        stack = Stack('muestra.tif')
+        stack = Binary_Stack('muestra.tif')
 
         w5 = pg.ImageView(view=pg.PlotItem())
         w5.setImage(stack.data(0))
