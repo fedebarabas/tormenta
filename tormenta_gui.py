@@ -17,6 +17,7 @@ import os
 
 from pyqtgraph.dockarea import *
 
+
 def openraw(filename, shape=None, datatype=np.dtype('uint16')):
     # 16-bit unsigned little-endian byte order
 
@@ -40,7 +41,30 @@ def openraw(filename, shape=None, datatype=np.dtype('uint16')):
     return data, shape
 
 
-class Stack(object):
+class Binary_stack(object):
+
+    def __init__(self, filename, shape, datatype=np.dtype('uint16')):
+
+        self.image = np.memmap(filename, dtype=datatype, mode='r', shape=shape)
+        self.size = self.image.size
+        self.nframes = None
+        self.frame = 0
+
+    @property
+    def frame(self):
+        return self.frame
+
+    @frame.setter
+    def frame(self, value):
+
+        if self.nframes is None:
+            try:
+                self.image.seek(value)
+
+            except EOFError:
+                print(n, "is greater than the number of frames of the stack")
+
+class Tiff_stack(object):
 
     def __init__(self, filename):
 
@@ -71,6 +95,7 @@ class Stack(object):
         data = np.array(self.image.getdata())
         data = data.reshape(self.image.size[::-1])
         return np.transpose(data)
+
 
 class Crosshair(pg.GraphicsObject):
     def paint(self, p, *args):
