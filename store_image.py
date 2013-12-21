@@ -5,14 +5,14 @@ Created on Fri Dec 13 17:36:09 2013
 @author: fbaraba
 """
 
+import os
+
 import numpy as np
 import h5py as hdf
 
 
 def store_stack(file_name, data, attributes=None):
     """Store binary data and measurement attributes in HDF5 format"""
-
-
 
     store_file = hdf.File(file_name + '.hdf5', "w")
 
@@ -30,10 +30,10 @@ def store_stack(file_name, data, attributes=None):
         for i in np.arange(len(attributes)):
             store_file.attrs[attributes[i][0]] = attributes[i][1]
 
+    store_file.close()
 
 if __name__ == "__main__":
 
-    import os
     import tkFileDialog as filedialog
     from Tkinter import Tk
 
@@ -42,10 +42,13 @@ if __name__ == "__main__":
                                           title='Select file to be packed')
     root.destroy()
 
-    shape = (200, 200, 1300)
+    shape = (1363, 185, 197)
 
-    data = np.memmap(filename, dtype=np.dtype('uint16'), mode='r', shape=shape)
+    data = np.memmap(filename, dtype=np.dtype('uint16'), mode='r')
+    data = data.reshape(shape)
+
     file_name = os.path.splitext(filename)
-    attributes = [('nframes', shape[2]), ('size', shape[0:2])]
+    attributes = [('nframes', shape[0]), ('size', shape[1:3])]
+    data_name = 'frames'
 
-    store_stack(filename, data, attributes)
+    store_stack(file_name[0], (data_name, data), attributes)
