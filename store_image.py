@@ -42,13 +42,16 @@ if __name__ == "__main__":
                                           title='Select file to be packed')
     root.destroy()
 
-    shape = (1363, 185, 197)
+    # shape = (nframes, width, height)
+    shape = (1363, 197, 185)
 
     data = np.memmap(filename, dtype=np.dtype('uint16'), mode='r')
     data = data.reshape(shape)
 
     file_name = os.path.splitext(filename)
-    attributes = [('nframes', shape[0]), ('size', shape[1:3])]
+#    attributes = [('nframes', shape[0]), ('size', shape[1:3])]
+#    These attributes are not really necessary, they can be extracted from
+#    after the loading of the hdf file -> shape
     data_name = 'frames'
 
     store_stack(file_name[0], (data_name, data), attributes)

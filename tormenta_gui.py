@@ -7,95 +7,26 @@ Created on Sun Dec  8 22:47:36 2013
 
 from __future__ import division, with_statement, print_function
 
-from PIL import Image
-
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.console
 import numpy as np
-import os
+import h5py as hdf
 
 from pyqtgraph.dockarea import *
 
 
-def openraw(filename, shape=None, datatype=np.dtype('uint16')):
-    # 16-bit unsigned little-endian byte order
+class Stack(object):
+    """Measurement stored in a hdf5 file"""
 
-    fileobj = open(filename, 'rb')
+    def __init__(self, filename, imagename='frames'):
 
-    if shape is None:
+        hdffile = hdf.File(filename, 'r')
 
-        print('Shape not provided, loading it from inf file')
-        rootname, ext = os.path.splitext(filename)
-        inf_name = rootname + '.inf'
-        inf_data = np.loadtxt(inf_name, dtype=str)
-#       self.frame_rate = float(inf_data[22][inf_data[22].find('=') + 1:-1])
-        n_frames = int(inf_data[29][inf_data[29].find('=') + 1:])
-        frame_size = [int(inf_data[8][inf_data[8].find('=') + 1:]),
-                      int(inf_data[8][inf_data[8].find('=') + 1:])]
-        shape = (n_frames, frame_size[0], frame_size[1])
-        print(shape)
-
-    data = np.fromfile(fileobj, dtype=datatype).byteswap().reshape(shape)
-
-    return data, shape
-
-
-class Binary_stack(object):
-
-    def __init__(self, filename, shape, datatype=np.dtype('uint16')):
-
-        self.image = np.memmap(filename, dtype=datatype, mode='r', shape=shape)
-        self.size = self.image.size
-        self.nframes = shape[2]
+        self.image = hdffile[imagename]
+        self.size = hdffile[imagename].shape[1:3]
+        self.nframes = hdffile[imagename].shape[0]
         self.frame = 0
-
-    @property
-    def frame(self):
-        return self.frame
-
-    @frame.setter
-    def frame(self, value):
-
-        if abs(value) < self.nframes:
-
-            self.frame = value
-
-        else:
-            print(value, "is greater than the number of frames of the stack")
-
-
-class Tiff_stack(object):
-
-    def __init__(self, filename):
-
-        self.image = Image.open(filename)
-        self.size = self.image.size
-        self.nframes = None
-        self.frame = 0
-
-    @property
-    def frame(self):
-        return self.image.tell()
-
-    @frame.setter
-    def frame(self, value):
-
-        if self.nframes is None:
-            try:
-                self.image.seek(value)
-
-            except EOFError:
-                print(n, "is greater than the number of frames of the stack")
-
-    def data(self, frame=None):
-
-        if frame is not(None):
-            self.frame = frame
-
-        data = np.array(self.image.getdata())
-        data = data.reshape(self.image.size[::-1])
-        return np.transpose(data)
 
 
 class Crosshair(pg.GraphicsObject):
@@ -112,9 +43,6 @@ class Crosshair(pg.GraphicsObject):
         if ev.isStart():
             self.startPos = self.pos()
         self.setPos(self.startPos + ev.pos() - ev.buttonDownPos())
-
-#class FrameText(pg.TextItem):
-#
 
 
 class TormentaGui(QtGui.QMainWindow):
@@ -165,31 +93,43 @@ class TormentaGui(QtGui.QMainWindow):
         w4.plot(np.random.normal(size=100))
         d4.addWidget(w4)
 
-        stack = Binary_Stack('muestra.tif')
+        stack = Stack('test.hdf5')
 
         w5 = pg.ImageView(view=pg.PlotItem())
-        w5.setImage(stack.data(0))
+        w5.setImage(stack.image[0])
         frameText = pg.TextItem(text='Frame 0')
         w5.getView().addItem(frameText)
         d5.addWidget(w5)
 
-        def update_frame(n):
-            frame = stack.frame
-            newFrame = frame + n
-            if newFrame >= 0:
-                stack.frame = newFrame
-                w5.setImage(stack.data(newFrame))
-                frameText.setText('Frame {}'.format(newFrame))
+        def gotoframe(n):
+            if n > 0 and n < stack.nframes - 1:
+                stack.frame = n
+
+            elif n <= 0:
+                stack.frame = 0
+
+            elif n >= stack.nframes - 1:
+                stack.frame = stack.nframes - 1
+
+            w5.setImage(stack.image[stack.frame])
+            frameText.setText('Frame {}'.format(stack.frame))
 
         c = Crosshair()
         w5.getView().addItem(c)
 
+        # Frame changing actions
         next_frame = QtGui.QShortcut(self)
         next_frame.setKey('Right')
-        next_frame.activated.connect(lambda: update_frame(1))
+        next_frame.activated.connect(lambda: gotoframe(stack.frame + 1))
         prev_frame = QtGui.QShortcut(self)
         prev_frame.setKey('Left')
-        prev_frame.activated.connect(lambda: update_frame(-1))
+        prev_frame.activated.connect(lambda: gotoframe(stack.frame - 1))
+        jump250 = QtGui.QShortcut(self)
+        jump250.setKey('Ctrl+Right')
+        jump250.activated.connect(lambda: gotoframe(stack.frame + 250))
+        jumpm250 = QtGui.QShortcut(self)
+        jumpm250.setKey('Ctrl+Left')
+        jumpm250.activated.connect(lambda: gotoframe(stack.frame - 250))
 
         w6 = pg.PlotWidget(title="Dock 6 plot")
         w6.plot(np.random.normal(size=100))
