@@ -11,22 +11,12 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.console
 import numpy as np
-import h5py as hdf
+from stack import Stack, denoise
 
 from pyqtgraph.dockarea import *
 
-
-class Stack(object):
-    """Measurement stored in a hdf5 file"""
-
-    def __init__(self, filename, imagename='frames'):
-
-        hdffile = hdf.File(filename, 'r')
-
-        self.image = hdffile[imagename]
-        self.size = hdffile[imagename].shape[1:3]
-        self.nframes = hdffile[imagename].shape[0]
-        self.frame = 0
+import tkFileDialog as filedialog
+from Tkinter import Tk
 
 
 class Crosshair(pg.GraphicsObject):
@@ -47,6 +37,19 @@ class Crosshair(pg.GraphicsObject):
 
 class TormentaGui(QtGui.QMainWindow):
 
+    def openfile(self):
+
+        root = Tk()
+        filename = filedialog.askopenfilename(parent=root,
+                                              title='Select file')
+        root.destroy()
+
+        if filename is u'':
+            print("No file selected")
+
+        else:
+            return Stack(filename)
+
     def __init__(self, *args, **kwargs):
 
         super(QtGui.QMainWindow, self).__init__(*args, **kwargs)
@@ -56,8 +59,14 @@ class TormentaGui(QtGui.QMainWindow):
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(QtGui.qApp.quit)
 
+        openAction = QtGui.QAction(QtGui.QIcon('open.png'), '&Open', self)
+        openAction.setShortcut('Ctrl+O')
+        openAction.setStatusTip('Open file')
+        openAction.triggered.connect(self.openfile)
+
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(openAction)
         fileMenu.addAction(exitAction)
 
         area = DockArea()
@@ -93,43 +102,43 @@ class TormentaGui(QtGui.QMainWindow):
         w4.plot(np.random.normal(size=100))
         d4.addWidget(w4)
 
-        stack = Stack('test.hdf5')
+        self.stack = self.openfile()
 
         w5 = pg.ImageView(view=pg.PlotItem())
-        w5.setImage(stack.image[0])
+        w5.setImage(self.stack.image[0])
         frameText = pg.TextItem(text='Frame 0')
         w5.getView().addItem(frameText)
         d5.addWidget(w5)
 
         def gotoframe(n):
-            if n > 0 and n < stack.nframes - 1:
-                stack.frame = n
+            if n > 0 and n < self.stack.nframes - 1:
+                self.stack.frame = n
 
             elif n <= 0:
-                stack.frame = 0
+                self.stack.frame = 0
 
             elif n >= stack.nframes - 1:
-                stack.frame = stack.nframes - 1
+                self.stack.frame = stack.nframes - 1
 
-            w5.setImage(stack.image[stack.frame])
-            frameText.setText('Frame {}'.format(stack.frame))
+            w5.setImage(self.stack.image[self.stack.frame])
+            frameText.setText('Frame {}'.format(self.stack.frame))
 
-        c = Crosshair()
-        w5.getView().addItem(c)
+#        c = Crosshair()
+#        w5.getView().addItem(c)
 
         # Frame changing actions
         next_frame = QtGui.QShortcut(self)
         next_frame.setKey('Right')
-        next_frame.activated.connect(lambda: gotoframe(stack.frame + 1))
+        next_frame.activated.connect(lambda: gotoframe(self.stack.frame + 1))
         prev_frame = QtGui.QShortcut(self)
         prev_frame.setKey('Left')
-        prev_frame.activated.connect(lambda: gotoframe(stack.frame - 1))
+        prev_frame.activated.connect(lambda: gotoframe(self.stack.frame - 1))
         jump250 = QtGui.QShortcut(self)
         jump250.setKey('Ctrl+Right')
-        jump250.activated.connect(lambda: gotoframe(stack.frame + 250))
+        jump250.activated.connect(lambda: gotoframe(self.stack.frame + 250))
         jumpm250 = QtGui.QShortcut(self)
         jumpm250.setKey('Ctrl+Left')
-        jumpm250.activated.connect(lambda: gotoframe(stack.frame - 250))
+        jumpm250.activated.connect(lambda: gotoframe(self.stack.frame - 250))
 
         w6 = pg.PlotWidget(title="Dock 6 plot")
         w6.plot(np.random.normal(size=100))
