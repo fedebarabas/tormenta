@@ -11,7 +11,7 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.console
 import numpy as np
-from stack import Stack, denoise
+from stack import Stack
 
 from pyqtgraph.dockarea import *
 
@@ -110,6 +110,10 @@ class TormentaGui(QtGui.QMainWindow):
         w5.getView().addItem(frameText)
         d5.addWidget(w5)
 
+        def update_frame():
+            w5.setImage(self.stack.image[self.stack.frame])
+            frameText.setText('Frame {}'.format(self.stack.frame))
+
         def gotoframe(n):
             if n > 0 and n < self.stack.nframes - 1:
                 self.stack.frame = n
@@ -120,8 +124,7 @@ class TormentaGui(QtGui.QMainWindow):
             elif n >= stack.nframes - 1:
                 self.stack.frame = stack.nframes - 1
 
-            w5.setImage(self.stack.image[self.stack.frame])
-            frameText.setText('Frame {}'.format(self.stack.frame))
+            update_frame()
 
 #        c = Crosshair()
 #        w5.getView().addItem(c)
