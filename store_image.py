@@ -10,14 +10,36 @@ import os
 import numpy as np
 import h5py as hdf
 
+### TODO: data_name handling for more that one data to save into same hdf5 file
 
-def store_stack(file_name, data, attributes=None):
+
+def store_stack(shape, data_name='frames', filename=None, attributes=None):
     """Store binary data and measurement attributes in HDF5 format"""
 
-    store_file = hdf.File(file_name + '.hdf5', "w")
+    if filename is None:
+
+        import tkFileDialog as filedialog
+        from Tkinter import Tk
+
+        root = Tk()
+        filename = filedialog.askopenfilename(parent=root,
+                                              title='Select file to pack')
+        root.destroy()
+
+    file_name = os.path.splitext(filename)
+
+    # Data loading, reshaping, labelling
+    data = np.memmap(filename, dtype=np.dtype('>u2'), mode='r')
+    data = data.reshape(shape)
+    data_name = 'frames'
+    data = (data_name, data)
+
+    attributes = [('nframes', shape[0]), ('size', shape[1:3])]
+
+    store_file = hdf.File(file_name[0] + '.hdf5', "w")
 
     # data should be a list of tuples in the format ('data name', data)
-    if type(data) == tuple:
+    if type(data) is tuple:
         data = [data]
 
     for i in np.arange(len(data)):
@@ -34,24 +56,7 @@ def store_stack(file_name, data, attributes=None):
 
 if __name__ == "__main__":
 
-    import tkFileDialog as filedialog
-    from Tkinter import Tk
-
-    root = Tk()
-    filename = filedialog.askopenfilename(parent=root,
-                                          title='Select file to be packed')
-    root.destroy()
-
     # shape = (nframes, width, height)
-    shape = (1363, 197, 185)
+    shape = (110610, 85, 85)
 
-    data = np.memmap(filename, dtype=np.dtype('uint16'), mode='r')
-    data = data.reshape(shape)
-
-    file_name = os.path.splitext(filename)
-#    attributes = [('nframes', shape[0]), ('size', shape[1:3])]
-#    These attributes are not really necessary, they can be extracted from
-#    after the loading of the hdf file -> shape
-    data_name = 'frames'
-
-    store_stack(file_name[0], (data_name, data), attributes)
+    store_stack(shape)

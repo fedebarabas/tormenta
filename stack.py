@@ -17,7 +17,7 @@ def denoise(frame):
     # Histogram smoothing
     histo_s = np.convolve(histo[0], np.ones(5) / 5)
 
-    noise = histo[1][np.where(histo_s == np.max(histo_s))]
+    noise = histo[1][np.argmax(histo_s)]
 
     return frame - noise
 
@@ -25,7 +25,17 @@ def denoise(frame):
 class Stack(object):
     """Measurement stored in a hdf5 file"""
 
-    def __init__(self, filename, imagename='frames'):
+    def __init__(self, filename=None, imagename='frames'):
+
+        if filename is None:
+
+            import tkFileDialog as filedialog
+            from Tkinter import Tk
+
+            root = Tk()
+            filename = filedialog.askopenfilename(parent=root,
+                                                  title='Select hdf5 file')
+            root.destroy()
 
         hdffile = hdf.File(filename, 'r')
 
@@ -33,3 +43,7 @@ class Stack(object):
         self.size = hdffile[imagename].shape[1:3]
         self.nframes = hdffile[imagename].shape[0]
         self.frame = 0
+
+if __name__ == "__main__":
+
+    stack = Stack()

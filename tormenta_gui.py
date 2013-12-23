@@ -121,8 +121,8 @@ class TormentaGui(QtGui.QMainWindow):
             elif n <= 0:
                 self.stack.frame = 0
 
-            elif n >= stack.nframes - 1:
-                self.stack.frame = stack.nframes - 1
+            elif n >= self.stack.nframes - 1:
+                self.stack.frame = self.stack.nframes - 1
 
             update_frame()
 
