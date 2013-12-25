@@ -10,10 +10,9 @@ import os
 import numpy as np
 import h5py as hdf
 
-### TODO: data_name handling for more that one data to save into same hdf5 file
 
-
-def store_stack(shape, data_name='frames', filename=None, attributes=None):
+def store_stack(shape, dtype,
+                data_name='image', filename=None, attributes=None):
     """Store binary data and measurement attributes in HDF5 format"""
 
     if filename is None:
@@ -29,12 +28,15 @@ def store_stack(shape, data_name='frames', filename=None, attributes=None):
     file_name = os.path.splitext(filename)
 
     # Data loading, reshaping, labelling
-    data = np.memmap(filename, dtype=np.dtype('>u2'), mode='r')
+    data = np.memmap(filename, dtype=dtype, mode='r')
     data = data.reshape(shape)
-    data_name = 'frames'
     data = (data_name, data)
 
-    attributes = [('nframes', shape[0]), ('size', shape[1:3])]
+    attributes = [('nframes', shape[0]),
+                  ('size', shape[1:3]),
+                  ('nm_per_px', 133),
+                  ('NA', 1.4),
+                  ('lambda_em', 670)]
 
     store_file = hdf.File(file_name[0] + '.hdf5', "w")
 
@@ -56,7 +58,11 @@ def store_stack(shape, data_name='frames', filename=None, attributes=None):
 
 if __name__ == "__main__":
 
-    # shape = (nframes, width, height)
-    shape = (110610, 85, 85)
+    # shape = (nframes, width, height) not sure
+#    shape = (110610, 85, 85)
+#    dtype = np.dtype('>u2')     # big endian
 
-    store_stack(shape)
+    shape = (1363, 185, 197)
+    dtype = np.dtype('<u2')      # little endian
+
+    store_stack(shape, dtype)

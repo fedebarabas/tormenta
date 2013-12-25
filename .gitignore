@@ -3,3 +3,6 @@
 *~
 *.dax
 *.tif
+*.pyc
+*.hdf5
+*.png
