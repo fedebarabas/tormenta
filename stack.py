@@ -23,20 +23,12 @@ def kernel(fwhm):
     xx, yy = np.meshgrid(x, y, sparse=True)
     matrix = gauss(xx, x.mean(), fwhm) * gauss(yy, y.mean(), fwhm)
     matrix = matrix - matrix.sum() / matrix.size
+    matrix[x.mean(), y.mean()] += 1
     return matrix
 
-
-def denoise(frame):
+def denoise(frame, kernel):
     """Noise removal by substracting most common signal in the frame"""
-
-    histo = np.histogram(frame, bins=100)
-
-    # Histogram smoothing
-    histo_s = np.convolve(histo[0], np.ones(5) / 5)
-
-    noise = histo[1][np.argmax(histo_s)]
-
-    return frame - noise
+    return convolve(frame, kernel)
 
 
 class Stack(object):
