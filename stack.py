@@ -8,6 +8,7 @@ Created on Sun Dec 22 16:44:59 2013
 import numpy as np
 from scipy.ndimage.filters import convolve
 import h5py as hdf
+from copy import deepcopy
 
 from airygauss import fwhm
 
@@ -23,12 +24,35 @@ def kernel(fwhm):
     xx, yy = np.meshgrid(x, y, sparse=True)
     matrix = gauss(xx, x.mean(), fwhm) * gauss(yy, y.mean(), fwhm)
     matrix = matrix - matrix.sum() / matrix.size
-    matrix[x.mean(), y.mean()] += 1
     return matrix
 
+
 def denoise(frame, kernel):
-    """Noise removal by substracting most common signal in the frame"""
-    return convolve(frame, kernel)
+    """Noise removal by convolving with a null sum gaussian.
+    Its FWHM matches the one of the objects we want to detect."""
+    return convolve(frame.astype(float), kernel)
+
+
+def get_max(image, alpha=5, size=10):
+    i_out = []
+    j_out = []
+    image_temp = deepcopy(image)
+    while True:
+        k = np.argmax(image_temp)
+        j, i = np.unravel_index(k, image_temp.shape)
+        if(image_temp[j, i] >= alpha*image.std()):
+            i_out.append(i)
+            j_out.append(j)
+            x = np.arange(i-size, i+size)
+            y = np.arange(j-size, j+size)
+            xv, yv = np.meshgrid(x, y)
+            image_temp[yv.clip(0, image_temp.shape[0]-1),
+                       xv.clip(0, image_temp.shape[1]-1)] = 0
+#            print(xv)
+        else:
+            break
+
+    return i_out, j_out
 
 
 class Stack(object):

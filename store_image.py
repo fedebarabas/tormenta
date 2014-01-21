@@ -62,7 +62,12 @@ if __name__ == "__main__":
 #    shape = (110610, 85, 85)
 #    dtype = np.dtype('>u2')     # big endian
 
-    shape = (1363, 185, 197)
-    dtype = np.dtype('<u2')      # little endian
+#    # @home
+#    shape = (1363, 185, 197)
+#    dtype = np.dtype('<u2')      # little-endian
+
+    # @MPI
+    shape = (50000, 85, 85)
+    dtype = np.dtype('>u2')     # big-endian
 
     store_stack(shape, dtype)
