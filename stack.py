@@ -8,7 +8,6 @@ Created on Sun Dec 22 16:44:59 2013
 import numpy as np
 from scipy.ndimage.filters import convolve
 import h5py as hdf
-from copy import deepcopy
 
 from airygauss import fwhm
 
@@ -27,32 +26,78 @@ def kernel(fwhm):
     return matrix
 
 
-def denoise(frame, kernel):
-    """Noise removal by convolving with a null sum gaussian.
-    Its FWHM matches the one of the objects we want to detect."""
-    return convolve(frame.astype(float), kernel)
+def find_peaks(image, kernel, alpha=3, size=2):
+    """Peak finding routine.
+    Alpha is the amount of standard deviations used as a threshold of the
+    local maxima search. Size is the semiwidth of the fitting window.
+    """
+    shape = image.shape
 
+    # Noise removal by convolving with a null sum gaussian. Its FWHM matches
+    # the one of the objects we want to detect.
+    image_temp = convolve(image.astype(float), kernel)
 
-def get_max(image, alpha=5, size=10):
-    i_out = []
-    j_out = []
-    image_temp = deepcopy(image)
-    while True:
+    # Image cropping to avoid border problems
+    image_temp = image_temp[size:shape[0] - size, size:shape[1] - size]
+    shape = image_temp.shape
+
+    std = image_temp.std()
+    k_arr = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2))
+    peak_ct = 0
+
+    while 1:
+        # index juggling
         k = np.argmax(image_temp)
-        j, i = np.unravel_index(k, image_temp.shape)
-        if(image_temp[j, i] >= alpha*image.std()):
-            i_out.append(i)
-            j_out.append(j)
-            x = np.arange(i-size, i+size)
-            y = np.arange(j-size, j+size)
+        j, i = np.unravel_index(k, shape)
+        if(image_temp[j, i] >= alpha*std):
+
+            # Saving the peak relative to the original image
+            k_arr[peak_ct] = [j + size, i + size]
+
+            # this is the part that masks already-found peaks
+            x = np.arange(i - size, i + size + 1)
+            y = np.arange(j - size, j + size + 1)
             xv, yv = np.meshgrid(x, y)
-            image_temp[yv.clip(0, image_temp.shape[0]-1),
-                       xv.clip(0, image_temp.shape[1]-1)] = 0
-#            print(xv)
+#            # the clip handles cases where the peak is near the image edge
+            image_temp[yv.clip(0, shape[0] - 1), xv.clip(0, shape[1] - 1)] = 0
+
+            peak_ct += 1
+
         else:
             break
 
-    return i_out, j_out
+    return k_arr[:peak_ct]
+
+
+def drop_overlapping(peaks, size):
+    """We exclude from the analysis all the peaks that have their fitting
+    windows overlapped. The size parameter is the number of pixels from the
+    local maxima to the edge of this window.
+    """
+
+    no_overlaps = np.zeros(peaks.shape)
+
+    def does_not_overlap(p1, p2):
+        return max(abs(p1[1] - p2[1]), abs(p1[0] - p2[0])) > 2*size
+
+    nov_peaks = 0
+    for i in np.arange(len(peaks)):
+
+        if all(map(lambda x: does_not_overlap(peaks[i], x),
+                   np.delete(peaks, i, 0))):
+
+            no_overlaps[nov_peaks] = peaks[i]
+            nov_peaks += 1
+
+    return no_overlaps[:nov_peaks]
+
+#plt.plot(peaks[:, 1], peaks[:, 0],'ro', markersize=10, alpha=0.5)
+
+
+def peak(img, p, size):
+    """Caller for the area around the peak."""
+
+    return img[p[0] - size:p[0] + size + 1, p[1] - size:p[1] + size + 1]
 
 
 class Stack(object):
