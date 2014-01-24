@@ -42,7 +42,7 @@ def find_peaks(image, kernel, alpha=3, size=2):
     shape = image_temp.shape
 
     std = image_temp.std()
-    k_arr = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2))
+    peaks = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2))
     peak_ct = 0
 
     while 1:
@@ -52,7 +52,7 @@ def find_peaks(image, kernel, alpha=3, size=2):
         if(image_temp[j, i] >= alpha*std):
 
             # Saving the peak relative to the original image
-            k_arr[peak_ct] = [j + size, i + size]
+            peaks[peak_ct] = [j + size, i + size]
 
             # this is the part that masks already-found peaks
             x = np.arange(i - size, i + size + 1)
@@ -66,14 +66,17 @@ def find_peaks(image, kernel, alpha=3, size=2):
         else:
             break
 
-    return k_arr[:peak_ct]
+#    return peaks[:peak_ct]
+#
+#
+#def drop_overlapping(peaks, size):
+#    """We exclude from the analysis all the peaks that have their fitting
+#    windows overlapped. The size parameter is the number of pixels from the
+#    local maxima to the edge of this window.
+#    """
 
-
-def drop_overlapping(peaks, size):
-    """We exclude from the analysis all the peaks that have their fitting
-    windows overlapped. The size parameter is the number of pixels from the
-    local maxima to the edge of this window.
-    """
+    # Drop overlapping peaks
+    peaks = peaks[:peak_ct]
 
     no_overlaps = np.zeros(peaks.shape)
 
@@ -98,6 +101,8 @@ def peak(img, p, size):
     """Caller for the area around the peak."""
 
     return img[p[0] - size:p[0] + size + 1, p[1] - size:p[1] + size + 1]
+
+def sharpness(img, c_img)
 
 
 class Stack(object):
