@@ -8,6 +8,7 @@ Created on Sun Dec 22 16:44:59 2013
 import numpy as np
 from scipy.ndimage.filters import convolve
 import h5py as hdf
+from copy import deepcopy
 
 from airygauss import fwhm
 
@@ -35,14 +36,15 @@ def find_peaks(image, kernel, alpha=3, size=2):
 
     # Noise removal by convolving with a null sum gaussian. Its FWHM matches
     # the one of the objects we want to detect.
-    image_temp = convolve(image.astype(float), kernel)
+    image_conv = convolve(image.astype(float), kernel)
 
     # Image cropping to avoid border problems
+    image_temp = deepcopy(image_conv)
     image_temp = image_temp[size:shape[0] - size, size:shape[1] - size]
     shape = image_temp.shape
 
     std = image_temp.std()
-    peaks = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2))
+    peaks = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2), dtype=int)
     peak_ct = 0
 
     while 1:
@@ -66,19 +68,29 @@ def find_peaks(image, kernel, alpha=3, size=2):
         else:
             break
 
-#    return peaks[:peak_ct]
-#
-#
-#def drop_overlapping(peaks, size):
-#    """We exclude from the analysis all the peaks that have their fitting
-#    windows overlapped. The size parameter is the number of pixels from the
-#    local maxima to the edge of this window.
-#    """
+    # Drop overlapping
+    peaks = drop_overlapping(peaks[:peak_ct], size)
 
-    # Drop overlapping peaks
-    peaks = peaks[:peak_ct]
+    # Sharpness
+    sharpness = np.zeros(peaks.shape[0])
+    mask = np.zeros((2*size + 1, 2*size + 1), dtype=bool)
+    mask[size, size] = True
 
-    no_overlaps = np.zeros(peaks.shape)
+    for i in np.arange(len(peaks)):
+        p = tuple(peaks[i])
+        masked = np.ma.masked_array(peak(image, p, size), mask)
+        sharpness[i] = image[p] / (image_conv[p] * masked.mean())
+
+    return peaks, sharpness
+
+
+def drop_overlapping(peaks, size):
+    """We exclude from the analysis all the peaks that have their fitting
+    windows overlapped. The size parameter is the number of pixels from the
+    local maxima to the edge of this window.
+    """
+
+    no_overlaps = np.zeros(peaks.shape, dtype=int)
 
     def does_not_overlap(p1, p2):
         return max(abs(p1[1] - p2[1]), abs(p1[0] - p2[0])) > 2*size
@@ -102,7 +114,7 @@ def peak(img, p, size):
 
     return img[p[0] - size:p[0] + size + 1, p[1] - size:p[1] + size + 1]
 
-def sharpness(img, c_img)
+#def sharpness(img, c_img)
 
 
 class Stack(object):
@@ -133,6 +145,7 @@ class Stack(object):
         self.frame = 0
         self.fwhm = fwhm(self.lambda_em, self.NA) / self.nm_per_px
         self.kernel = kernel(self.fwhm)
+
 
 if __name__ == "__main__":
 
