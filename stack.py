@@ -27,61 +27,12 @@ def kernel(fwhm):
     return matrix
 
 
-def find_peaks(image, kernel, alpha=3, size=2):
-    """Peak finding routine.
-    Alpha is the amount of standard deviations used as a threshold of the
-    local maxima search. Size is the semiwidth of the fitting window.
-    """
-    shape = image.shape
-
-    # Noise removal by convolving with a null sum gaussian. Its FWHM matches
-    # the one of the objects we want to detect.
-    image_conv = convolve(image.astype(float), kernel)
-
-    # Image cropping to avoid border problems
-    image_temp = deepcopy(image_conv)
-    image_temp = image_temp[size:shape[0] - size, size:shape[1] - size]
-    shape = image_temp.shape
-
-    std = image_temp.std()
-    peaks = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2), dtype=int)
-    peak_ct = 0
-
-    while 1:
-        # index juggling
-        k = np.argmax(image_temp)
-        j, i = np.unravel_index(k, shape)
-        if(image_temp[j, i] >= alpha*std):
-
-            # Saving the peak relative to the original image
-            peaks[peak_ct] = [j + size, i + size]
-
-            # this is the part that masks already-found peaks
-            x = np.arange(i - size, i + size + 1)
-            y = np.arange(j - size, j + size + 1)
-            xv, yv = np.meshgrid(x, y)
-#            # the clip handles cases where the peak is near the image edge
-            image_temp[yv.clip(0, shape[0] - 1), xv.clip(0, shape[1] - 1)] = 0
-
-            peak_ct += 1
-
-        else:
-            break
-
-    # Drop overlapping
-    peaks = drop_overlapping(peaks[:peak_ct], size)
-
-    # Sharpness
-    sharpness = np.zeros(peaks.shape[0])
-    mask = np.zeros((2*size + 1, 2*size + 1), dtype=bool)
-    mask[size, size] = True
-
-    for i in np.arange(len(peaks)):
-        p = tuple(peaks[i])
-        masked = np.ma.masked_array(peak(image, p, size), mask)
-        sharpness[i] = image[p] / (image_conv[p] * masked.mean())
-
-    return peaks, sharpness
+def xkernel(fwhm):
+    window = np.ceil(fwhm) + 3
+    x = np.arange(0, window)
+    matrix = gauss(x, x.mean(), fwhm)
+    matrix = matrix - matrix.sum() / matrix.size
+    return matrix
 
 
 def drop_overlapping(peaks, size):
@@ -105,6 +56,92 @@ def drop_overlapping(peaks, size):
             nov_peaks += 1
 
     return no_overlaps[:nov_peaks]
+
+
+class Peaks(object):
+
+    def find(self, image, kernel, xkernel, alpha=3, size=2):
+        """Peak finding routine.
+        Alpha is the amount of standard deviations used as a threshold of the
+        local maxima search. Size is the semiwidth of the fitting window.
+        """
+        shape = image.shape
+
+        # Noise removal by convolving with a null sum gaussian. Its FWHM
+        # matches the one of the objects we want to detect.
+        image_conv = convolve(image.astype(float), kernel)
+
+        # Image cropping to avoid border problems
+        image_temp = deepcopy(image_conv)
+        image_temp = image_temp[size:shape[0] - size, size:shape[1] - size]
+        image_mask = np.zeros(image.shape, dtype=bool)
+        shape = image_temp.shape
+
+        std = image_temp.std()
+        peaks = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2),
+                         dtype=int)
+        peak_ct = 0
+
+        while 1:
+            # index juggling
+            k = np.argmax(image_temp)
+            j, i = np.unravel_index(k, shape)
+            if(image_temp[j, i] >= alpha*std):
+
+                # Saving the peak relative to the original image
+                peaks[peak_ct] = [j + size, i + size]
+
+                # this is the part that masks already-found peaks
+                x = np.arange(i - size, i + size + 1)
+                y = np.arange(j - size, j + size + 1)
+                xv, yv = np.meshgrid(x, y)
+                # the clip handles cases where the peak is near the image edge
+                image_temp[yv.clip(0, shape[0] - 1),
+                           xv.clip(0, shape[1] - 1)] = 0
+                image_mask[yv.clip(0, shape[0] - 1),
+                           xv.clip(0, shape[1] - 1)] = True
+
+                peak_ct += 1
+
+            else:
+                break
+
+        self.backgrd_est = np.ma.masked_array(image, image_mask).mean()
+
+        # Drop overlapping
+        peaks = drop_overlapping(peaks[:peak_ct], size)
+
+        # Peak parameters
+        roundness = np.zeros(peaks.shape[0])
+        brightness = np.zeros(peaks.shape[0])
+
+        sharpness = np.zeros(peaks.shape[0])
+        mask = np.zeros((2*size + 1, 2*size + 1), dtype=bool)
+        mask[size, size] = True
+
+        for i in np.arange(len(peaks)):
+            p = tuple(peaks[i])
+
+            # Sharpness
+            masked = np.ma.masked_array(peak(image, p, size), mask)
+            sharpness[i] = image[p] / (image_conv[p] * masked.mean())
+
+            # Roundness
+            hx = np.dot(peak(image, p, size)[2, :], xkernel)
+            hy = np.dot(peak(image, p, size)[:, 2], xkernel)
+            roundness[i] = 2 * (hy - hx) / (hy + hx)
+
+            # Brightness
+            brightness[i] = -2.5 * np.log(image_conv[p] / alpha*std)
+
+        self.size = size
+        self.alpha = alpha
+
+        self.positions = peaks
+        self.sharpness = sharpness
+        self.roundness = roundness
+
+
 
 #plt.plot(peaks[:, 1], peaks[:, 0],'ro', markersize=10, alpha=0.5)
 
@@ -145,8 +182,11 @@ class Stack(object):
         self.frame = 0
         self.fwhm = fwhm(self.lambda_em, self.NA) / self.nm_per_px
         self.kernel = kernel(self.fwhm)
+        self.xkernel = xkernel(self.fwhm)
 
 
 if __name__ == "__main__":
 
     stack = Stack()
+    peaks = Peaks()
+    peaks.find(stack.image[10], stack.kernel, stack.xkernel)
