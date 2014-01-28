@@ -8,7 +8,6 @@ Created on Sun Dec 22 16:44:59 2013
 import numpy as np
 from scipy.ndimage.filters import convolve
 import h5py as hdf
-from copy import deepcopy
 
 from airygauss import fwhm
 
@@ -64,29 +63,36 @@ class Peaks(object):
         """Peak finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
+        Adapted from http://stackoverflow.com/questions/16842823/
+                            peak-detection-in-a-noisy-2d-array
+
+        Keep in mind the 'border issue': some peaks, if they are at a distance
+        equal to 'size' from the border of the image, won't be centered in
+        the maximum value.
         """
-        shape = image.shape
+        # Image cropping to avoid border problems
+        image_crop = image[size:-size, size:-size]
+        shape = image_crop.shape
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
-        # matches the one of the objects we want to detect.
-        image_conv = convolve(image.astype(float), kernel)
+        # has to match the one of the objects we want to detect.
+        image_conv = convolve(image_crop.astype(float), kernel)
 
-        # Image cropping to avoid border problems
-        image_temp = deepcopy(image_conv)
-        image_temp = image_temp[size:shape[0] - size, size:shape[1] - size]
-        image_mask = np.zeros(image.shape, dtype=bool)
-        shape = image_temp.shape
+#        image_temp = deepcopy(image_conv)
+        image_mask = np.zeros(shape, dtype=bool)
 
-        std = image_temp.std()
-        peaks = np.zeros((2*np.ceil(image.size / (2*size + 1)**2), 2),
+        std = image_conv.std()
+        peaks = np.zeros((np.ceil(image_crop.size / (2*size + 1)**2), 2),
                          dtype=int)
         peak_ct = 0
 
         while 1:
+
+            k = np.argmax(np.ma.masked_array(image_conv, image_mask))
+
             # index juggling
-            k = np.argmax(image_temp)
             j, i = np.unravel_index(k, shape)
-            if(image_temp[j, i] >= alpha*std):
+            if(image_conv[j, i] >= alpha*std):
 
                 # Saving the peak relative to the original image
                 peaks[peak_ct] = [j + size, i + size]
@@ -96,8 +102,6 @@ class Peaks(object):
                 y = np.arange(j - size, j + size + 1)
                 xv, yv = np.meshgrid(x, y)
                 # the clip handles cases where the peak is near the image edge
-                image_temp[yv.clip(0, shape[0] - 1),
-                           xv.clip(0, shape[1] - 1)] = 0
                 image_mask[yv.clip(0, shape[0] - 1),
                            xv.clip(0, shape[1] - 1)] = True
 
@@ -106,25 +110,28 @@ class Peaks(object):
             else:
                 break
 
-        self.backgrd_est = np.ma.masked_array(image, image_mask).mean()
+        self.backgrd_est = np.ma.masked_array(image_crop, image_mask).mean()
 
         # Drop overlapping
         peaks = drop_overlapping(peaks[:peak_ct], size)
+        self.positions = peaks
 
         # Peak parameters
-        roundness = np.zeros(peaks.shape[0])
-        brightness = np.zeros(peaks.shape[0])
+        roundness = np.zeros(len(peaks))
+        brightness = np.zeros(len(peaks))
 
-        sharpness = np.zeros(peaks.shape[0])
+        sharpness = np.zeros(len(peaks))
         mask = np.zeros((2*size + 1, 2*size + 1), dtype=bool)
         mask[size, size] = True
 
         for i in np.arange(len(peaks)):
+            # tuples make indexing easier (see below)
             p = tuple(peaks[i])
+            p_crop = tuple(peaks[i] - size)
 
             # Sharpness
             masked = np.ma.masked_array(peak(image, p, size), mask)
-            sharpness[i] = image[p] / (image_conv[p] * masked.mean())
+            sharpness[i] = image[p] / (image_conv[p_crop] * masked.mean())
 
             # Roundness
             hx = np.dot(peak(image, p, size)[2, :], xkernel)
@@ -132,26 +139,20 @@ class Peaks(object):
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
-            brightness[i] = -2.5 * np.log(image_conv[p] / alpha*std)
+            brightness[i] = 2.5 * np.log(image_conv[p_crop] / alpha*std)
 
         self.size = size
         self.alpha = alpha
 
-        self.positions = peaks
         self.sharpness = sharpness
         self.roundness = roundness
-
-
-
-#plt.plot(peaks[:, 1], peaks[:, 0],'ro', markersize=10, alpha=0.5)
+        self.brightness = brightness
 
 
 def peak(img, p, size):
     """Caller for the area around the peak."""
 
     return img[p[0] - size:p[0] + size + 1, p[1] - size:p[1] + size + 1]
-
-#def sharpness(img, c_img)
 
 
 class Stack(object):
@@ -187,6 +188,12 @@ class Stack(object):
 
 if __name__ == "__main__":
 
+#    import matplotlib.pyplot as plt
+
     stack = Stack()
     peaks = Peaks()
     peaks.find(stack.image[10], stack.kernel, stack.xkernel)
+#    plt.imshow(stack.image[10], interpolation='nearest')
+#    plt.colorbar()
+#    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
+#             'ro', markersize=10, alpha=0.5)
