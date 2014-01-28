@@ -65,10 +65,6 @@ class Peaks(object):
         local maxima search. Size is the semiwidth of the fitting window.
         Adapted from http://stackoverflow.com/questions/16842823/
                             peak-detection-in-a-noisy-2d-array
-
-        Keep in mind the 'border issue': some peaks, if they are at a distance
-        equal to 'size' from the border of the image, won't be centered in
-        the maximum value.
         """
         # Image cropping to avoid border problems
         image_crop = image[size:-size, size:-size]
@@ -94,8 +90,15 @@ class Peaks(object):
             j, i = np.unravel_index(k, shape)
             if(image_conv[j, i] >= alpha*std):
 
-                # Saving the peak relative to the original image
-                peaks[peak_ct] = [j + size, i + size]
+                p = tuple([j + size, i + size])
+
+                if np.max(peak(image, p, size)) == image[p]:
+                    # Keep in mind the 'border issue': some peaks, if they are
+                    # at a distance equal to 'size' from the border of the
+                    # image, won't be centered in the maximum value.
+
+                    # Saving the peak relative to the original image
+                    peaks[peak_ct] = p
 
                 # this is the part that masks already-found peaks
                 x = np.arange(i - size, i + size + 1)
@@ -188,12 +191,12 @@ class Stack(object):
 
 if __name__ == "__main__":
 
-#    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
 
     stack = Stack()
     peaks = Peaks()
     peaks.find(stack.image[10], stack.kernel, stack.xkernel)
-#    plt.imshow(stack.image[10], interpolation='nearest')
-#    plt.colorbar()
-#    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
-#             'ro', markersize=10, alpha=0.5)
+    plt.imshow(stack.image[10], interpolation='nearest')
+    plt.colorbar()
+    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
+             'ro', markersize=10, alpha=0.5)
