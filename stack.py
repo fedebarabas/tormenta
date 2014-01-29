@@ -67,19 +67,18 @@ class Peaks(object):
                             peak-detection-in-a-noisy-2d-array
         """
         # Image cropping to avoid border problems
-        image_crop = image[size:-size, size:-size]
-        shape = image_crop.shape
+#        image_crop = image[size:-size, size:-size]
+        shape = image.shape
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        image_conv = convolve(image_crop.astype(float), kernel)
+        image_conv = convolve(image.astype(float), kernel)
 
 #        image_temp = deepcopy(image_conv)
         image_mask = np.zeros(shape, dtype=bool)
 
         std = image_conv.std()
-        peaks = np.zeros((np.ceil(image_crop.size / (2*size + 1)**2), 2),
-                         dtype=int)
+        peaks = np.zeros((np.ceil(image.size / (2*size + 1)**2), 2), dtype=int)
         peak_ct = 0
 
         while 1:
@@ -90,15 +89,14 @@ class Peaks(object):
             j, i = np.unravel_index(k, shape)
             if(image_conv[j, i] >= alpha*std):
 
-                p = tuple([j + size, i + size])
+                p = tuple([j, i])
 
-                if np.max(peak(image, p, size)) == image[p]:
-                    # Keep in mind the 'border issue': some peaks, if they are
-                    # at a distance equal to 'size' from the border of the
-                    # image, won't be centered in the maximum value.
+                # Keep in mind the 'border issue': some peaks, if they are
+                # at a distance equal to 'size' from the border of the
+                # image, won't be centered in the maximum value.
 
-                    # Saving the peak relative to the original image
-                    peaks[peak_ct] = p
+                # Saving the peak relative to the original image
+                peaks[peak_ct] = p
 
                 # this is the part that masks already-found peaks
                 x = np.arange(i - size, i + size + 1)
@@ -113,7 +111,11 @@ class Peaks(object):
             else:
                 break
 
-        self.backgrd_est = np.ma.masked_array(image_crop, image_mask).mean()
+        self.backgrd_est = np.ma.masked_array(image, image_mask).mean()
+
+        peaks = peaks[:peak_ct]
+
+        ### TODO: filter out peaks too close to the border
 
         # Drop overlapping
         peaks = drop_overlapping(peaks[:peak_ct], size)
