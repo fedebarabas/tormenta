@@ -57,6 +57,13 @@ def drop_overlapping(peaks, size):
     return no_overlaps[:nov_peaks]
 
 
+def get_mode(array):
+
+    hist, bin_edges = np.histogram(array, bins=100)
+    hist_max = hist.argmax()
+    return (bin_edges[hist_max + 1] + bin_edges[hist_max]) / 2
+
+
 class Peaks(object):
 
     def find(self, image, kernel, xkernel, alpha=3, size=2):
@@ -111,7 +118,10 @@ class Peaks(object):
             else:
                 break
 
-        self.backgrd_est = np.ma.masked_array(image, image_mask).mean()
+        self.mask = image_mask
+
+        self.backgrd_mean = np.ma.masked_array(image, image_mask).mean()
+        self.backgrd_mode = get_mode(np.ma.masked_array(image, image_mask))
 
         peaks = peaks[:peak_ct]
 
@@ -198,11 +208,17 @@ class Stack(object):
 if __name__ == "__main__":
 
 #    import matplotlib.pyplot as plt
-
+#
     stack = Stack()
     peaks = Peaks()
     peaks.find(stack.image[10], stack.kernel, stack.xkernel)
-#    plt.imshow(stack.image[10], interpolation='nearest')
-#    plt.colorbar()
-#    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
-#             'ro', markersize=10, alpha=0.5)
+#    print(peaks.backgrd_mean)
+#    print(peaks.backgrd_mode)
+##    plt.plot(peaks.hist[1], peaks.hist[0])
+##    plt.bar(peaks.hist[1][:-1], peaks.hist[0], peaks.hist[0][1] - peaks.hist[0][0])
+##    plt.xlim(min(peaks.hist[0]), max(peaks.hist[0]))
+##    plt.imshow(stack.image[10], interpolation='nearest')
+##    plt.colorbar()
+##    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
+##             'ro', markersize=10, alpha=0.5)
+
