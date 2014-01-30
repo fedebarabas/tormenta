@@ -59,7 +59,7 @@ def drop_overlapping(peaks, size):
 
 def get_mode(array):
 
-    hist, bin_edges = np.histogram(array, bins=100)
+    hist, bin_edges = np.histogram(array, bins=array.max() - array.min())
     hist_max = hist.argmax()
     return (bin_edges[hist_max + 1] + bin_edges[hist_max]) / 2
 
@@ -118,9 +118,10 @@ class Peaks(object):
             else:
                 break
 
-        self.mask = image_mask
+#        # 1000 loops, best of 3: 215 µs per loop
+#        self.backgrd_mean = np.ma.masked_array(image, image_mask).mean()
 
-        self.backgrd_mean = np.ma.masked_array(image, image_mask).mean()
+        # 1000 loops, best of 3: 1.89 ms per loop
         self.backgrd_mode = get_mode(np.ma.masked_array(image, image_mask))
 
         peaks = peaks[:peak_ct]
@@ -207,13 +208,27 @@ class Stack(object):
 
 if __name__ == "__main__":
 
+#    import timeit
+#
+#    setup = '''
+#    from stack import get_mode
+#
+#
+#    '''
+
+#    print min(timeit.Timer('get_mode()', setup=setup).repeat(7, 1000))
+
+
+#    timeit.timeit("get_mode()", setup='from stack import get_mode')
+
+
 #    import matplotlib.pyplot as plt
 #
     stack = Stack()
     peaks = Peaks()
     peaks.find(stack.image[10], stack.kernel, stack.xkernel)
-#    print(peaks.backgrd_mean)
-#    print(peaks.backgrd_mode)
+    print(peaks.backgrd_mean)
+    print(peaks.backgrd_mode)
 ##    plt.plot(peaks.hist[1], peaks.hist[0])
 ##    plt.bar(peaks.hist[1][:-1], peaks.hist[0], peaks.hist[0][1] - peaks.hist[0][0])
 ##    plt.xlim(min(peaks.hist[0]), max(peaks.hist[0]))
