@@ -115,10 +115,15 @@ class Peaks(object):
 
         peaks = peaks[:peak_ct]
 
-        ### TODO: filter out peaks too close to the border
+        # Filter out values less than a distance 'size' from the edge
+        xcond = np.logical_and(peaks[:, 0] >= size,
+                               peaks[:, 0] < shape[0] - size)
+        ycond = np.logical_and(peaks[:, 1] >= size,
+                               peaks[:, 1] < shape[1] - size)
+        peaks = peaks[np.logical_and(xcond, ycond)]
 
         # Drop overlapping
-        peaks = drop_overlapping(peaks[:peak_ct], size)
+        peaks = drop_overlapping(peaks, size)
         self.positions = peaks
 
         # Peak parameters
@@ -132,11 +137,10 @@ class Peaks(object):
         for i in np.arange(len(peaks)):
             # tuples make indexing easier (see below)
             p = tuple(peaks[i])
-            p_crop = tuple(peaks[i] - size)
 
             # Sharpness
             masked = np.ma.masked_array(peak(image, p, size), mask)
-            sharpness[i] = image[p] / (image_conv[p_crop] * masked.mean())
+            sharpness[i] = image[p] / (image_conv[p] * masked.mean())
 
             # Roundness
             hx = np.dot(peak(image, p, size)[2, :], xkernel)
@@ -144,7 +148,7 @@ class Peaks(object):
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
-            brightness[i] = 2.5 * np.log(image_conv[p_crop] / alpha*std)
+            brightness[i] = 2.5 * np.log(image_conv[p] / alpha*std)
 
         self.size = size
         self.alpha = alpha
@@ -193,12 +197,12 @@ class Stack(object):
 
 if __name__ == "__main__":
 
-    import matplotlib.pyplot as plt
+#    import matplotlib.pyplot as plt
 
     stack = Stack()
     peaks = Peaks()
     peaks.find(stack.image[10], stack.kernel, stack.xkernel)
-    plt.imshow(stack.image[10], interpolation='nearest')
-    plt.colorbar()
-    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
-             'ro', markersize=10, alpha=0.5)
+#    plt.imshow(stack.image[10], interpolation='nearest')
+#    plt.colorbar()
+#    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
+#             'ro', markersize=10, alpha=0.5)
