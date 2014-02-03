@@ -66,7 +66,7 @@ def get_mode(array):
 
 class Peaks(object):
 
-    def find(self, image, kernel, xkernel, alpha=3, size=2):
+    def find(self, image, kernel, xkernel, alpha=3, size=1):
         """Peak finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
@@ -118,11 +118,13 @@ class Peaks(object):
             else:
                 break
 
-#        # 1000 loops, best of 3: 215 µs per loop
-#        self.backgrd_mean = np.ma.masked_array(image, image_mask).mean()
+        # Background estimation. Taking the mean counts of the molecule-free
+        # area is probably good enough and much faster than getting the mode
 
-        # 1000 loops, best of 3: 1.89 ms per loop
-        self.backgrd_mode = get_mode(np.ma.masked_array(image, image_mask))
+        # timeit: 1000 loops, best of 3: 215 µs per loop
+        self.backgrd_mean = np.ma.masked_array(image, image_mask).mean()
+        # timeit: 1000 loops, best of 3: 1.89 ms per loop
+#        self.backgrd_mode = get_mode(np.ma.masked_array(image, image_mask))
 
         peaks = peaks[:peak_ct]
 
@@ -206,34 +208,19 @@ class Stack(object):
         self.xkernel = xkernel(self.fwhm)
 
 
+### TODO: decide size 2 or 3
+### TODO: function to create PSF, study how many localizations are needed
+### TODO: fit
+
+
 if __name__ == "__main__":
 
-#    import timeit
-#
-#    setup = '''
-#    from stack import get_mode
-#
-#
-#    '''
+    import matplotlib.pyplot as plt
 
-#    print min(timeit.Timer('get_mode()', setup=setup).repeat(7, 1000))
-
-
-#    timeit.timeit("get_mode()", setup='from stack import get_mode')
-
-
-#    import matplotlib.pyplot as plt
-#
     stack = Stack()
     peaks = Peaks()
-    peaks.find(stack.image[10], stack.kernel, stack.xkernel)
-    print(peaks.backgrd_mean)
-    print(peaks.backgrd_mode)
-##    plt.plot(peaks.hist[1], peaks.hist[0])
-##    plt.bar(peaks.hist[1][:-1], peaks.hist[0], peaks.hist[0][1] - peaks.hist[0][0])
-##    plt.xlim(min(peaks.hist[0]), max(peaks.hist[0]))
-##    plt.imshow(stack.image[10], interpolation='nearest')
-##    plt.colorbar()
-##    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
-##             'ro', markersize=10, alpha=0.5)
-
+    peaks.find(stack.image[30], stack.kernel, stack.xkernel)
+    plt.imshow(stack.image[30], interpolation='nearest')
+    plt.colorbar()
+    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
+             'ro', markersize=10, alpha=0.5)
