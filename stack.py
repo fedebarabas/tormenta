@@ -66,7 +66,7 @@ def get_mode(array):
 
 class Peaks(object):
 
-    def find(self, image, kernel, xkernel, alpha=3, size=1):
+    def find(self, image, kernel, xkernel, alpha=3, size=2):
         """Peak finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
@@ -208,10 +208,7 @@ class Stack(object):
         self.xkernel = xkernel(self.fwhm)
 
 
-### TODO: decide size 2 or 3
-### TODO: function to create PSF, study how many localizations are needed
 ### TODO: fit
-
 
 if __name__ == "__main__":
 
@@ -219,8 +216,28 @@ if __name__ == "__main__":
 
     stack = Stack()
     peaks = Peaks()
-    peaks.find(stack.image[30], stack.kernel, stack.xkernel)
-    plt.imshow(stack.image[30], interpolation='nearest')
+    peaks.find(stack.image[10], stack.kernel, stack.xkernel)
+    plt.imshow(stack.image[10], interpolation='nearest')
     plt.colorbar()
     plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
              'ro', markersize=10, alpha=0.5)
+
+    image = stack.image[10]
+    pico = peak(image, peaks.positions[10], 2)
+
+    from math import erf
+
+    fwhm = 2
+    F = fwhm / (2 * np.sqrt(np.log(2)))
+
+    def logll(i, j, )
+
+    def erfi(x0, i, a, F):
+
+        return erf(((i + 1) * a - x0) / F) - erf((i * a - x0) / F)
+
+    def lambdag(i, j, x0, y0, A, F):
+
+        return A * F**2 * np.pi * erfi(x0, i, a, F) * erfi(y0, j, a, F) / 4
+
+
