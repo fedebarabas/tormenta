@@ -208,8 +208,6 @@ class Stack(object):
         self.xkernel = xkernel(self.fwhm)
 
 
-### TODO: fit
-
 if __name__ == "__main__":
 
     import matplotlib.pyplot as plt
@@ -225,19 +223,15 @@ if __name__ == "__main__":
     image = stack.image[10]
     pico = peak(image, peaks.positions[10], 2)
 
-    from math import erf
+    from scipy.special import erf
 
-    fwhm = 2
-    F = fwhm / (2 * np.sqrt(np.log(2)))
+    F = stack.fwhm / (2 * np.sqrt(np.log(2)))
 
-    def logll(i, j, )
+    def logll(pico, A, x0, y0, F):
 
-    def erfi(x0, i, a, F):
+        x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-        return erf(((i + 1) * a - x0) / F) - erf((i * a - x0) / F)
+        erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
+        erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
 
-    def lambdag(i, j, x0, y0, A, F):
-
-        return A * F**2 * np.pi * erfi(x0, i, a, F) * erfi(y0, j, a, F) / 4
-
-
+        return A * F**2 * np.pi * erfi[:, np.newaxis] * erfj / 4
