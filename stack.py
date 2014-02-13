@@ -224,14 +224,21 @@ if __name__ == "__main__":
     pico = peak(image, peaks.positions[10], 2)
 
     from scipy.special import erf
+    from scipy.ndimage.measurements import center_of_mass
 
+    # First guess of parameters
     F = stack.fwhm / (2 * np.sqrt(np.log(2)))
+    A = (pico[2, 2] - peaks.backgrd_mean) / 0.65
+    x0, y0 = center_of_mass(pico)
+    bkg = peaks.backgrd_mean
 
-    def logll(pico, A, x0, y0, F):
+    def logll(pico, A, x0, y0, bkg, F):
 
         x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
         erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
         erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
 
-        return A * F**2 * np.pi * erfi[:, np.newaxis] * erfj / 4
+        lambda_p = A * F**2 * np.pi * erfi[:, np.newaxis] * erfj / 4 + bkg
+
+        return np.sum(pico * np.log(lambda_p) - lambda_p)
