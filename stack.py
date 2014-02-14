@@ -6,7 +6,12 @@ Created on Sun Dec 22 16:44:59 2013
 """
 
 import numpy as np
+
 from scipy.ndimage.filters import convolve
+from scipy.special import erf
+from scipy.ndimage.measurements import center_of_mass
+from scipy.optimize import minimize
+
 import h5py as hdf
 
 from airygauss import fwhm
@@ -66,7 +71,12 @@ def get_mode(array):
 
 class Peaks(object):
 
-    def find(self, image, kernel, xkernel, alpha=3, size=2):
+    def __init__(self, image, fwhm):
+
+        self.image = image
+        self.fwhm = fwhm
+
+    def find(self, kernel, xkernel, alpha=3, size=2):
         """Peak finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
@@ -74,18 +84,18 @@ class Peaks(object):
                             peak-detection-in-a-noisy-2d-array
         """
         # Image cropping to avoid border problems
-#        image_crop = image[size:-size, size:-size]
-        shape = image.shape
+        shape = self.image.shape
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        image_conv = convolve(image.astype(float), kernel)
+        image_conv = convolve(self.image.astype(float), kernel)
 
 #        image_temp = deepcopy(image_conv)
         image_mask = np.zeros(shape, dtype=bool)
 
         std = image_conv.std()
-        peaks = np.zeros((np.ceil(image.size / (2*size + 1)**2), 2), dtype=int)
+        peaks = np.zeros((np.ceil(self.image.size / (2*size + 1)**2), 2),
+                         dtype=int)
         peak_ct = 0
 
         while 1:
@@ -122,9 +132,9 @@ class Peaks(object):
         # area is probably good enough and much faster than getting the mode
 
         # timeit: 1000 loops, best of 3: 215 µs per loop
-        self.backgrd_mean = np.ma.masked_array(image, image_mask).mean()
+        self.bkg = np.ma.masked_array(self.image, image_mask).mean()
         # timeit: 1000 loops, best of 3: 1.89 ms per loop
-#        self.backgrd_mode = get_mode(np.ma.masked_array(image, image_mask))
+#        self.bkg = get_mode(np.ma.masked_array(image, image_mask))
 
         peaks = peaks[:peak_ct]
 
@@ -152,12 +162,12 @@ class Peaks(object):
             p = tuple(peaks[i])
 
             # Sharpness
-            masked = np.ma.masked_array(peak(image, p, size), mask)
+            masked = np.ma.masked_array(peak(self.image, p, size), mask)
             sharpness[i] = image[p] / (image_conv[p] * masked.mean())
 
             # Roundness
-            hx = np.dot(peak(image, p, size)[2, :], xkernel)
-            hy = np.dot(peak(image, p, size)[:, 2], xkernel)
+            hx = np.dot(peak(self.image, p, size)[2, :], xkernel)
+            hy = np.dot(peak(self.image, p, size)[:, 2], xkernel)
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
@@ -170,11 +180,50 @@ class Peaks(object):
         self.roundness = roundness
         self.brightness = brightness
 
+    def fit(self, n_param=4):
+
+        self.results = np.zeros((len(self.positions), n_param))
+
+        for i in np.arange(len(self.positions)):
+
+            peak_arr = peak(self.image, self.positions[i], self.size)
+            res = fit_peak(peak_arr, self.fwhm, self.bkg)
+            self.results[i] = res.x
+
+            ### TODO: CHANGE TO IMAGE COORDINATES
+
 
 def peak(img, p, size):
     """Caller for the area around the peak."""
 
     return img[p[0] - size:p[0] + size + 1, p[1] - size:p[1] + size + 1]
+
+
+def logll(params, *args):
+
+    A, x0, y0, bkg = params
+    pico, F = args
+
+    x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
+
+    erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
+    erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
+
+    lambda_p = A * F**2 * np.pi * erfi[:, np.newaxis] * erfj / 4 + bkg
+
+    return - np.sum(pico * np.log(lambda_p) - lambda_p)
+
+
+def fit_peak(peak, fwhm, bkg=np.min(peak)):
+
+    # First guess of parameters
+    F = fwhm / (2 * np.sqrt(np.log(2)))
+    A = (peak[np.floor(peak.shape[0]/2),
+              np.floor(peak.shape[1]/2)] - bkg) / 0.65
+    x0, y0 = center_of_mass(peak)
+
+    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F),
+                    method='Powell')
 
 
 class Stack(object):
@@ -213,32 +262,15 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     stack = Stack()
-    peaks = Peaks()
-    peaks.find(stack.image[10], stack.kernel, stack.xkernel)
-    plt.imshow(stack.image[10], interpolation='nearest')
+    peaks = Peaks(stack.image[10], stack.fwhm)
+    peaks.find(stack.kernel, stack.xkernel)
+    plt.imshow(peaks.image, interpolation='nearest')
     plt.colorbar()
     plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
              'ro', markersize=10, alpha=0.5)
 
-    image = stack.image[10]
-    pico = peak(image, peaks.positions[10], 2)
+#    image = stack.image[10]
+#    pico = peak(image, peaks.positions[10], 2)
 
-    from scipy.special import erf
-    from scipy.ndimage.measurements import center_of_mass
-
-    # First guess of parameters
-    F = stack.fwhm / (2 * np.sqrt(np.log(2)))
-    A = (pico[2, 2] - peaks.backgrd_mean) / 0.65
-    x0, y0 = center_of_mass(pico)
-    bkg = peaks.backgrd_mean
-
-    def logll(pico, A, x0, y0, bkg, F):
-
-        x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
-
-        erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
-        erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
-
-        lambda_p = A * F**2 * np.pi * erfi[:, np.newaxis] * erfj / 4 + bkg
-
-        return np.sum(pico * np.log(lambda_p) - lambda_p)
+    peaks.fit()
+    print(peaks.results)
