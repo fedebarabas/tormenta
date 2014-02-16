@@ -17,6 +17,14 @@ import h5py as hdf
 from airygauss import fwhm
 
 
+# data-type definitions
+parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
+                 ('background', float)]
+parameters = [('frame', int), ('photons', float), ('sharpness', float),
+              ('roundness', float), ('brightness', float)]
+dtype_2d = np.dtype(parameters + parameters_2d)
+
+
 def gauss(x, center, fwhm):
     return np.exp(- 4 * np.log(2) * (x - center)**2 / fwhm**2)
 
@@ -175,10 +183,10 @@ def fit_peak(peak, fwhm, bkg):
               np.floor(peak.shape[1]/2)] - bkg) / 0.65
     x0, y0 = center_of_mass(peak)
 
-    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F),
-                    method='Newton-CG', jac=ll_jac, hess=ll_hess)
 #    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F),
-#                    method='Powell')
+#                    method='Newton-CG', jac=ll_jac, hess=ll_hess)
+    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F),
+                    method='Powell')
 
 class Peaks(object):
 
@@ -274,12 +282,12 @@ class Peaks(object):
             p = tuple(peaks[i])
 
             # Sharpness
-            masked = np.ma.masked_array(self.get_peak(p), mask)
+            masked = np.ma.masked_array(self.get_peak(i), mask)
             sharpness[i] = self.image[p] / (image_conv[p] * masked.mean())
 
             # Roundness
-            hx = np.dot(self.get_peak(p)[2, :], xkernel)
-            hy = np.dot(self.get_peak(p)[:, 2], xkernel)
+            hx = np.dot(self.get_peak(i)[2, :], xkernel)
+            hy = np.dot(self.get_peak(i)[:, 2], xkernel)
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
@@ -295,26 +303,36 @@ class Peaks(object):
     def get_peak(self, peak):
         """Caller for the area around the peak."""
 
-        return self.image[peak[0] - self.size:peak[0] + self.size + 1,
-                          peak[1] - self.size:peak[1] + self.size + 1]
+        coord = self.positions[peak]
 
-    def fit(self, n_param=4):
+        return self.image[coord[0] - self.size:coord[0] + self.size + 1,
+                          coord[1] - self.size:coord[1] + self.size + 1]
 
-        self.results = np.zeros((len(self.positions), n_param + 3))
+    def fit(self, fit_model='2d'):
+
+        if fit_model is '2d':
+            n_param = 4
+            fit_par = [x[0] for x in parameters_2d]
+            self.results = np.zeros(len(self.positions), dtype=dtype_2d)
+
+        # frame | fit_parameters | photons | sharpness | roundness | brightness
 
         for i in np.arange(len(self.positions)):
 
-            peak_arr = self.get_peak(self.positions[i])
+            # Fit and store fitting results
+            peak_arr = self.get_peak(i)
             res = fit_peak(peak_arr, self.fwhm, self.bkg)
-            self.results[i, 0:n_param] = res.x
+            res.x[1:3] = (res.x[1:3] - self.size - 0.5 + self.positions[i])
+            for p in np.arange(len(fit_par)):
+                self.results[fit_par[p]][i] = res.x[p]
 
-            # Change fit results to image coordinates
-            self.results[i, 1:3] = (self.results[i, 1:3] - self.size - 0.5
-                                    + self.positions[i])
+            # photons from molecule calculation
+            self.results['photons'][i] = (sum(peak_arr)
+                                          - peak_arr.size * res.x[n_param - 1])
 
-        self.results[:, n_param] = self.sharpness
-        self.results[:, n_param + 1] = self.roundness
-        self.results[:, n_param + 2] = self.brightness
+        self.results['sharpness'] = self.sharpness
+        self.results['roundness'] = self.roundness
+        self.results['brightness'] = self.brightness
 
 ### TODO: Constrains for the fit A>0
 
@@ -351,28 +369,43 @@ class Stack(object):
         self.kernel = kernel(self.fwhm)
         self.xkernel = xkernel(self.fwhm)
 
-    def find_molecules(self, init=0, end=None, n_param=4):
+    def find_molecules(self, init=0, end=None, fit_model='2d'):
 
         if end is None:
             end = self.nframes
 
         # I create a big array, I'll keep the non-null part at the end
+        # frame | peaks.results
         nframes = end - init
-        results = np.zeros((nframes * np.prod(self.size) /
-                           (self.win_size + 1), n_param + 3))
+
+        if fit_model is '2d':
+            results = np.zeros(nframes*np.prod(self.size)/(self.win_size + 1),
+                               dtype=dtype_2d)
+
+        mol_per_frame = np.recarray(nframes,
+                                    dtype=[('frame', int), ('molecules', int)])
         index = 0
 
         for frame in np.arange(init, end):
 
+            # fit all molecules in each frame
             peaks = Peaks(stack.image[frame], stack.fwhm)
             peaks.find(stack.kernel, stack.xkernel)
-            peaks.fit(n_param)
+            peaks.fit(fit_model)
 
+            # save frame number and fit results
             results[index:index + len(peaks.results)] = peaks.results
+            results['frame'][index:index + len(peaks.results)] = frame
+
+            # save number of molecules per frame
+            mol_per_frame['frame'][frame - init] = frame
+            mol_per_frame['molecules'][frame - init] = len(peaks.results)
+
             index = index + len(peaks.results)
 
             print(100 * (frame - init) / nframes, '% done')
 
+        # final results table
         self.molecules = results[0:index]
 
 if __name__ == "__main__":
@@ -388,9 +421,9 @@ if __name__ == "__main__":
 #             'ro', markersize=10, alpha=0.5)
 #
 ##    image = stack.image[10]
-##    pico = peak(image, peaks.positions[10], 2)
+#    pico = peak(image, peaks.positions[10], 2)
 #
 #    peaks.fit()
 #    print(peaks.results)
 
-#    stack.find_molecules(end=100)
+    stack.find_molecules(end=2)
