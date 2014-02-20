@@ -10,14 +10,16 @@ import numpy as np
 import h5py as hdf
 
 from airygauss import fwhm
-from peaks import Peaks
+import maxima
+from tools import does_overlap
 
 # data-type definitions
 parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
                  ('background', float)]
-parameters = [('frame', int), ('photons', float), ('sharpness', float),
-              ('roundness', float), ('brightness', float)]
-dtype_2d = np.dtype(parameters + parameters_2d)
+parameters = [('frame', int), ('maxima', np.int, (2,)), ('photons', float),
+              ('sharpness', float), ('roundness', float),
+              ('brightness', float)]
+dt_2d = np.dtype(parameters + parameters_2d)
 
 
 def gauss(x, center, fwhm):
@@ -40,13 +42,6 @@ def xkernel(fwhm):
     matrix = gauss(x, x.mean(), fwhm)
     matrix = matrix - matrix.sum() / matrix.size
     return matrix
-
-
-def get_mode(array):
-
-    hist, bin_edges = np.histogram(array, bins=array.max() - array.min())
-    hist_max = hist.argmax()
-    return (bin_edges[hist_max + 1] + bin_edges[hist_max]) / 2
 
 
 class Stack(object):
@@ -81,65 +76,97 @@ class Stack(object):
         self.kernel = kernel(self.fwhm)
         self.xkernel = xkernel(self.fwhm)
 
-    def find_molecules(self, init=0, end=None, fit_model='2d'):
+    def localize_molecules(self, init=0, end=None, fit_model='2d'):
 
         if end is None:
             end = self.nframes
 
         # I create a big array, I'll keep the non-null part at the end
         # frame | peaks.results
-        nframes = end - init
+        self.frames = np.arange(init, end + 1)
 
         if fit_model is '2d':
-            results = np.zeros(nframes*np.prod(self.size)/(self.win_size + 1),
-                               dtype=dtype_2d)
+            self.dt = dt_2d
 
-        mol_per_frame = np.recarray(nframes,
-                                    dtype=[('frame', int), ('molecules', int)])
+        results = np.zeros(len(self.frames)*np.prod(self.size)
+                           / (self.win_size + 1), dtype=self.dt)
+
+        mol_per_frame = np.zeros(len(self.frames),
+                                 dtype=[('frame', int), ('molecules', int)])
         index = 0
 
-        for frame in np.arange(init, end):
+        for frame in self.frames:
 
             # fit all molecules in each frame
-            peaks = Peaks(stack.image[frame], stack.fwhm)
-            peaks.find(stack.kernel, stack.xkernel)
-            peaks.fit(fit_model)
+            maxi = maxima.Maxima(stack.image[frame], stack.fwhm)
+            maxi.find(stack.kernel, stack.xkernel)
+            maxi.fit(fit_model)
 
             # save frame number and fit results
-            results[index:index + len(peaks.results)] = peaks.results
-            results['frame'][index:index + len(peaks.results)] = frame
+            results[index:index + len(maxi.results)] = maxi.results
+            results['frame'][index:index + len(maxi.results)] = frame
 
             # save number of molecules per frame
             mol_per_frame['frame'][frame - init] = frame
-            mol_per_frame['molecules'][frame - init] = len(peaks.results)
+            mol_per_frame['molecules'][frame - init] = len(maxi.results)
 
-            index = index + len(peaks.results)
+            index = index + len(maxi.results)
 
-            print(100 * (frame - init) / nframes, '% done')
+            print(100 * (frame - init) / len(self.frames), '% done')
 
         # final results table
         self.molecules = results[0:index]
 
-    def filter_results(self, join=True):
+    def filter_results(self, trail=True):
 
-        self.molecules
+        ### TODO: filter by parameters
+
+        if trail:
+
+            # Find trails: local maxima in the same pixel in consecutive frames
+            sorted_m = np.sort(self.molecules, order=['maxima', 'frame'])
+
+            i = 1
+            cuts = []
+            while i < len(sorted_m):
+
+                try:
+
+                    while does_overlap(sorted_m['maxima'][i - 1],
+                                       sorted_m['maxima'][i], 2):
+                        i = i + 1
+
+                    cuts.append(i)
+                    i = i + 1
+
+                except:
+                    pass
+
+#            sorted_m = np.array_split(sorted_m, cuts)
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
 
 #    import matplotlib.pyplot as plt
 
     stack = Stack()
-#    peaks = Peaks(stack.image[10], stack.fwhm)
-#    peaks.find(stack.kernel, stack.xkernel)
-#    plt.imshow(peaks.image, interpolation='nearest')
+#    maxima = Peaks(stack.image[10], stack.fwhm)
+#    maxima.find(stack.kernel, stack.xkernel)
+#    plt.imshow(maxima.image, interpolation='nearest')
 #    plt.colorbar()
-#    plt.plot(peaks.positions[:, 1], peaks.positions[:, 0],
+#    plt.plot(maxima.positions[:, 1], maxima.positions[:, 0],
 #             'ro', markersize=10, alpha=0.5)
 #
 ##    image = stack.image[10]
-#    pico = peaks.get_peak(10)
+#    pico = maxima.get_peak(10)
 #
-#    peaks.fit()
-#    print(peaks.results)
+#    maxima.fit()
+#    print(maxima.results)
 
-    stack.find_molecules(init=10, end=20)
+    stack.localize_molecules(init=10, end=20)

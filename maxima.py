@@ -13,37 +13,43 @@ from scipy.ndimage.filters import convolve
 from scipy.ndimage.measurements import center_of_mass
 
 from stack import Stack
+from tools import does_not_overlap
 
 
 # data-type definitions
 parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
                  ('background', float)]
-parameters = [('frame', int), ('photons', float), ('sharpness', float),
-              ('roundness', float), ('brightness', float)]
-dtype_2d = np.dtype(parameters + parameters_2d)
+parameters = [('frame', int), ('maxima', np.int, (2,)), ('photons', float),
+              ('sharpness', float), ('roundness', float),
+              ('brightness', float)]
+dt_2d = np.dtype(parameters + parameters_2d)
 
 
-def drop_overlapping(peaks, size):
-    """We exclude from the analysis all the peaks that have their fitting
-    windows overlapped. The size parameter is the number of pixels from the
-    local maxima to the edge of this window.
+def get_mode(array):
+
+    hist, bin_edges = np.histogram(array, bins=array.max() - array.min())
+    hist_max = hist.argmax()
+    return (bin_edges[hist_max + 1] + bin_edges[hist_max]) / 2
+
+
+def drop_overlapping(maxima, min_distance):
+    """We exclude from the analysis all the maxima that have their fitting
+    windows overlapped, i.e., the distance between them is less than
+    'min_distance'
     """
 
-    no_overlaps = np.zeros(peaks.shape, dtype=int)
+    no_overlaps = np.zeros(maxima.shape, dtype=int)
 
-    def does_not_overlap(p1, p2):
-        return max(abs(p1[1] - p2[1]), abs(p1[0] - p2[0])) > 2*size
+    nov_maxima = 0
+    for i in np.arange(len(maxima)):
 
-    nov_peaks = 0
-    for i in np.arange(len(peaks)):
+        if all(map(lambda x: does_not_overlap(maxima[i], x, min_distance),
+                   np.delete(maxima, i, 0))):
 
-        if all(map(lambda x: does_not_overlap(peaks[i], x),
-                   np.delete(peaks, i, 0))):
+            no_overlaps[nov_maxima] = maxima[i]
+            nov_maxima += 1
 
-            no_overlaps[nov_peaks] = peaks[i]
-            nov_peaks += 1
-
-    return no_overlaps[:nov_peaks]
+    return no_overlaps[:nov_maxima]
 
 
 def logll(params, *args):
@@ -146,22 +152,23 @@ def ll_hess(params, *args):
     return hess
 
 
-def fit_peak(peak, fwhm, bkg):
+def fit_area(area, fwhm, bkg):
 
     # First guess of parameters
     F = fwhm / (2 * np.sqrt(np.log(2)))
-    A = (peak[np.floor(peak.shape[0]/2),
-              np.floor(peak.shape[1]/2)] - bkg) / 0.65
-    x0, y0 = center_of_mass(peak)
+    A = (area[np.floor(area.shape[0]/2),
+              np.floor(area.shape[1]/2)] - bkg) / 0.65
+    x0, y0 = center_of_mass(area)
 
 #    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F), jac=False,
 #                    method='Newton-CG')
-    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F),
+    return minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
                     method='Powell')
 
 ### TODO: get error of each parameter from the fit (see Powell?)
 
-class Peaks(object):
+
+class Maxima(object):
 
     def __init__(self, image, fwhm):
 
@@ -170,7 +177,7 @@ class Peaks(object):
         self.size = np.ceil(self.fwhm)
 
     def find(self, kernel, xkernel, alpha=3, size=2):
-        """Peak finding routine.
+        """Local maxima finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
         Adapted from http://stackoverflow.com/questions/16842823/
@@ -187,8 +194,8 @@ class Peaks(object):
         image_mask = np.zeros(shape, dtype=bool)
 
         std = image_conv.std()
-        peaks = np.zeros((np.ceil(self.image.size / (2*size + 1)**2), 2),
-                         dtype=int)
+        maxima = np.zeros((np.ceil(self.image.size / (2*size + 1)**2), 2),
+                          dtype=int)
         peak_ct = 0
 
         while 1:
@@ -201,14 +208,14 @@ class Peaks(object):
 
                 p = tuple([j, i])
 
-                # Keep in mind the 'border issue': some peaks, if they are
+                # Keep in mind the 'border issue': some maxima, if they are
                 # at a distance equal to 'size' from the border of the
                 # image, won't be centered in the maximum value.
 
                 # Saving the peak relative to the original image
-                peaks[peak_ct] = p
+                maxima[peak_ct] = p
 
-                # this is the part that masks already-found peaks
+                # this is the part that masks already-found maxima
                 x = np.arange(i - size, i + size + 1)
                 y = np.arange(j - size, j + size + 1)
                 xv, yv = np.meshgrid(x, y)
@@ -229,38 +236,38 @@ class Peaks(object):
         # timeit: 1000 loops, best of 3: 1.89 ms per loop
 #        self.bkg = get_mode(np.ma.masked_array(image, image_mask))
 
-        peaks = peaks[:peak_ct]
+        maxima = maxima[:peak_ct]
 
         # Filter out values less than a distance 'size' from the edge
-        xcond = np.logical_and(peaks[:, 0] >= size,
-                               peaks[:, 0] < shape[0] - size)
-        ycond = np.logical_and(peaks[:, 1] >= size,
-                               peaks[:, 1] < shape[1] - size)
-        peaks = peaks[np.logical_and(xcond, ycond)]
+        xcond = np.logical_and(maxima[:, 0] >= size,
+                               maxima[:, 0] < shape[0] - size)
+        ycond = np.logical_and(maxima[:, 1] >= size,
+                               maxima[:, 1] < shape[1] - size)
+        maxima = maxima[np.logical_and(xcond, ycond)]
 
         # Drop overlapping
-        peaks = drop_overlapping(peaks, size)
-        self.positions = peaks
+        maxima = drop_overlapping(maxima, 2 * size)
+        self.positions = maxima
 
         # Peak parameters
-        roundness = np.zeros(len(peaks))
-        brightness = np.zeros(len(peaks))
+        roundness = np.zeros(len(maxima))
+        brightness = np.zeros(len(maxima))
 
-        sharpness = np.zeros(len(peaks))
+        sharpness = np.zeros(len(maxima))
         mask = np.zeros((2*size + 1, 2*size + 1), dtype=bool)
         mask[size, size] = True
 
-        for i in np.arange(len(peaks)):
+        for i in np.arange(len(maxima)):
             # tuples make indexing easier (see below)
-            p = tuple(peaks[i])
+            p = tuple(maxima[i])
 
             # Sharpness
-            masked = np.ma.masked_array(self.get_peak(i), mask)
+            masked = np.ma.masked_array(self.get_area(i), mask)
             sharpness[i] = self.image[p] / (image_conv[p] * masked.mean())
 
             # Roundness
-            hx = np.dot(self.get_peak(i)[2, :], xkernel)
-            hy = np.dot(self.get_peak(i)[:, 2], xkernel)
+            hx = np.dot(self.get_area(i)[2, :], xkernel)
+            hy = np.dot(self.get_area(i)[:, 2], xkernel)
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
@@ -273,10 +280,10 @@ class Peaks(object):
         self.roundness = roundness
         self.brightness = brightness
 
-    def get_peak(self, peak):
-        """Caller for the area around the peak."""
+    def get_area(self, n_max):
+        """Caller for the area around the local maxima number n_max."""
 
-        coord = self.positions[peak]
+        coord = self.positions[n_max]
 
         return self.image[coord[0] - self.size:coord[0] + self.size + 1,
                           coord[1] - self.size:coord[1] + self.size + 1]
@@ -285,23 +292,22 @@ class Peaks(object):
 
         if fit_model is '2d':
             fit_par = [x[0] for x in parameters_2d]
-            self.results = np.zeros(len(self.positions), dtype=dtype_2d)
-
-        # frame | fit_parameters | photons | sharpness | roundness | brightness
+            self.results = np.zeros(len(self.positions), dtype=dt_2d)
 
         for i in np.arange(len(self.positions)):
 
             # Fit and store fitting results
-            peak_arr = self.get_peak(i)
-            res = fit_peak(peak_arr, self.fwhm, self.bkg)
+            area = self.get_area(i)
+            res = fit_area(area, self.fwhm, self.bkg)
             res.x[1:3] = (res.x[1:3] - self.size - 0.5 + self.positions[i])
             for p in np.arange(len(fit_par)):
                 self.results[fit_par[p]][i] = res.x[p]
 
             # photons from molecule calculation
-            self.results['photons'][i] = (np.sum(peak_arr)
-                                          - peak_arr.size * res.x[-1])
+            self.results['photons'][i] = (np.sum(area)
+                                          - area.size * res.x[-1])
 
+        self.results['maxima'] = self.positions
         self.results['sharpness'] = self.sharpness
         self.results['roundness'] = self.roundness
         self.results['brightness'] = self.brightness
@@ -310,4 +316,4 @@ class Peaks(object):
 if __name__ == "__main__":
 
     stack = Stack()
-    peaks = Peaks(stack.image[10], stack.fwhm)
+    maxima = Maxima(stack.image[10], stack.fwhm)
