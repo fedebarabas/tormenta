@@ -12,19 +12,39 @@ import numpy as np
 from lantz.drivers.andor.ccd import CCD
 
 app = QtGui.QApplication([])
+#import pyqtgraph.ptime as ptime
+#data = np.random.normal(size=(15, 600, 600), loc=1024, scale=64).astype(np.uint16)
+#i = 0
+#updateTime = ptime.time()
+#fps = 0
+
 
 def updateview():
+    global img, andor
 
+    img.setImage(andor.most_recent_image(andor.detector_shape))
+    print(andor.most_recent_image(andor.detector_shape))
+    QtCore.QTimer.singleShot(100, updateview)
 
-#def liveview():
+#    global updateTime, fps, i
 
+#    img.setImage(data[i])
+#    i = (i+1) % data.shape[0]
+#
+#    QtCore.QTimer.singleShot(1, updateview)
+#    now = ptime.time()
+#    fps2 = 1.0 / (now-updateTime)
+#    updateTime = now
+#    fps = fps * 0.9 + fps2 * 0.1
 
 
 if __name__ == '__main__':
 
+    from lantz import Q_
+    s = Q_(1, 's')
+    import time
+
     with CCD() as andor:
-
-
 
         win = QtGui.QWidget()
         win.setWindowTitle('Tormenta')
@@ -48,4 +68,21 @@ if __name__ == '__main__':
         win.show()
 
         print(andor.idn)
+        andor.readout_mode = 'Image'
+        andor.set_image()
+#        andor.acquisition_mode = 'Single Scan'
+        andor.acquisition_mode = 'Run till abort'
+        andor.set_exposure_time(0.03 * s)
+        andor.trigger_mode = 'Internal'
+        andor.amp_typ = 0
+        andor.horiz_shift_speed = 0
+        andor.vert_shift_speed = 0
+
+        andor.start_acquisition()
+
+        updateview()
+        time.sleep(60)
+        andor.abort_acquisition()
+
+
         app.exec_()
