@@ -22,8 +22,8 @@ fps = None
 def updateview():
     global fpsbox, img, andor, lastTime, fps
 
-    img.setImage(andor.most_recent_image(andor.detector_shape),
-                 autoHistogramRange=False)
+    img.setImage(andor.most_recent_image16(andor.detector_shape),
+                 autoLevels=False)
 #    QtCore.QTimer.singleShot(1, updateview)
     now = ptime.time()
     dt = now - lastTime
@@ -36,25 +36,63 @@ def updateview():
     fpsbox.setText('%0.2f fps' % fps)
 
 
-def record(n, shape):
-    global andor
+def liveview():
+    """ Image live view when not recording
+    """
+    global andor, img, viewtimer
+
+    if andor.status != 'Camera is idle, waiting for instructions.':
+        andor.abort_acquisition()
+
+    andor.acquisition_mode = 'Run till abort'
+    andor.free_int_mem()
+
+    andor.start_acquisition()
+    time.sleep(2)
+    idata = andor.most_recent_image16(andor.detector_shape)
+    img.setImage(idata)
+    hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
+
+    viewtimer.start(0)
+
+
+def record(n):
+    """ Record an n-frames acquisition
+    """
+    global andor, ishape, viewtimer, img
+
+    # Info storage
+    stack = np.zeros((n, ishape[0], ishape[1]))
+
+    # Stop the QTimer that updates the image with incoming data from the
+    # 'Run till abort' acquisition mode.
+    viewtimer.stop()
 
     # Acquisition preparation
     if andor.status != 'Camera is idle, waiting for instructions.':
         andor.abort_acquisition()
 
-    stack = np.zeros((n, shape[0], shape[1]))
-
     andor.free_int_mem()
+    andor.acquisition_mode = 'Kinetics'
+    andor.set_n_kinetics(n)
     andor.start_acquisition()
+
+    print('started')
 
     j = 0
     while j < n:
         if andor.n_images_acquired > j:
             i, j = andor.new_images_index
-            stack[i - 1:j] = andor.images(i, j, shape, 1, n)
+            stack[i - 1:j] = andor.images16(i, j, ishape, 1, n)
+#            img.setImage(stack[j - 1], autoLevels=False)
+            print(j)
 
     return stack
+
+    print('finished')
+
+    liveview()
+
 
 if __name__ == '__main__':
 
@@ -65,46 +103,20 @@ if __name__ == '__main__':
 
         print(andor.idn)
 
-        # Camera configuration
-        andor.readout_mode = 'Image'
+        # Not-default configuration
         ishape = andor.detector_shape
-        andor.set_image()
-#        andor.acquisition_mode = 'Run till abort'
-        andor.acquisition_mode = 'Kinetics'
-        andor.set_exposure_time(0.2 * s)
-        andor.set_n_kinetics(30)
+        origin = (1, 1)
+        andor.set_exposure_time(0.02 * s)
+
+        # Default camera configuration
+        andor.readout_mode = 'Image'
+        andor.set_image(shape=ishape, p_0=origin)
         andor.trigger_mode = 'Internal'
         andor.amp_typ = 0
         andor.horiz_shift_speed = 0
         andor.vert_shift_speed = 0
-#        andor.shutter(0, 0, 0, 0, 0)
+#        andor.shutter(0, 5, 0, 0, 0)   # Uncomment when using for real
 
-        andor.free_int_mem()
-
-        win = QtGui.QWidget()
-        win.setWindowTitle('Tormenta')
-
-        # Widgets
-        rec = QtGui.QPushButton('REC')
-
-#        img = pg.ImageView()
-        imagewidget = pg.GraphicsLayoutWidget()
-        view = imagewidget.addViewBox()
-        view.setAspectLocked(True)
-        img = pg.ImageItem(border='w')
-        view.addItem(img)
-        view.setRange(QtCore.QRectF(0, 0, ishape[0], ishape[1]))
-
-        fpsbox = QtGui.QLabel()
-
-        # Widget's layout
-        layout = QtGui.QGridLayout()
-        win.setLayout(layout)
-        layout.addWidget(rec, 2, 0)
-        layout.addWidget(imagewidget, 1, 2, 3, 1)
-        layout.addWidget(fpsbox, 0, 2)
-
-        win.show()
 
 #        # Temperature stabilization
 #        andor.temperature_setpoint = -30 * degC
@@ -116,15 +128,64 @@ if __name__ == '__main__':
 #            time.sleep(30)
 #        print('Temperature has stabilized at set point')
 
+        #
+        # GUI design
+        #
+
+        # TODO: redefine axis ticks
+
+        # Main window
+        win = QtGui.QWidget()
+        win.setWindowTitle('Tormenta')
+
+        # Widgets
+        rec = QtGui.QPushButton('REC')
+        fpsbox = QtGui.QLabel()
+
+        # Image Widget
+        imagewidget = pg.GraphicsLayoutWidget()
+        p1 = imagewidget.addPlot()
+        p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
+        p1.getViewBox().setLimits(xMin=-0.5, xMax=ishape[0] - 0.5,
+                                  yMin=-0.5, yMax=ishape[1] - 0.5)
+        img = pg.ImageItem()
+        img.translate(-0.5, -0.5)
+        p1.addItem(img)
+        p1.setAspectLocked(True)
+        p1.setRange(xRange=(-0.5, ishape[0] - 0.5),
+                    yRange=(-0.5, ishape[1] - 0.5), padding=0)
+        hist = pg.HistogramLUTItem()
+        hist.setImageItem(img)
+        hist.autoHistogramRange = False
+        imagewidget.addItem(hist)
+
+        # Widgets' layout
+        layout = QtGui.QGridLayout()
+        win.setLayout(layout)
+        layout.addWidget(rec, 2, 0)
+        layout.addWidget(imagewidget, 1, 2, 3, 1)
+        layout.addWidget(fpsbox, 0, 2)
+
+        win.show()
+
+        viewtimer = QtCore.QTimer()
+        viewtimer.timeout.connect(updateview)
+
+        rec.pressed.connect(lambda: record(30))
+
+        liveview()
+
         # Acquisition
-#        andor.shutter(0, 5, 0, 0, 0)
 #        andor.start_acquisition()
-#        viewtimer = QtCore.QTimer()
-#        viewtimer.timeout.connect(updateview)
+#        time.sleep(2)
+#        idata = andor.most_recent_image16(andor.detector_shape)
+#        img.setImage(idata)
+#        hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
+#
 #        viewtimer.start(0)
 
-        print('buffer size', andor.buffer_size)
-        stack = record(30, ishape)
+#        print('buffer size', andor.buffer_size)
+#        stack = record(30, ishape)
 
         app.exec_()
-#        viewtimer.stop()
+        viewtimer.stop()
