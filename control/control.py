@@ -20,11 +20,10 @@ fps = None
 
 
 def updateview():
-    global fpsbox, img, andor, lastTime, fps
+    global fpsbox, img, andor, lastTime, fps, image
 
     img.setImage(andor.most_recent_image16(andor.detector_shape),
                  autoLevels=False)
-#    QtCore.QTimer.singleShot(1, updateview)
     now = ptime.time()
     dt = now - lastTime
     lastTime = now
@@ -39,7 +38,7 @@ def updateview():
 def liveview():
     """ Image live view when not recording
     """
-    global andor, img, viewtimer
+    global andor, img, viewtimer, t_exp
 
     if andor.status != 'Camera is idle, waiting for instructions.':
         andor.abort_acquisition()
@@ -48,25 +47,43 @@ def liveview():
     andor.free_int_mem()
 
     andor.start_acquisition()
-    time.sleep(2)
+    time.sleep(5 * t_exp.magnitude)
     idata = andor.most_recent_image16(andor.detector_shape)
+
+    # Initial image and histogram
     img.setImage(idata)
     hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
 
     viewtimer.start(0)
 
 
+def UpdateWhileRec():
+    global stack, andor, img, n, ishape, lastTime, fps, fpsbox
+
+    j = 0
+    while j < n:
+        if andor.n_images_acquired > j:
+            i, j = andor.new_images_index
+            stack[i - 1:j] = andor.images16(i, j, ishape, 1, n)
+            img.setImage(stack[j - 1], autoLevels=False)
+
+            now = ptime.time()
+            dt = now - lastTime
+            lastTime = now
+            if fps is None:
+                fps = 1.0/dt
+            else:
+                s = np.clip(dt*3., 0, 1)
+                fps = fps * (1-s) + (1.0/dt) * s
+            fpsbox.setText('%0.2f fps' % fps)
+
+    liveview()
+
+
 def record(n):
     """ Record an n-frames acquisition
     """
-    global andor, ishape, viewtimer, img
-
-    # Info storage
-    stack = np.zeros((n, ishape[0], ishape[1]))
-
-    # Stop the QTimer that updates the image with incoming data from the
-    # 'Run till abort' acquisition mode.
-    viewtimer.stop()
+    global andor, ishape, viewtimer, img, stack, rectimer, t_exp
 
     # Acquisition preparation
     if andor.status != 'Camera is idle, waiting for instructions.':
@@ -76,22 +93,13 @@ def record(n):
     andor.acquisition_mode = 'Kinetics'
     andor.set_n_kinetics(n)
     andor.start_acquisition()
+    time.sleep(5 * t_exp.magnitude)
 
-    print('started')
+    # Stop the QTimer that updates the image with incoming data from the
+    # 'Run till abort' acquisition mode.
+    viewtimer.stop()
+    QtCore.QTimer.singleShot(1, UpdateWhileRec)
 
-    j = 0
-    while j < n:
-        if andor.n_images_acquired > j:
-            i, j = andor.new_images_index
-            stack[i - 1:j] = andor.images16(i, j, ishape, 1, n)
-#            img.setImage(stack[j - 1], autoLevels=False)
-            print(j)
-
-    return stack
-
-    print('finished')
-
-    liveview()
 
 
 if __name__ == '__main__':
@@ -104,9 +112,10 @@ if __name__ == '__main__':
         print(andor.idn)
 
         # Not-default configuration
+        t_exp = 0.02 * s
         ishape = andor.detector_shape
         origin = (1, 1)
-        andor.set_exposure_time(0.02 * s)
+        andor.set_exposure_time(t_exp)
 
         # Default camera configuration
         andor.readout_mode = 'Image'
@@ -171,18 +180,13 @@ if __name__ == '__main__':
         viewtimer = QtCore.QTimer()
         viewtimer.timeout.connect(updateview)
 
-        rec.pressed.connect(lambda: record(30))
+        # Record routine
+        n = 100
+        newimage = np.zeros(ishape)
+        stack = np.zeros((n, ishape[0], ishape[1]))
+        rec.pressed.connect(lambda: record(n))
 
         liveview()
-
-        # Acquisition
-#        andor.start_acquisition()
-#        time.sleep(2)
-#        idata = andor.most_recent_image16(andor.detector_shape)
-#        img.setImage(idata)
-#        hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
-#
-#        viewtimer.start(0)
 
 #        print('buffer size', andor.buffer_size)
 #        stack = record(30, ishape)
