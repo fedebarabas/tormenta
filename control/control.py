@@ -58,26 +58,28 @@ def liveview():
 
 
 def UpdateWhileRec():
-    global stack, andor, img, n, ishape, lastTime, fps, fpsbox
+    global stack, andor, img, n, j, ishape, lastTime, fps, fpsbox
 
-    j = 0
-    while j < n:
-        if andor.n_images_acquired > j:
-            i, j = andor.new_images_index
-            stack[i - 1:j] = andor.images16(i, j, ishape, 1, n)
-            img.setImage(stack[j - 1], autoLevels=False)
+    if andor.n_images_acquired > j:
+        i, j = andor.new_images_index
+        stack[i - 1:j] = andor.images16(i, j, ishape, 1, n)
+        img.setImage(stack[j - 1], autoLevels=False)
 
-            now = ptime.time()
-            dt = now - lastTime
-            lastTime = now
-            if fps is None:
-                fps = 1.0/dt
-            else:
-                s = np.clip(dt*3., 0, 1)
-                fps = fps * (1-s) + (1.0/dt) * s
-            fpsbox.setText('%0.2f fps' % fps)
+        now = ptime.time()
+        dt = now - lastTime
+        lastTime = now
+        if fps is None:
+            fps = 1.0/dt
+        else:
+            s = np.clip(dt*3., 0, 1)
+            fps = fps * (1-s) + (1.0/dt) * s
+        fpsbox.setText('%0.2f fps' % fps)
 
-    liveview()
+    if j < n:
+        QtCore.QTimer.singleShot(0, UpdateWhileRec)
+    else:
+        j = 0
+        liveview()
 
 
 def record(n):
@@ -99,7 +101,6 @@ def record(n):
     # 'Run till abort' acquisition mode.
     viewtimer.stop()
     QtCore.QTimer.singleShot(1, UpdateWhileRec)
-
 
 
 if __name__ == '__main__':
@@ -186,6 +187,7 @@ if __name__ == '__main__':
         stack = np.zeros((n, ishape[0], ishape[1]))
         rec.pressed.connect(lambda: record(n))
 
+        j = 0
         liveview()
 
 #        print('buffer size', andor.buffer_size)
