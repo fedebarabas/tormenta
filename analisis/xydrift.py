@@ -1,10 +1,7 @@
-#import library.imagecorrelation as imagecorrelation
 import numpy as np
 import matplotlib.pyplot as plt
-from pylab import *
 from scipy.signal import fftconvolve
 import scipy.optimize as opt
-from scipy.ndimage.measurements import center_of_mass as cm
 
 #with open("d1.raw", 'rb') as d1:
 #    with open("d2.raw", 'rb') as d2:
@@ -24,11 +21,78 @@ from scipy.ndimage.measurements import center_of_mass as cm
 
 # Generic gaussian definition taken from
 # http://en.wikipedia.org/wiki/Gaussian_function
-def generic_gaussian((x, y), amp, a, b, c, x0, y0):
-    gauss = amp * np.exp(- (a * (x - x0)**2 +
-                            2 * b * (x - x0) * (y - y0) +
-                            c * (y - y0)**2))
-    return gauss.ravel()
+def generic_gaussian(xy, amp, x0, y0, sx, sy, theta):
+
+    x, y = xy    
+    
+    x0 = float(x0)
+    y0 = float(y0)
+
+    a = np.cos(theta)**2 / (2 * sx**2) + np.sin(theta)**2 / (2 * sy**2)
+    b = - np.sin(2 * theta) / (4 * sx**2) + np.sin(2 * theta) / (4 * sy**2)
+    c = np.sin(theta)**2 / (2*sx**2) + np.cos(theta)**2 / (2 * sy**2)
+
+    g = amp * np.exp(- (a * (x - x0)**2 +
+                        2 * b * (x - x0) * (y - y0) +
+                        c * (y - y0)**2))
+    return g.ravel()
+
+
+def raw_moment(data, iord, jord):
+    nrows, ncols = data.shape
+    y, x = np.mgrid[:nrows, :ncols]
+    data = data * x**iord * y**jord
+    return data.sum()
+
+
+def parameters(data):
+
+    data_sum = data.sum()
+    m10 = raw_moment(data, 1, 0)
+    m01 = raw_moment(data, 0, 1)
+    x0 = m10 / data_sum
+    y0 = m01 / data_sum
+    u11 = (raw_moment(data, 1, 1) - x0 * m01) / data_sum
+    sx = (raw_moment(data, 2, 0) - x0 * m10) / data_sum
+    sy = (raw_moment(data, 0, 2) - y0 * m01) / data_sum
+    theta = 0.5 * np.arctan(2 * u11 / (sx - sy))
+
+    return np.array([x0, y0, sx, sy, theta])
+
+
+def drift(data1, data2):
+
+    # Correlation calculation and cropping
+    correlation = fftconvolve(data1, data2[::-1, ::-1], mode="same")
+    imax = np.unravel_index(correlation.argmax(), correlation.shape)
+    crop_l = 10
+    crop_corr = correlation[imax[0] - crop_l:imax[0] + crop_l,
+                            imax[1] - crop_l:imax[1] + crop_l]
+    crop_corr -= correlation.mean()
+
+    # Fitting
+    x = np.arange(2 * crop_l)
+    y = np.arange(2 * crop_l)
+    x, y = np.meshgrid(x, y)
+    guess = np.concatenate(([crop_corr.max()], parameters(crop_corr)))
+    popt, pcov = opt.curve_fit(generic_gaussian, (x, y),
+                               crop_corr.ravel(), p0=guess)
+
+    # Plots
+    #data_fitted = generic_gaussian((x, y), *popt)
+    #fig, ax = plt.subplots(1, 1)
+    #ax.hold(True)
+    #ax.imshow(crop_corr, cmap=plt.cm.jet, origin='bottom',
+    #          extent=(x.min(), x.max(), y.min(), y.max()),
+    #          interpolation='None')
+    #ax.contour(x, y, data_fitted.reshape(2 * crop_l, 2 * crop_l), 8,
+    #           colors='w')
+
+    # Drift calculation
+    init = np.array(data1.shape) / 2
+    drift = [imax[0] - 10 + popt[1], imax[1] - 10 + popt[2]] - init
+
+    return drift
 
 
 from PIL import Image
@@ -42,26 +106,5 @@ data2 = Image.open(folder + file2)
 data1 = np.asarray(data1)
 data2 = np.asarray(data2)
 
-correlation = fftconvolve(data1, data2[::-1, ::-1], mode="same")
-imax = unravel_index(correlation.argmax(), correlation.shape)
-crop_l = 10
+print(drift(data1, data2))
 
-crop_corr = correlation[imax[0] - crop_l:imax[0] + crop_l,
-                        imax[1] - crop_l:imax[1] + crop_l]
-crop_corr -= correlation.mean()
-
-x = np.arange(2 * crop_l)
-y = np.arange(2 * crop_l)
-x, y = np.meshgrid(x, y)
-
-guess = (crop_corr.max(), 1, 1, 1) + cm(crop_corr)
-popt, pcov = opt.curve_fit(generic_gaussian, (x, y),
-                           crop_corr.ravel(), p0=guess)
-
-data_fitted = generic_gaussian((x, y), *popt)
-
-fig, ax = plt.subplots(1, 1)
-ax.hold(True)
-ax.imshow(crop_corr, cmap=plt.cm.jet, origin='bottom',
-          extent=(x.min(), x.max(), y.min(), y.max()), interpolation='None')
-ax.contour(x, y, data_fitted.reshape(2 * crop_l, 2 * crop_l), 8, colors='w')
