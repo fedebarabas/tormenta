@@ -92,19 +92,40 @@ def drift(data1, data2):
     init = np.array(data1.shape) / 2
     drift = [imax[0] - 10 + popt[1], imax[1] - 10 + popt[2]] - init
 
-    return drift
+    return drift[0], drift[1]
 
+def drift_track(data):
+
+    n = len(data)
+    dx, dy = np.zeros(n), np.zeros(n)
+    for i in np.arange(1, n):
+        dx[i], dy[i] = drift(data[i], data[i - 1])
+        
+    x, y = np.cumsum(dx), np.cumsum(dy)
+
+    return x, y
 
 from PIL import Image
 
-# Data loading
-folder = r'/home/federico/data/CM1/2014-06-17 - pngs drift/'
-file1 = '02b1t30fr100px40.png'
-file2 = '02b2t30fr100px40.png'
-data1 = Image.open(folder + file1)
-data2 = Image.open(folder + file2)
-data1 = np.asarray(data1)
-data2 = np.asarray(data2)
+## Data loading
+#folder = r'/home/federico/data/CM1/2014-06-17 - pngs drift/'
+#file1 = '02b1t30fr100px40.png'
+#file2 = '02b2t30fr100px40.png'
+#data1 = Image.open(folder + file1)
+#data2 = Image.open(folder + file2)
+#data1 = np.asarray(data1)
+#data2 = np.asarray(data2)
+#
+#print(drift(data1, data2))
 
-print(drift(data1, data2))
+import os
+
+os.chdir(r'/home/federico/codigo/python/tormenta/analisis/')
+from get_i3_results import get_i3_results
+
+folder = r'/home/federico/data/CM1/FedeFuentes/02/'
+xl, yl = get_i3_results(r'/home/federico/data/CM1/FedeFuentes/02/002sat30fra200.bin')
+H, xedges, yedges = np.histogram2d(yl, xl,
+                                   bins=np.ceil(np.array([253, 239]) * 133/20))
+
 
