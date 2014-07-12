@@ -28,6 +28,24 @@ def SetCameraDefaults(camera):
 #    self.camera.shutter(0, 5, 0, 0, 0)   # Uncomment when using for real
 
 
+class TemperatureStabilizer(QtCore.QObject):
+
+    def __init__(self, camera, *args, **kwargs):
+        super(QtCore.QObject, self).__init__(*args, **kwargs)
+        self.camera = camera
+
+    def start(self):
+        self.camera.temperature_setpoint = -30
+        self.camera.cooler_on = True
+        stable = 'Temperature has stabilized at set point.'
+        print('Temperature set point =', self.camera.temperature_setpoint)
+        while self.camera.temperature_status != stable:
+            print("Current temperature:",
+                  np.round(self.camera.temperature, 1))
+            time.sleep(30)
+        print('Temperature has stabilized at set point')
+
+
 class TormentaGUI(QtGui.QMainWindow):
 
     def __init__(self, *args, **kwargs):
@@ -50,10 +68,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.cwidget = QtGui.QWidget()
         self.setCentralWidget(self.cwidget)
 
-        # Widgets
-        rec = QtGui.QPushButton('REC')
-        self.fpsbox = QtGui.QLabel()
-
         # Image Widget
         # TODO: redefine axis ticks
         imagewidget = pg.GraphicsLayoutWidget()
@@ -72,10 +86,18 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist.autoHistogramRange = False
         imagewidget.addItem(self.hist)
 
+        # Widgets
+        rec = QtGui.QPushButton('REC')
+        StabButton = QtGui.QPushButton('Stabilize Temperature')
+        LVButton = QtGui.QPushButton('LiveView')
+        self.fpsbox = QtGui.QLabel()
+
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
-        layout.addWidget(rec, 2, 0)
+        layout.addWidget(rec, 1, 0)
+        layout.addWidget(StabButton, 2, 0)
+        layout.addWidget(LVButton, 3, 0)
         layout.addWidget(imagewidget, 1, 2, 3, 1)
         layout.addWidget(self.fpsbox, 0, 2)
 
@@ -85,6 +107,15 @@ class TormentaGUI(QtGui.QMainWindow):
         self.j = 0      # Image counter for recordings
         self.n = 100    # Number of expositions in recording
         rec.pressed.connect(self.record)
+
+        LVButton.pressed.connect(self.liveview)
+
+        self.Stabilizer = TemperatureStabilizer(self.camera)
+        self.StabilizerThread = QtCore.QThread()
+        self.Stabilizer.moveToThread(self.StabilizerThread)
+        StabButton.clicked.connect(self.StabilizerThread.start)
+        self.StabilizerThread.started.connect(self.Stabilizer.start)
+
 
     def show(self, *args, **kwargs):
         super(QtGui.QMainWindow, self).show(*args, **kwargs)
@@ -100,7 +131,7 @@ class TormentaGUI(QtGui.QMainWindow):
 #            time.sleep(30)
 #        print('Temperature has stabilized at set point')
 
-        self.liveview()
+#        self.liveview()
 
     def closeEvent(self, *args, **kwargs):
         super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
