@@ -13,58 +13,125 @@ import time
 
 from lantz.drivers.andor.ccd import CCD
 
-app = QtGui.QApplication([])
-
 lastTime = ptime.time()
 fps = None
 
-
-def updateview():
-    global fpsbox, img, andor, lastTime, fps, image
-
-    img.setImage(andor.most_recent_image16(andor.detector_shape),
-                 autoLevels=False)
-    now = ptime.time()
-    dt = now - lastTime
-    lastTime = now
-    if fps is None:
-        fps = 1.0/dt
-    else:
-        s = np.clip(dt*3., 0, 1)
-        fps = fps * (1-s) + (1.0/dt) * s
-    fpsbox.setText('%0.2f fps' % fps)
+app = QtGui.QApplication([])
 
 
-def liveview():
-    """ Image live view when not recording
-    """
-    global andor, img, viewtimer, t_exp
-
-    if andor.status != 'Camera is idle, waiting for instructions.':
-        andor.abort_acquisition()
-
-    andor.acquisition_mode = 'Run till abort'
-    andor.free_int_mem()
-
-    andor.start_acquisition()
-    time.sleep(5 * t_exp.magnitude)
-    idata = andor.most_recent_image16(andor.detector_shape)
-
-    # Initial image and histogram
-    img.setImage(idata)
-    hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
-
-    viewtimer.start(0)
+def SetCameraDefaults(camera):
+    camera.readout_mode = 'Image'
+    camera.trigger_mode = 'Internal'
+    camera.amp_typ = 0
+    camera.horiz_shift_speed = 0
+    camera.vert_shift_speed = 0
+#    self.camera.shutter(0, 5, 0, 0, 0)   # Uncomment when using for real
 
 
-def UpdateWhileRec():
-    global stack, andor, img, n, j, ishape, lastTime, fps, fpsbox
+class TormentaGUI(QtGui.QMainWindow):
 
-    if andor.n_images_acquired > j:
-        i, j = andor.new_images_index
-        stack[i - 1:j] = andor.images16(i, j, ishape, 1, n)
-        img.setImage(stack[j - 1], autoLevels=False)
+    def __init__(self, *args, **kwargs):
+        global andor
 
+        super(QtGui.QMainWindow, self).__init__(*args, **kwargs)
+
+        self.camera = andor
+        print(self.camera.idn)
+
+        # Camera configuration
+        SetCameraDefaults(self.camera)
+        self.t_exp = 0.02 * s       # Exposition time
+        self.ishape = self.camera.detector_shape
+        self.iorigin = (1, 1)
+        self.camera.set_exposure_time(self.t_exp)
+        self.camera.set_image(shape=self.ishape, p_0=self.iorigin)
+
+        self.setWindowTitle('Tormenta')
+        self.cwidget = QtGui.QWidget()
+        self.setCentralWidget(self.cwidget)
+
+        # Widgets
+        rec = QtGui.QPushButton('REC')
+        self.fpsbox = QtGui.QLabel()
+
+        # Image Widget
+        # TODO: redefine axis ticks
+        imagewidget = pg.GraphicsLayoutWidget()
+        p1 = imagewidget.addPlot()
+        p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
+        p1.getViewBox().setLimits(xMin=-0.5, xMax=self.ishape[0] - 0.5,
+                                  yMin=-0.5, yMax=self.ishape[1] - 0.5)
+        self.img = pg.ImageItem()
+        self.img.translate(-0.5, -0.5)
+        p1.addItem(self.img)
+        p1.setAspectLocked(True)
+        p1.setRange(xRange=(-0.5, self.ishape[0] - 0.5),
+                    yRange=(-0.5, self.ishape[1] - 0.5), padding=0)
+        self.hist = pg.HistogramLUTItem()
+        self.hist.setImageItem(self.img)
+        self.hist.autoHistogramRange = False
+        imagewidget.addItem(self.hist)
+
+        # Widgets' layout
+        layout = QtGui.QGridLayout()
+        self.cwidget.setLayout(layout)
+        layout.addWidget(rec, 2, 0)
+        layout.addWidget(imagewidget, 1, 2, 3, 1)
+        layout.addWidget(self.fpsbox, 0, 2)
+
+        self.viewtimer = QtCore.QTimer()
+        self.viewtimer.timeout.connect(self.updateview)
+
+        self.j = 0      # Image counter for recordings
+        self.n = 100    # Number of expositions in recording
+        rec.pressed.connect(self.record)
+
+    def show(self, *args, **kwargs):
+        super(QtGui.QMainWindow, self).show(*args, **kwargs)
+
+#        # Temperature stabilization
+#        self.camera.temperature_setpoint = -30
+#        self.camera.cooler_on = True
+#        stable = 'Temperature has stabilized at set point.'
+#        print('Temperature set point =', self.camera.temperature_setpoint)
+#        while self.camera.temperature_status != stable:
+#            print("Current temperature:",
+#                  np.round(self.camera.temperature, 1))
+#            time.sleep(30)
+#        print('Temperature has stabilized at set point')
+
+        self.liveview()
+
+    def closeEvent(self, *args, **kwargs):
+        super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
+        self.viewtimer.stop()
+        self.camera
+
+    def liveview(self):
+        """ Image live view when not recording
+        """
+
+        if self.camera.status != 'Camera is idle, waiting for instructions.':
+            self.camera.abort_acquisition()
+
+        self.camera.acquisition_mode = 'Run till abort'
+        self.camera.free_int_mem()
+
+        self.camera.start_acquisition()
+        time.sleep(5 * self.t_exp.magnitude)
+        idata = self.camera.most_recent_image16(self.camera.detector_shape)
+
+        # Initial image and histogram
+        self.img.setImage(idata)
+        self.hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
+
+        self.viewtimer.start(0)
+
+    # Image update while in liveview mode
+    def updateview(self):
+        global lastTime, fps
+        image = self.camera.most_recent_image16(self.camera.detector_shape)
+        self.img.setImage(image, autoLevels=False)
         now = ptime.time()
         dt = now - lastTime
         lastTime = now
@@ -73,35 +140,51 @@ def UpdateWhileRec():
         else:
             s = np.clip(dt*3., 0, 1)
             fps = fps * (1-s) + (1.0/dt) * s
-        fpsbox.setText('%0.2f fps' % fps)
+        self.fpsbox.setText('%0.2f fps' % fps)
 
-    if j < n:
-        QtCore.QTimer.singleShot(0, UpdateWhileRec)
-    else:
-        j = 0
-        liveview()
+    def record(self):
+        self.stack = np.zeros((self.n, self.ishape[0], self.ishape[1]))
 
+        # Acquisition preparation
+        if self.camera.status != 'Camera is idle, waiting for instructions.':
+            self.camera.abort_acquisition()
 
-def record(n):
-    """ Record an n-frames acquisition
-    """
-    global andor, ishape, viewtimer, img, stack, rectimer, t_exp
+        self.camera.free_int_mem()
+        self.camera.acquisition_mode = 'Kinetics'
+        self.camera.set_n_kinetics(self.n)
+        self.camera.start_acquisition()
+        time.sleep(5 * self.t_exp.magnitude)
 
-    # Acquisition preparation
-    if andor.status != 'Camera is idle, waiting for instructions.':
-        andor.abort_acquisition()
+        # Stop the QTimer that updates the image with incoming data from the
+        # 'Run till abort' acquisition mode.
+        self.viewtimer.stop()
+        QtCore.QTimer.singleShot(1, self.UpdateWhileRec)
 
-    andor.free_int_mem()
-    andor.acquisition_mode = 'Kinetics'
-    andor.set_n_kinetics(n)
-    andor.start_acquisition()
-    time.sleep(5 * t_exp.magnitude)
+    def UpdateWhileRec(self):
+        global lastTime, fps
 
-    # Stop the QTimer that updates the image with incoming data from the
-    # 'Run till abort' acquisition mode.
-    viewtimer.stop()
-    QtCore.QTimer.singleShot(1, UpdateWhileRec)
+        if self.camera.n_images_acquired > self.j:
+            i, self.j = self.camera.new_images_index
+            self.stack[i - 1:self.j] = self.camera.images16(i, self.j,
+                                                            self.ishape, 1,
+                                                            self.n)
+            self.img.setImage(self.stack[self.j - 1], autoLevels=False)
 
+            now = ptime.time()
+            dt = now - lastTime
+            lastTime = now
+            if fps is None:
+                fps = 1.0/dt
+            else:
+                s = np.clip(dt*3., 0, 1)
+                fps = fps * (1-s) + (1.0/dt) * s
+            self.fpsbox.setText('%0.2f fps' % fps)
+
+        if self.j < self.n:
+            QtCore.QTimer.singleShot(0, self.UpdateWhileRec)
+        else:
+            self.j = 0
+            self.liveview()
 
 if __name__ == '__main__':
 
@@ -110,88 +193,7 @@ if __name__ == '__main__':
 
     with CCD() as andor:
 
-        print(andor.idn)
-
-        # Not-default configuration
-        t_exp = 0.02 * s
-        ishape = andor.detector_shape
-        origin = (1, 1)
-        andor.set_exposure_time(t_exp)
-
-        # Default camera configuration
-        andor.readout_mode = 'Image'
-        andor.set_image(shape=ishape, p_0=origin)
-        andor.trigger_mode = 'Internal'
-        andor.amp_typ = 0
-        andor.horiz_shift_speed = 0
-        andor.vert_shift_speed = 0
-#        andor.shutter(0, 5, 0, 0, 0)   # Uncomment when using for real
-
-
-#        # Temperature stabilization
-#        andor.temperature_setpoint = -30 * degC
-#        andor.cooler_on = True
-#        stable = 'Temperature has stabilized at set point.'
-#        print('Temperature set point =', andor.temperature_setpoint)
-#        while andor.temperature_status != stable:
-#            print("Current temperature:", np.round(andor.temperature, 1))
-#            time.sleep(30)
-#        print('Temperature has stabilized at set point')
-
-        #
-        # GUI design
-        #
-
-        # TODO: redefine axis ticks
-
-        # Main window
-        win = QtGui.QWidget()
-        win.setWindowTitle('Tormenta')
-
-        # Widgets
-        rec = QtGui.QPushButton('REC')
-        fpsbox = QtGui.QLabel()
-
-        # Image Widget
-        imagewidget = pg.GraphicsLayoutWidget()
-        p1 = imagewidget.addPlot()
-        p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
-        p1.getViewBox().setLimits(xMin=-0.5, xMax=ishape[0] - 0.5,
-                                  yMin=-0.5, yMax=ishape[1] - 0.5)
-        img = pg.ImageItem()
-        img.translate(-0.5, -0.5)
-        p1.addItem(img)
-        p1.setAspectLocked(True)
-        p1.setRange(xRange=(-0.5, ishape[0] - 0.5),
-                    yRange=(-0.5, ishape[1] - 0.5), padding=0)
-        hist = pg.HistogramLUTItem()
-        hist.setImageItem(img)
-        hist.autoHistogramRange = False
-        imagewidget.addItem(hist)
-
-        # Widgets' layout
-        layout = QtGui.QGridLayout()
-        win.setLayout(layout)
-        layout.addWidget(rec, 2, 0)
-        layout.addWidget(imagewidget, 1, 2, 3, 1)
-        layout.addWidget(fpsbox, 0, 2)
-
+        win = TormentaGUI()
         win.show()
 
-        viewtimer = QtCore.QTimer()
-        viewtimer.timeout.connect(updateview)
-
-        # Record routine
-        n = 100
-        newimage = np.zeros(ishape)
-        stack = np.zeros((n, ishape[0], ishape[1]))
-        rec.pressed.connect(lambda: record(n))
-
-        j = 0
-        liveview()
-
-#        print('buffer size', andor.buffer_size)
-#        stack = record(30, ishape)
-
         app.exec_()
-        viewtimer.stop()
