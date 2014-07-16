@@ -192,9 +192,8 @@ import os
 from get_i3_results import get_i3_results
 
 #folder = r'/home/federico/data/CM1/FedeFuentes/02/'
-folder = r'/home/federico/Desktop/FedeFuentes/03/'
-results = ['03aat35fr200.bin', '03bb1t35fr200.bin', '03bb2at35fr200.bin',
-           '03bb2b1t35fr200.bin', '03bb2b2t35fr200.bin']
+folder = r'/home/federico/Desktop/FedeFuentes/04/'
+results = ['04a.bin', '04bok.bin', '04b1.bin', '04b2.bin']
 paths = [folder + r for r in results]
 
 scale = 133/40
