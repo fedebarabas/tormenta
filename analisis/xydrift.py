@@ -2,6 +2,8 @@ import numpy as np
 from scipy.signal import fftconvolve
 from scipy.ndimage import center_of_mass
 import scipy.optimize as opt
+from scipy.ndimage.interpolation import shift
+
 
 # with open("d1.raw", 'rb') as d1:
 #    with open("d2.raw", 'rb') as d2:
@@ -100,7 +102,7 @@ def fit_LS(function, data, params):
     return p
 
 
-def drift(data1, data2, i):
+def drift(data1, data2, show=False):
 
     data1 = data1 - np.median(data1)
     data2 = data2 - np.median(data2)
@@ -128,7 +130,7 @@ def drift(data1, data2, i):
                 imax[1] - crop_l + params_cm[1]] - init
 
     # Plots
-    if i == 1:
+    if show:
         fit = generic_gaussian(*params_gen)
         fig, ax = plt.subplots(1, 1)
         ax.hold(True)
@@ -136,25 +138,19 @@ def drift(data1, data2, i):
                               interpolation='None')
         fig.colorbar(corr_plot)
         ax.contour(fit(*np.indices(crop_corr.shape)), cmap=plt.cm.copper)
-        print()
         print(drift_gen)
 
-    return (drift_gen[0], drift_gen[1],
-            drift_sim[0], drift_sim[1],
-            drift_cm[0], drift_cm[1])
+    return drift_gen[0], drift_gen[1]
 
 
 def drift_track(data):
 
     n = len(data)
     x_gen, y_gen = np.zeros(n), np.zeros(n)
-    x_sim, y_sim = np.zeros(n), np.zeros(n)
-    x_cm, y_cm = np.zeros(n), np.zeros(n)
     for i in np.arange(1, n):
-        (x_gen[i], y_gen[i],
-         x_sim[i], y_sim[i], x_cm[i], y_cm[i]) = drift(data[0], data[i], i)
+        x_gen[i], y_gen[i] = drift(data[0], data[i], i)
 
-    return x_gen, y_gen, x_sim, y_sim, x_cm, y_cm
+    return x_gen, y_gen
 
 
 import matplotlib.pyplot as plt
@@ -172,27 +168,39 @@ import matplotlib.pyplot as plt
 
 
 def make_histo(path, nbins):
+    global pixels
     xl, yl = get_i3_results(path)
-    H, xedges, yedges = np.histogram2d(yl, xl, bins=nbins, normed=True)
+    H = np.histogram2d(xl, yl, bins=nbins, range=[[0, 253], [0, 239]])[0]
     return H
 
 
 def chunker(seq, size):
     return np.array([seq[pos:pos + size] for pos in range(0, len(seq), size)])
 
+def xycorrect(images):
+
+    tracks = drift_track(images)
+    corrected = images[0]
+
+    for i in np.arange(1, len(images)):
+        corrected += shift(images[i], (tracks[0][i], tracks[1][i]))
+
+    return corrected
 
 import os
-os.chdir(r'/home/federico/codigo/python/tormenta/analisis/')
+#os.chdir(r'/home/federico/codigo/python/tormenta/analisis/')
 from get_i3_results import get_i3_results
 
-folder = r'/home/federico/data/CM1/FedeFuentes/02/'
-results = ['002sat30fra200.bin', '002sb1t30fra100.bin', '002sb2t30fra100.bin',
-           '002sb3t30fra100.bin']
+#folder = r'/home/federico/data/CM1/FedeFuentes/02/'
+folder = r'/home/federico/Desktop/FedeFuentes/03/'
+results = ['03aat35fr200.bin', '03bb1t35fr200.bin', '03bb2at35fr200.bin',
+           '03bb2b1t35fr200.bin', '03bb2b2t35fr200.bin']
 paths = [folder + r for r in results]
 
 scale = 133/40
-
-nbins = np.ceil(np.array([253, 239]) * scale)
+pixels = [253, 239]
+nbins = np.round(np.array(pixels) * scale)
+scale = nbins[0] /pixels[0]
 # histos = np.array([make_histo(p, nbins) for p in paths])
 
 xl, yl = get_i3_results(paths[0])
@@ -202,14 +210,14 @@ for p in np.arange(1, len(paths)):
 
 n_locs = len(xl)
 xl, yl = chunker(xl, 100000), chunker(yl, 100000)
-histos = np.array([np.histogram2d(y, x, bins=nbins)[0]
+histos = np.array([np.histogram2d(x, y, bins=nbins,
+                                  range=[[0, 253], [0, 239]])[0]
                   for x, y in zip(xl, yl)])
 
 tracks = drift_track(histos)
 xt, yt = tracks[0], tracks[1]
 print(xt[1], yt[1])
-#xt, yt = xt / scale, yt / scale
-#print(xt[1], yt[1])
+xt, yt = xt / scale, yt / scale
 
 x_loc, y_loc = xl[0], yl[0]
 for p in np.arange(1, len(paths)):
@@ -222,25 +230,26 @@ fig = plt.figure(figsize=(17.0, 7.0))
 gs = gridspec.GridSpec(2, 2)
 
 ax00 = plt.subplot(gs[0, 0])
-img00 = ax00.imshow(histos[0], interpolation='none', vmax=10)
+img00 = ax00.imshow(histos[0], interpolation='none', vmax=10, origin='lower')
 plt.xlabel('data0')
 fig.colorbar(img00, ax=ax00)
 
 ax01 = plt.subplot(gs[0, 1])
-img01 = ax01.imshow(histos[1], interpolation='none', vmax=10)
+img01 = ax01.imshow(histos[1], interpolation='none', vmax=10, origin='lower')
 plt.xlabel('data1')
 fig.colorbar(img01, ax=ax01)
 
 ax10 = plt.subplot(gs[1, 0])
-img10 = ax10.imshow(histos[0] + histos[1], interpolation='none', vmax=10)
+img10 = ax10.imshow(histos[0] + histos[1], interpolation='none', vmax=10,
+                    origin='lower')
 plt.xlabel('data0 + data1')
 fig.colorbar(img10, ax=ax10)
 
-x_loc, y_loc = xl[0], yl[0]
-x_loc = np.hstack((x_loc, xl[1] + xt[1]))
-y_loc = np.hstack((y_loc, yl[1] + yt[1]))
-H = np.histogram2d(y_loc, x_loc, bins=nbins)[0]
+#x_loc, y_loc = xl[0], yl[0]
+#x_loc = np.hstack((x_loc, xl[1] + xt[1]))
+#y_loc = np.hstack((y_loc, yl[1] + yt[1]))
+#H = np.histogram2d(x_loc, y_loc, bins=nbins, range=[[0, 253], [0, 239]])[0]
 ax11 = plt.subplot(gs[1, 1])
-img11 = ax11.imshow(H, interpolation='none', vmax=10)
+img11 = ax11.imshow(H, interpolation='none', vmax=10, origin='lower')
 plt.xlabel('corrected')
 fig.colorbar(img11, ax=ax11)
