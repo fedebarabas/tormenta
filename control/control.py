@@ -6,10 +6,18 @@ Created on Mon Jun 16 18:19:24 2014
 """
 
 import numpy as np
+
 from PyQt4 import QtGui, QtCore
+
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
+import pyqtgraph.parametertree.parameterTypes as pTypes
+from pyqtgraph.parametertree import Parameter, ParameterTree, ParameterItem
+from pyqtgraph.parametertree import registerParameterType
+import pyqtgraph.console as console
+
 import time
+import h5py as hdf
 
 from lantz.drivers.andor.ccd import CCD
 
@@ -59,8 +67,8 @@ class TormentaGUI(QtGui.QMainWindow):
         # Camera configuration
         SetCameraDefaults(self.camera)
         self.t_exp = 0.02 * s       # Exposition time
-        self.ishape = self.camera.detector_shape
-        self.iorigin = (1, 1)
+        self.ishape = list(self.camera.detector_shape)
+        self.iorigin = [1, 1]
         self.camera.set_exposure_time(self.t_exp)
         self.camera.set_image(shape=self.ishape, p_0=self.iorigin)
 
@@ -71,72 +79,96 @@ class TormentaGUI(QtGui.QMainWindow):
         # Image Widget
         # TODO: redefine axis ticks
         imagewidget = pg.GraphicsLayoutWidget()
-        p1 = imagewidget.addPlot()
-        p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
-        p1.getViewBox().setLimits(xMin=-0.5, xMax=self.ishape[0] - 0.5,
-                                  yMin=-0.5, yMax=self.ishape[1] - 0.5)
+        self.p1 = imagewidget.addPlot()
+        self.p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
+        self.p1.getViewBox().setLimits(xMin=-0.5, xMax=self.ishape[0] - 0.5,
+                                       yMin=-0.5, yMax=self.ishape[1] - 0.5)
         self.img = pg.ImageItem()
         self.img.translate(-0.5, -0.5)
-        p1.addItem(self.img)
-        p1.setAspectLocked(True)
-        p1.setRange(xRange=(-0.5, self.ishape[0] - 0.5),
-                    yRange=(-0.5, self.ishape[1] - 0.5), padding=0)
+        self.p1.addItem(self.img)
+        self.p1.setAspectLocked(True)
+        self.p1.setRange(xRange=(-0.5, self.ishape[0] - 0.5),
+                         yRange=(-0.5, self.ishape[1] - 0.5), padding=0)
         self.hist = pg.HistogramLUTItem()
         self.hist.setImageItem(self.img)
         self.hist.autoHistogramRange = False
         imagewidget.addItem(self.hist)
-
-        # Widgets
-        rec = QtGui.QPushButton('REC')
-        StabButton = QtGui.QPushButton('Stabilize Temperature')
-        LVButton = QtGui.QPushButton('LiveView')
         self.fpsbox = QtGui.QLabel()
 
-        # Widgets' layout
-        layout = QtGui.QGridLayout()
-        self.cwidget.setLayout(layout)
-        layout.addWidget(rec, 1, 0)
-        layout.addWidget(StabButton, 2, 0)
-        layout.addWidget(LVButton, 3, 0)
-        layout.addWidget(imagewidget, 1, 2, 3, 1)
-        layout.addWidget(self.fpsbox, 0, 2)
+        # Parameter tree for the camera configuration
+        params = [{'name': 'Image frame', 'type': 'group', 'children':
+                  [{'name': 'x_start', 'type': 'int',
+                    'value': self.iorigin[0]},
+                   {'name': 'y_start', 'type': 'int',
+                    'value': self.iorigin[1]},
+                   {'name': 'x_size', 'type': 'int',
+                    'value': self.ishape[0]},
+                   {'name': 'y_size', 'type': 'int',
+                    'value': self.ishape[1]},
+                   {'name': 'Update', 'type': 'action'}]}]
 
+        p = Parameter.create(name='params', type='group', children=params)
+        FrameUpdate = p.param('Image frame').param('Update')
+
+        def setimage():
+            self.iorigin[0] = p.param('Image frame').param('x_start').value()
+            self.iorigin[1] = p.param('Image frame').param('y_start').value()
+            self.ishape[0] = p.param('Image frame').param('x_size').value()
+            self.ishape[1] = p.param('Image frame').param('y_size').value()
+            if self.camera.status != ('Camera is idle, '
+                                      'waiting for instructions.'):
+                self.viewtimer.stop()
+                self.camera.abort_acquisition()
+                andor.set_image(shape=(self.ishape[0], self.ishape[1]),
+                                p_0=(self.iorigin[0], self.iorigin[1]))
+                self.p1.setRange(xRange=(-0.5, self.ishape[0] - 0.5),
+                                 yRange=(-0.5, self.ishape[1] - 0.5),
+                                 padding=0)
+                self.p1.getViewBox().setLimits(xMin=-0.5,
+                                               xMax=self.ishape[0] - 0.5,
+                                               yMin=-0.5,
+                                               yMax=self.ishape[1] - 0.5)
+                self.camera.start_acquisition()
+                time.sleep(np.min((5 * self.t_exp.magnitude, 0.1)))
+                self.viewtimer.start(0)
+
+        FrameUpdate.sigStateChanged.connect(setimage)
+        t = ParameterTree()
+        t.setParameters(p, showTop=False)
+
+        # Liveview functionality
+        LVButton = QtGui.QPushButton('LiveView')
+        LVButton.pressed.connect(self.liveview)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateview)
 
+        # Record functionality
         self.j = 0      # Image counter for recordings
         self.n = 100    # Number of expositions in recording
+        rec = QtGui.QPushButton('REC')
         rec.pressed.connect(self.record)
 
-        LVButton.pressed.connect(self.liveview)
-
+        # Temperature stabilization functionality
+        StabButton = QtGui.QPushButton('Stabilize Temperature')
         self.Stabilizer = TemperatureStabilizer(self.camera)
         self.StabilizerThread = QtCore.QThread()
         self.Stabilizer.moveToThread(self.StabilizerThread)
         StabButton.clicked.connect(self.StabilizerThread.start)
         self.StabilizerThread.started.connect(self.Stabilizer.start)
 
+        # Console
+#        self.console = console.ConsoleWidget()
 
-    def show(self, *args, **kwargs):
-        super(QtGui.QMainWindow, self).show(*args, **kwargs)
-
-#        # Temperature stabilization
-#        self.camera.temperature_setpoint = -30
-#        self.camera.cooler_on = True
-#        stable = 'Temperature has stabilized at set point.'
-#        print('Temperature set point =', self.camera.temperature_setpoint)
-#        while self.camera.temperature_status != stable:
-#            print("Current temperature:",
-#                  np.round(self.camera.temperature, 1))
-#            time.sleep(30)
-#        print('Temperature has stabilized at set point')
-
-#        self.liveview()
-
-    def closeEvent(self, *args, **kwargs):
-        super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
-        self.viewtimer.stop()
-        self.camera
+        # Widgets' layout
+        layout = QtGui.QGridLayout()
+        self.cwidget.setLayout(layout)
+        layout.addWidget(rec, 4, 2)
+        layout.addWidget(StabButton, 5, 2)
+        layout.addWidget(LVButton, 4, 3)
+        layout.addWidget(imagewidget, 1, 2, 3, 3)
+        layout.addWidget(self.fpsbox, 0, 4)
+        layout.addWidget(t, 1, 1)
+#        layout.addWidget(self.console, 4, 5, 3, 3)
 
     def liveview(self):
         """ Image live view when not recording
@@ -150,18 +182,17 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.camera.start_acquisition()
         time.sleep(5 * self.t_exp.magnitude)
-        idata = self.camera.most_recent_image16(self.camera.detector_shape)
+        idata = self.camera.most_recent_image16(self.ishape)
 
         # Initial image and histogram
         self.img.setImage(idata)
         self.hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
-
         self.viewtimer.start(0)
 
     # Image update while in liveview mode
     def updateview(self):
         global lastTime, fps
-        image = self.camera.most_recent_image16(self.camera.detector_shape)
+        image = self.camera.most_recent_image16(self.ishape)
         self.img.setImage(image, autoLevels=False)
         now = ptime.time()
         dt = now - lastTime
@@ -174,7 +205,14 @@ class TormentaGUI(QtGui.QMainWindow):
         self.fpsbox.setText('%0.2f fps' % fps)
 
     def record(self):
-        self.stack = np.zeros((self.n, self.ishape[0], self.ishape[1]))
+
+        # Data storing
+        self.store_file = hdf.File('prueba.hdf5', "w")
+        self.store_file.create_dataset(name='data',
+                                       shape=(self.n,
+                                              self.ishape[0], self.ishape[1]),
+                                       fillvalue=0.0)
+        self.stack = self.store_file['data']
 
         # Acquisition preparation
         if self.camera.status != 'Camera is idle, waiting for instructions.':
@@ -215,7 +253,13 @@ class TormentaGUI(QtGui.QMainWindow):
             QtCore.QTimer.singleShot(0, self.UpdateWhileRec)
         else:
             self.j = 0
+            self.store_file.close()
             self.liveview()
+
+    def closeEvent(self, *args, **kwargs):
+        super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
+        self.viewtimer.stop()
+        self.camera
 
 if __name__ == '__main__':
 
