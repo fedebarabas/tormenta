@@ -14,12 +14,17 @@ import pyqtgraph.ptime as ptime
 import pyqtgraph.parametertree.parameterTypes as pTypes
 from pyqtgraph.parametertree import Parameter, ParameterTree, ParameterItem
 from pyqtgraph.parametertree import registerParameterType
-import pyqtgraph.console as console
 
 import time
 import h5py as hdf
 
 from lantz.drivers.andor.ccd import CCD
+from lantz import Q_
+
+degC = Q_(1, 'degC')
+us = Q_(1, 'us')
+MHz = Q_(1, 'MHz')
+s = Q_(1, 's')
 
 lastTime = ptime.time()
 fps = None
@@ -33,7 +38,10 @@ def SetCameraDefaults(camera):
     camera.amp_typ = 0
     camera.horiz_shift_speed = 0
     camera.vert_shift_speed = 0
-#    self.camera.shutter(0, 5, 0, 0, 0)   # Uncomment when using for real
+#    camera.shutter(0, 5, 0, 0, 0)   # Uncomment when using for real
+    camera.set_n_accum(1)                 # No accumulation of exposures
+    camera.set_accum_time(0 * s)          # Minimum accumulation and kinetic
+    camera.set_kinetic_cycle_time(0 * s)  # times
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -58,19 +66,19 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def __init__(self, *args, **kwargs):
         global andor
+        print(andor.idn)
 
         super(QtGui.QMainWindow, self).__init__(*args, **kwargs)
 
-        self.camera = andor
-        print(self.camera.idn)
-
         # Camera configuration
-        SetCameraDefaults(self.camera)
-        self.t_exp = 0.02 * s       # Exposition time
-        self.ishape = list(self.camera.detector_shape)
+        SetCameraDefaults(andor)
+        self.ishape = list(andor.detector_shape)
         self.iorigin = [1, 1]
-        self.camera.set_exposure_time(self.t_exp)
-        self.camera.set_image(shape=self.ishape, p_0=self.iorigin)
+        andor.set_image(shape=self.ishape, p_0=self.iorigin)
+        self.t_exp = 0.1 * s
+        andor.set_exposure_time(self.t_exp)
+        timings = andor.acquisition_timings
+        self.t_exp_real, self.t_acc_real, self.t_kin_real = timings
 
         self.setWindowTitle('Tormenta')
         self.cwidget = QtGui.QWidget()
@@ -95,47 +103,6 @@ class TormentaGUI(QtGui.QMainWindow):
         imagewidget.addItem(self.hist)
         self.fpsbox = QtGui.QLabel()
 
-        # Parameter tree for the camera configuration
-        params = [{'name': 'Image frame', 'type': 'group', 'children':
-                  [{'name': 'x_start', 'type': 'int',
-                    'value': self.iorigin[0]},
-                   {'name': 'y_start', 'type': 'int',
-                    'value': self.iorigin[1]},
-                   {'name': 'x_size', 'type': 'int',
-                    'value': self.ishape[0]},
-                   {'name': 'y_size', 'type': 'int',
-                    'value': self.ishape[1]},
-                   {'name': 'Update', 'type': 'action'}]}]
-
-        p = Parameter.create(name='params', type='group', children=params)
-        FrameUpdate = p.param('Image frame').param('Update')
-
-        def setimage():
-            self.iorigin[0] = p.param('Image frame').param('x_start').value()
-            self.iorigin[1] = p.param('Image frame').param('y_start').value()
-            self.ishape[0] = p.param('Image frame').param('x_size').value()
-            self.ishape[1] = p.param('Image frame').param('y_size').value()
-            if self.camera.status != ('Camera is idle, '
-                                      'waiting for instructions.'):
-                self.viewtimer.stop()
-                self.camera.abort_acquisition()
-                andor.set_image(shape=(self.ishape[0], self.ishape[1]),
-                                p_0=(self.iorigin[0], self.iorigin[1]))
-                self.p1.setRange(xRange=(-0.5, self.ishape[0] - 0.5),
-                                 yRange=(-0.5, self.ishape[1] - 0.5),
-                                 padding=0)
-                self.p1.getViewBox().setLimits(xMin=-0.5,
-                                               xMax=self.ishape[0] - 0.5,
-                                               yMin=-0.5,
-                                               yMax=self.ishape[1] - 0.5)
-                self.camera.start_acquisition()
-                time.sleep(np.min((5 * self.t_exp.magnitude, 0.1)))
-                self.viewtimer.start(0)
-
-        FrameUpdate.sigStateChanged.connect(setimage)
-        t = ParameterTree()
-        t.setParameters(p, showTop=False)
-
         # Liveview functionality
         LVButton = QtGui.QPushButton('LiveView')
         LVButton.pressed.connect(self.liveview)
@@ -145,44 +112,139 @@ class TormentaGUI(QtGui.QMainWindow):
         # Record functionality
         self.j = 0      # Image counter for recordings
         self.n = 100    # Number of expositions in recording
-        rec = QtGui.QPushButton('REC')
-        rec.pressed.connect(self.record)
+        self.filename = 'prueba.hdf5'
 
         # Temperature stabilization functionality
         StabButton = QtGui.QPushButton('Stabilize Temperature')
-        self.Stabilizer = TemperatureStabilizer(self.camera)
+        self.Stabilizer = TemperatureStabilizer(andor)
         self.StabilizerThread = QtCore.QThread()
         self.Stabilizer.moveToThread(self.StabilizerThread)
         StabButton.clicked.connect(self.StabilizerThread.start)
         self.StabilizerThread.started.connect(self.Stabilizer.start)
 
-        # Console
-#        self.console = console.ConsoleWidget()
+        # Parameter tree for the camera configuration
+        params = [{'name': 'Image frame', 'type': 'group', 'children': [
+                   {'name': 'x_start', 'type': 'int',
+                    'value': self.iorigin[0]},
+                   {'name': 'y_start', 'type': 'int',
+                    'value': self.iorigin[1]},
+                   {'name': 'x_size', 'type': 'int',
+                    'value': self.ishape[0]},
+                   {'name': 'y_size', 'type': 'int',
+                    'value': self.ishape[1]},
+                   {'name': 'Update', 'type': 'action'},
+                   ]},
+                  {'name': 'Timings', 'type': 'group', 'children': [
+                   {'name': 'Set exposure time', 'type': 'float',
+                    'value': self.t_exp.magnitude,
+                    'siPrefix': True, 'suffix': 's'},
+                   {'name': 'Real exposure time', 'type': 'float',
+                    'value': self.t_exp_real.magnitude, 'readonly': True,
+                    'siPrefix': True, 'suffix': 's'},
+                   {'name': 'Real accumulation time', 'type': 'float',
+                    'value': self.t_acc_real.magnitude, 'readonly': True,
+                    'siPrefix': True, 'suffix': 's'},
+                   ]},
+                  {'name': 'Recording', 'type': 'group', 'children': [
+                   {'name': 'Number of expositions', 'type': 'int',
+                    'value': self.n},
+                   {'name': 'Filename', 'type': 'str',
+                    'value': self.filename},
+                   {'name': 'Start', 'type': 'action'},
+                   ]}]
+
+        self.p = Parameter.create(name='params', type='group', children=params)
+        t = ParameterTree()
+        t.setParameters(self.p, showTop=False)
+
+        # Signals from the parameter tree
+        FrameUpdateButton = self.p.param('Image frame').param('Update')
+        FrameUpdateButton.sigStateChanged.connect(self.UpdateFrame)
+
+        ExpPar = self.p.param('Timings').param('Set exposure time')
+        ExpPar.sigValueChanged.connect(self.SetExposure)
+
+        RecButton = self.p.param('Recording').param('Start')
+        RecButton.sigStateChanged.connect(self.Record)
+
+        # TODO: signal from the filename, folder
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
-        layout.addWidget(rec, 4, 2)
         layout.addWidget(StabButton, 5, 2)
         layout.addWidget(LVButton, 4, 3)
         layout.addWidget(imagewidget, 1, 2, 3, 3)
         layout.addWidget(self.fpsbox, 0, 4)
         layout.addWidget(t, 1, 1)
-#        layout.addWidget(self.console, 4, 5, 3, 3)
+
+    def SetExposure(self):
+        """ Method to change the exposure time setting
+        """
+        SetExpPar = self.p.param('Timings').param('Set exposure time')
+        self.t_exp = SetExpPar.value() * s
+
+        if andor.status != ('Camera is idle, '
+                            'waiting for instructions.'):
+            self.viewtimer.stop()
+            andor.abort_acquisition()
+
+        andor.set_exposure_time(self.t_exp)
+        self.UpdateTimings()
+        andor.start_acquisition()
+        time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
+        self.viewtimer.start(0)
+
+    def UpdateFrame(self):
+        """ Method to change the image frame size and position in the sensor
+        """
+        ImgFramePar = self.p.param('Image frame')
+        self.iorigin[0] = ImgFramePar.param('x_start').value()
+        self.iorigin[1] = ImgFramePar.param('y_start').value()
+        self.ishape[0] = ImgFramePar.param('x_size').value()
+        self.ishape[1] = ImgFramePar.param('y_size').value()
+
+        if andor.status != ('Camera is idle, '
+                            'waiting for instructions.'):
+            self.viewtimer.stop()
+            andor.abort_acquisition()
+
+        andor.set_image(shape=(self.ishape[0], self.ishape[1]),
+                        p_0=(self.iorigin[0], self.iorigin[1]))
+        self.p1.setRange(xRange=(-0.5, self.ishape[0] - 0.5),
+                         yRange=(-0.5, self.ishape[1] - 0.5),
+                         padding=0)
+        self.p1.getViewBox().setLimits(xMin=-0.5, xMax=self.ishape[0] - 0.5,
+                                       yMin=-0.5, yMax=self.ishape[1] - 0.5)
+        self.UpdateTimings()
+        andor.start_acquisition()
+        time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
+        self.viewtimer.start(0)
+
+    def UpdateTimings(self):
+        """ Update the real exposition and accumulation times in the parameter
+        tree.
+        """
+        timings = andor.acquisition_timings
+        self.t_exp_real, self.t_acc_real, self.t_kin_real = timings
+        RealExpPar = self.p.param('Timings').param('Real exposure time')
+        RealAccPar = self.p.param('Timings').param('Real accumulation time')
+        RealExpPar.setValue(self.t_exp_real.magnitude)
+        RealAccPar.setValue(self.t_acc_real.magnitude)
 
     def liveview(self):
         """ Image live view when not recording
         """
 
-        if self.camera.status != 'Camera is idle, waiting for instructions.':
-            self.camera.abort_acquisition()
+        if andor.status != 'Camera is idle, waiting for instructions.':
+            andor.abort_acquisition()
 
-        self.camera.acquisition_mode = 'Run till abort'
-        self.camera.free_int_mem()
+        andor.acquisition_mode = 'Run till abort'
+        andor.free_int_mem()
 
-        self.camera.start_acquisition()
-        time.sleep(5 * self.t_exp.magnitude)
-        idata = self.camera.most_recent_image16(self.ishape)
+        andor.start_acquisition()
+        time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
+        idata = andor.most_recent_image16(self.ishape)
 
         # Initial image and histogram
         self.img.setImage(idata)
@@ -192,7 +254,7 @@ class TormentaGUI(QtGui.QMainWindow):
     # Image update while in liveview mode
     def updateview(self):
         global lastTime, fps
-        image = self.camera.most_recent_image16(self.ishape)
+        image = andor.most_recent_image16(self.ishape)
         self.img.setImage(image, autoLevels=False)
         now = ptime.time()
         dt = now - lastTime
@@ -204,10 +266,10 @@ class TormentaGUI(QtGui.QMainWindow):
             fps = fps * (1-s) + (1.0/dt) * s
         self.fpsbox.setText('%0.2f fps' % fps)
 
-    def record(self):
+    def Record(self):
 
         # Data storing
-        self.store_file = hdf.File('prueba.hdf5', "w")
+        self.store_file = hdf.File(self.filename, "w")
         self.store_file.create_dataset(name='data',
                                        shape=(self.n,
                                               self.ishape[0], self.ishape[1]),
@@ -215,14 +277,14 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stack = self.store_file['data']
 
         # Acquisition preparation
-        if self.camera.status != 'Camera is idle, waiting for instructions.':
-            self.camera.abort_acquisition()
+        if andor.status != 'Camera is idle, waiting for instructions.':
+            andor.abort_acquisition()
 
-        self.camera.free_int_mem()
-        self.camera.acquisition_mode = 'Kinetics'
-        self.camera.set_n_kinetics(self.n)
-        self.camera.start_acquisition()
-        time.sleep(5 * self.t_exp.magnitude)
+        andor.free_int_mem()
+        andor.acquisition_mode = 'Kinetics'
+        andor.set_n_kinetics(self.n)
+        andor.start_acquisition()
+        time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
 
         # Stop the QTimer that updates the image with incoming data from the
         # 'Run till abort' acquisition mode.
@@ -232,11 +294,10 @@ class TormentaGUI(QtGui.QMainWindow):
     def UpdateWhileRec(self):
         global lastTime, fps
 
-        if self.camera.n_images_acquired > self.j:
-            i, self.j = self.camera.new_images_index
-            self.stack[i - 1:self.j] = self.camera.images16(i, self.j,
-                                                            self.ishape, 1,
-                                                            self.n)
+        if andor.n_images_acquired > self.j:
+            i, self.j = andor.new_images_index
+            self.stack[i - 1:self.j] = andor.images16(i, self.j, self.ishape,
+                                                      1, self.n)
             self.img.setImage(self.stack[self.j - 1], autoLevels=False)
 
             now = ptime.time()
@@ -259,7 +320,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def closeEvent(self, *args, **kwargs):
         super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
         self.viewtimer.stop()
-        self.camera
+        andor
 
 if __name__ == '__main__':
 
