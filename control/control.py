@@ -30,8 +30,8 @@ fps = None
 
 app = QtGui.QApplication([])
 
-# TODO: Fix shutter
 # TODO: Fix error high frequencies
+# TODO: Implement cropped sensor mode in case we want higher framerates
 
 
 def SetCameraDefaults(camera):
@@ -43,9 +43,7 @@ def SetCameraDefaults(camera):
     camera.EM_advanced_enabled = False
     camera.EM_gain_mode = 'RealGain'
     camera.amp_typ = 0
-    camera.horiz_shift_speed = 0
     camera.vert_shift_speed = 0
-    camera.shutter(0, 5, 0, 0, 0)         # Uncomment when using for real
     camera.set_n_accum(1)                 # No accumulation of exposures
     camera.set_accum_time(0 * s)          # Minimum accumulation and kinetic
     camera.set_kinetic_cycle_time(0 * s)  # times
@@ -69,8 +67,8 @@ class TemperatureStabilizer(QtCore.QObject):
         CurrTempPar = self.parameter.param('Current temperature')
         while andor.temperature_status != stable:
             CurrTempPar.setValue(np.round(andor.temperature.magnitude, 1))
+            self.parameter.param('Status').setValue(andor.temperature_status)
             time.sleep(10)
-        self.parameter.param('Status').setValue(andor.temperature_status)
 
 
 class TormentaGUI(QtGui.QMainWindow):
@@ -133,15 +131,16 @@ class TormentaGUI(QtGui.QMainWindow):
                    {'name': 'Filename', 'type': 'str',
                     'value': 'filename.hdf5'},
                    {'name': 'Start', 'type': 'action'},
+                   {'name': 'Convert to raw', 'type': 'action'},
                    ]},
                   {'name': 'Temperature', 'type': 'group', 'children': [
                    {'name': 'Set point', 'type': 'int', 'value': -40,
                     'suffix': 'º', 'limits': (-80, 0)},
                    {'name': 'Current temperature', 'type': 'int',
-                    'value': andor.temperature.magnitude, 'suffix': 'º',
+                    'value': andor.temperature.magnitude, 'suffix': 'ºC',
                     'readonly': True},
                    {'name': 'Status', 'type': 'str', 'readonly': True,
-                    'value': andor.temperature_status, 'suffix': 'º'},
+                    'value': andor.temperature_status},
                    {'name': 'Stabilize', 'type': 'action'},
                    ]}]
 
@@ -171,8 +170,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.GainPar = self.p.param('Gain').param('EM gain')
         self.GainPar.sigValueChanged.connect(UpdateGain)
 
+        # Recording signals
+        self.dataname = 'data'      # In case I need a new parameter for this
         RecButton = self.p.param('Recording').param('Start')
         RecButton.sigStateChanged.connect(self.Record)
+        ConvertButton = self.p.param('Recording').param('Convert to raw')
+        ConvertButton.sigStateChanged.connect(self.ConvertToRaw)
 
         # Image Widget
         # TODO: redefine axis ticks
@@ -182,11 +185,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.img = pg.ImageItem()
         self.img.translate(-0.5, -0.5)
         self.p1.addItem(self.img)
-        self.p1.setAspectLocked(True)
+        self.p1.getViewBox().setAspectLocked(True)
         self.hist = pg.HistogramLUTItem()
         self.hist.setImageItem(self.img)
         self.hist.autoHistogramRange = False
         imagewidget.addItem(self.hist)
+
         self.fpsbox = QtGui.QLabel()
 
         # Initial camera configuration taken from the parameter tree
@@ -213,9 +217,12 @@ class TormentaGUI(QtGui.QMainWindow):
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
+        layout.setColumnMinimumWidth(1, 400)
+        layout.setColumnMinimumWidth(2, 800)
+        layout.setRowMinimumHeight(1, 700)
         layout.addWidget(LVButton, 2, 1)
-        layout.addWidget(imagewidget, 1, 2, 3, 3)
-        layout.addWidget(self.fpsbox, 0, 4)
+        layout.addWidget(imagewidget, 1, 2, 2, 1)
+        layout.addWidget(self.fpsbox, 0, 2)
         layout.addWidget(tree, 1, 1)
 
     def ChangeParameter(self, function):
@@ -265,7 +272,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.p1.setRange(xRange=(-0.5, self.shape[0] - 0.5),
                          yRange=(-0.5, self.shape[1] - 0.5), padding=0)
         self.p1.getViewBox().setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5,
-                                       yMin=-0.5, yMax=self.shape[1] - 0.5)
+                                       yMin=-0.5, yMax=self.shape[1] - 0.5,
+                                       minXRange=4, minYRange=4)
 
     def UpdateFrame(self):
         """ Method to change the image frame size and position in the sensor
@@ -293,6 +301,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         andor.acquisition_mode = 'Run till abort'
         andor.free_int_mem()
+        andor.shutter(0, 1, 0, 0, 0)
 
         andor.start_acquisition()
         time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
@@ -307,18 +316,20 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Image update while in Liveview mode
         """
         global lastTime, fps
-        time.sleep(self.t_exp_real.magnitude)
-        image = andor.most_recent_image16(self.shape)
-        self.img.setImage(image, autoLevels=False)
-        now = ptime.time()
-        dt = now - lastTime - self.t_exp_real.magnitude
-        lastTime = now
-        if fps is None:
-            fps = 1.0/dt
-        else:
-            s = np.clip(dt*3., 0, 1)
-            fps = fps * (1-s) + (1.0/dt) * s
-        self.fpsbox.setText('%0.2f fps' % fps)
+        try:
+            image = andor.most_recent_image16(self.shape)
+            self.img.setImage(image, autoLevels=False)
+            now = ptime.time()
+            dt = now - lastTime
+            lastTime = now
+            if fps is None:
+                fps = 1.0/dt
+            else:
+                s = np.clip(dt*3., 0, 1)
+                fps = fps * (1-s) + (1.0/dt) * s
+            self.fpsbox.setText('%0.2f fps' % fps)
+        except:
+            pass
 
     def Record(self):
 
@@ -326,19 +337,23 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Data storing
         RecordingPar = self.p.param('Recording')
-        folder = RecordingPar.param('Folder').value()
-        filename = RecordingPar.param('Filename').value()
+        self.folder = RecordingPar.param('Folder').value()
+        self.filename = RecordingPar.param('Filename').value()
         self.n = RecordingPar.param('Number of expositions').value()
-        self.store_file = hdf.File(os.path.join(folder, filename), "w")
-        self.store_file.create_dataset(name='data',
+        self.store_file = hdf.File(os.path.join(self.folder, self.filename),
+                                   "w")
+        self.store_file.create_dataset(name=self.dataname,
                                        shape=(self.n,
-                                              self.shape[0], self.shape[1]),
+                                              self.shape[0],
+                                              self.shape[1]),
                                        fillvalue=0.0)
         self.stack = self.store_file['data']
 
         # Acquisition preparation
         if andor.status != 'Camera is idle, waiting for instructions.':
             andor.abort_acquisition()
+        else:
+            andor.shutter(0, 1, 0, 0, 0)
 
         andor.free_int_mem()
         andor.acquisition_mode = 'Kinetics'
@@ -374,13 +389,36 @@ class TormentaGUI(QtGui.QMainWindow):
             QtCore.QTimer.singleShot(0, self.UpdateWhileRec)
         else:
             self.j = 0
+
+            # Saving parameters as data attributes in the HDF5 file
+            dset = self.store_file[self.dataname]
+            dset.attrs['Date'] = time.strftime("%Y-%m-%d")
+            dset.attrs['Time'] = time.strftime("%H:%M:%S")
+            for ParamName in self.p.getValues():
+                Param = self.p.param(str(ParamName))
+                if not(Param.hasChildren()):
+                    dset.attrs[str(ParamName)] = Param.value()
+                for subParamName in Param.getValues():
+                    subParam = Param.param(str(subParamName))
+                    if subParam.type() != 'action':
+                        dset.attrs[str(subParamName)] = subParam.value()
+
             self.store_file.close()
             self.Liveview()
 
+    def ConvertToRaw(self):
+
+        # TODO: implement this
+        self.store_file = hdf.File(os.path.join(self.folder, self.filename),
+                                   "r")
+
     def closeEvent(self, *args, **kwargs):
         super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
+
         self.viewtimer.stop()
-        andor
+        if andor.status != 'Camera is idle, waiting for instructions.':
+            andor.abort_acquisition()
+        andor.shutter(0, 2, 0, 0, 0)
 
 if __name__ == '__main__':
 
