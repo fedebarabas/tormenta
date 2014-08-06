@@ -18,20 +18,140 @@ import time
 import h5py as hdf
 
 from lantz.drivers.andor.ccd import CCD
+from lantz.drivers.cobolt import Cobolt0601
+from lantz.drivers.mpb import VFL
 from lantz import Q_
 
 degC = Q_(1, 'degC')
 us = Q_(1, 'us')
 MHz = Q_(1, 'MHz')
 s = Q_(1, 's')
+mW = Q_(1, 'mW')
 
 lastTime = ptime.time()
 fps = None
 
 app = QtGui.QApplication([])
 
-# TODO: Fix error high frequencies
 # TODO: Implement cropped sensor mode in case we want higher framerates
+# TODO: QLineEdit integration with pint
+
+#        self.Stabilizer = TemperatureStabilizer(self.TempPar)
+#        self.StabilizerThread = QtCore.QThread()
+#        self.Stabilizer.moveToThread(self.StabilizerThread)
+#        StabButton.sigStateChanged.connect(self.StabilizerThread.start)
+#        self.StabilizerThread.started.connect(self.Stabilizer.start)
+#
+#
+#class TemperatureStabilizer(QtCore.QObject):
+#
+#    def __init__(self, parameter, *args, **kwargs):
+#
+#        global andor
+#
+#        super(QtCore.QObject, self).__init__(*args, **kwargs)
+#        self.parameter = parameter
+#
+#    def start(self):
+#        SetPointPar = self.parameter.param('Set point')
+#        andor.temperature_setpoint = SetPointPar.value() * degC
+#        andor.cooler_on = True
+#        stable = 'Temperature has stabilized at set point.'
+#        CurrTempPar = self.parameter.param('Current temperature')
+#        while andor.temperature_status != stable:
+#            CurrTempPar.setValue(np.round(andor.temperature.magnitude, 1))
+#            self.parameter.param('Status').setValue(andor.temperature_status)
+#            time.sleep(10)
+
+
+class LaserWidget(QtGui.QWidget):
+
+    def __init__(self, *args, **kwargs):
+
+        global redlaser, bluelaser
+
+        super(QtGui.QWidget, self).__init__(*args, **kwargs)
+
+        LaserTitle = QtGui.QLabel()
+        LaserTitle.setTextFormat(QtCore.Qt.RichText)
+        LaserTitle.setText('<h1><strong>Laser control</strong></h1>')
+
+        RedSlider = SliderIndicator(redlaser)
+        RedSlider.Name.setText(redlaser.idn[redlaser.idn.index('-') + 1:])
+        RedSlider.Slider.setMaximum(1500)
+        RedSlider.Slider.setMinimum(150)
+        RedSlider.Slider.setTickInterval(100)
+        RedSlider.Slider.setSingleStep(10)
+
+        BlueSlider = SliderIndicator(bluelaser)
+        BlueSlider.Name.setText(bluelaser.idn.split(',')[0])
+        BlueSlider.Slider.setMaximum(100)
+        BlueSlider.Slider.setMinimum(0)
+        BlueSlider.Slider.setTickInterval(10)
+        BlueSlider.Slider.setSingleStep(1)
+
+        grid = QtGui.QGridLayout()
+        self.setLayout(grid)
+        grid.addWidget(LaserTitle, 0, 0)
+        grid.addWidget(RedSlider, 1, 1)
+        grid.addWidget(BlueSlider, 1, 0)
+
+
+class SliderIndicator(QtGui.QWidget):
+
+    def __init__(self, laser, *args, **kwargs):
+        super(QtGui.QWidget, self).__init__(*args, **kwargs)
+        self.laser = laser
+
+        self.setGeometry(10, 10, 30, 150)
+
+        self.Name = QtGui.QLabel()
+        self.PowerIndicator = QtGui.QLineEdit('0')
+        self.PowerIndicator.setReadOnly(True)
+        self.setPointEdit = QtGui.QLineEdit('0')
+        self.EnableButton = QtGui.QPushButton('Enable')
+        self.OffButton = QtGui.QPushButton('OFF')
+
+        self.Slider = QtGui.QSlider(QtCore.Qt.Vertical, self)
+        self.Slider.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.Slider.setGeometry(10, 10, 20, 150)
+
+        grid = QtGui.QGridLayout()
+        self.setLayout(grid)
+        grid.addWidget(self.Name, 0, 0)
+        grid.addWidget(self.PowerIndicator, 1, 0)
+        grid.addWidget(self.setPointEdit, 2, 0)
+        grid.addWidget(self.EnableButton, 3, 0)
+        grid.addWidget(self.OffButton, 4, 0)
+        grid.addWidget(self.Slider, 0, 1, 5, 1)
+
+        # Connections
+        self.EnableButton.pressed.connect(self.enableLaser)
+        self.EnableButton.pressed.connect(self.updatePower)
+        self.OffButton.pressed.connect(self.turnOff)
+        self.Slider.valueChanged[int].connect(self.changeSlider)
+        self.Slider.valueChanged[int].connect(self.changeSlider)
+
+    # FIXME: I think I need a movetothread for this. Would it work with a widget?
+
+    def updatePower(self):
+        self.PowerIndicator.setText(str(self.laser.power))
+        QtCore.QTimer.singleShot(1, self.updatePower)
+
+    def enableLaser(self):
+        self.laser.enabled = True
+        self.laser.power_sp = float(self.setPointEdit.text()) * mW
+
+    def changeSlider(self, value):
+        self.laser.power_sp = self.Slider.value() * mW
+        self.setPointEdit.setText(str(self.laser.power_sp.magnitude))
+
+    def changeEdit(self, value):
+        self.laser.power_sp = self.setPointEdit.text() * mW
+        self.Slider.setValue(self.laser.power_sp.magnitude)
+
+    def turnOff(self):
+        self.enabled = False
 
 
 def SetCameraDefaults(camera):
@@ -75,7 +195,9 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def __init__(self, *args, **kwargs):
 
-        global andor
+        global andor, bluelaser
+
+        bluelaser.enabled = True
 
         super(QtGui.QMainWindow, self).__init__(*args, **kwargs)
         self.setWindowTitle('Tormenta')
@@ -90,7 +212,8 @@ class TormentaGUI(QtGui.QMainWindow):
                         for n in np.arange(andor.n_horiz_shift_speeds())]
 
         # Parameter tree for the camera configuration
-        params = [{'name': 'Camera', 'type': 'str', 'value': andor.idn},
+        params = [{'name': 'Camera', 'type': 'str',
+                   'value': andor.idn.split(',')[0]},
                   {'name': 'Image frame', 'type': 'group', 'children': [
                    {'name': 'x_start', 'type': 'int', 'suffix': 'px',
                     'value': 1},
@@ -103,6 +226,10 @@ class TormentaGUI(QtGui.QMainWindow):
                    {'name': 'Update', 'type': 'action'},
                    ]},
                   {'name': 'Timings', 'type': 'group', 'children': [
+                   {'name': 'Frame Transfer Mode', 'type': 'bool',
+                    'value': False},
+                   {'name': 'Horizontal readout rate', 'type': 'list',
+                    'values': self.HRRates[::-1]},
                    {'name': 'Set exposure time', 'type': 'float',
                     'value': 0.1, 'limits': (0, andor.max_exposure.magnitude),
                     'siPrefix': True, 'suffix': 's'},
@@ -112,10 +239,9 @@ class TormentaGUI(QtGui.QMainWindow):
                    {'name': 'Real accumulation time', 'type': 'float',
                     'value': 0, 'readonly': True, 'siPrefix': True,
                     'suffix': 's'},
-                   {'name': 'Frame Transfer Mode', 'type': 'bool',
-                    'value': False},
-                   {'name': 'Horizontal readout rate', 'type': 'list',
-                    'values': self.HRRates[::-1]},
+                   {'name': 'Effective frame rate', 'type': 'float',
+                    'value': 0, 'readonly': True, 'siPrefix': True,
+                    'suffix': 'Hz'},
                    ]},
                   {'name': 'Gain', 'type': 'group', 'children': [
                    {'name': 'Pre-amp gain', 'type': 'list',
@@ -214,16 +340,21 @@ class TormentaGUI(QtGui.QMainWindow):
         StabButton.sigStateChanged.connect(self.StabilizerThread.start)
         self.StabilizerThread.started.connect(self.Stabilizer.start)
 
+        LaserWidgets = LaserWidget()
+
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
         layout.setColumnMinimumWidth(1, 400)
         layout.setColumnMinimumWidth(2, 800)
-        layout.setRowMinimumHeight(1, 700)
-        layout.addWidget(LVButton, 2, 1)
-        layout.addWidget(imagewidget, 1, 2, 2, 1)
+        layout.setColumnMinimumWidth(3, 200)
+        layout.setRowMinimumHeight(1, 300)
+        layout.setRowMinimumHeight(2, 500)
+        layout.addWidget(LVButton, 4, 1)
+        layout.addWidget(imagewidget, 1, 2, 4, 1)
         layout.addWidget(self.fpsbox, 0, 2)
-        layout.addWidget(tree, 1, 1)
+        layout.addWidget(tree, 1, 1, 3, 1)
+        layout.addWidget(LaserWidgets, 1, 3)
 
     def ChangeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -289,8 +420,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.t_exp_real, self.t_acc_real, self.t_kin_real = timings
         RealExpPar = self.p.param('Timings').param('Real exposure time')
         RealAccPar = self.p.param('Timings').param('Real accumulation time')
+        EffFRPar = self.p.param('Timings').param('Effective frame rate')
         RealExpPar.setValue(self.t_exp_real.magnitude)
         RealAccPar.setValue(self.t_acc_real.magnitude)
+        EffFRPar.setValue(1 / self.t_acc_real.magnitude)
 
     def Liveview(self):
         """ Image live view when not recording
@@ -425,7 +558,9 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor:
+    with CCD() as andor, \
+        Cobolt0601('COM4') as bluelaser, \
+            VFL('COM5') as redlaser:
 
         win = TormentaGUI()
         win.show()
