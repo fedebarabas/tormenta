@@ -7,6 +7,7 @@ Created on Mon Jun 16 18:19:24 2014
 
 import numpy as np
 import os
+import time
 
 from PyQt4 import QtGui, QtCore
 
@@ -14,7 +15,6 @@ import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
 from pyqtgraph.parametertree import Parameter, ParameterTree
 
-import time
 import h5py as hdf
 
 # Lantz drivers
@@ -22,6 +22,8 @@ from lantz.drivers.andor.ccd import CCD
 #from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
 from lantz import Q_
+
+from lasercontrol import laserWidget
 
 degC = Q_(1, 'degC')
 us = Q_(1, 'us')
@@ -81,125 +83,6 @@ class RecordingWidget(QtGui.QFrame):
 
     def filename(self):
         return self.filenameEdit.text()
-
-
-class UpdatePowers(QtCore.QObject):
-
-    def __init__(self, laserwidget, *args, **kwargs):
-
-        global redlaser  # , bluelaser
-
-        super(QtCore.QObject, self).__init__(*args, **kwargs)
-        self.widget = laserwidget
-
-    def update(self):
-        redpower = str(np.round(redlaser.power))
-        self.widget.RedControl.PowerIndicator.setText(redpower)
-        time.sleep(1)
-        QtCore.QTimer.singleShot(1, self.update)
-
-
-class LaserWidget(QtGui.QFrame):
-
-    def __init__(self, *args, **kwargs):
-
-        global redlaser  # , bluelaser
-
-        super(QtGui.QFrame, self).__init__(*args, **kwargs)
-
-        LaserTitle = QtGui.QLabel('<h2>Laser control</h2>')
-        LaserTitle.setTextFormat(QtCore.Qt.RichText)
-
-        self.RedControl = LaserControl(redlaser,
-                                       '<h3>MPB 642nm 1500mW</h3>',
-                                       color=(255, 11, 0), prange=(150, 1500),
-                                       tickInterval=100, singleStep=10)
-
-#        self.BlueControl = LaserControl(bluelaser,
-#                                        '<h3>Cobolt 405nm 100mW</h3>',
-#                                        color=(73, 0, 188),
-#                                        prange=(0, 100),
-#                                        tickInterval=10, singleStep=1)
-
-        self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
-        grid = QtGui.QGridLayout()
-        self.setLayout(grid)
-        grid.addWidget(LaserTitle, 0, 0)
-        grid.addWidget(self.RedControl, 1, 1)
-#        grid.addWidget(self.BlueControl, 1, 0)
-
-        # Current power update routine
-        self.updatePowers = UpdatePowers(self)
-        self.updateThread = QtCore.QThread()
-        self.updatePowers.moveToThread(self.updateThread)
-        self.updateThread.start()
-        self.updateThread.started.connect(self.updatePowers.update)
-
-
-class LaserControl(QtGui.QWidget):
-
-    def __init__(self, laser, name, color, prange, tickInterval, singleStep,
-                 *args, **kwargs):
-        super(QtGui.QWidget, self).__init__(*args, **kwargs)
-        self.laser = laser
-        self.laser.power_sp = prange[0] * mW
-
-        self.setGeometry(10, 10, 30, 150)
-
-        self.Name = QtGui.QLabel()
-        self.Name.setTextFormat(QtCore.Qt.RichText)
-        self.Name.setText(name)
-
-        self.PowerIndicator = QtGui.QLineEdit('0')
-        self.PowerIndicator.setReadOnly(True)
-
-        self.setPointEdit = QtGui.QLineEdit(str(self.laser.power_sp.magnitude))
-
-        self.EnableButton = QtGui.QPushButton('ON')
-        style = "background-color: rgb{}".format(color)
-        self.EnableButton.setStyleSheet(style)
-        self.EnableButton.setCheckable(True)
-
-        self.Slider = QtGui.QSlider(QtCore.Qt.Vertical, self)
-        self.Slider.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.Slider.setMinimum(prange[0])
-        self.Slider.setMaximum(prange[1])
-        self.Slider.setTickInterval(tickInterval)
-        self.Slider.setSingleStep(singleStep)
-
-        grid = QtGui.QGridLayout()
-        self.setLayout(grid)
-        grid.addWidget(self.Name, 0, 0, 1, 2)
-        grid.addWidget(self.PowerIndicator, 2, 0)
-        grid.addWidget(self.setPointEdit, 3, 0)
-        grid.addWidget(self.EnableButton, 4, 0)
-        grid.addWidget(self.Slider, 1, 1, 6, 1)
-
-        grid.setRowMinimumHeight(1, 50)
-        grid.setRowMinimumHeight(6, 50)
-
-        # Connections
-        self.EnableButton.toggled.connect(self.toggleLaser)
-        self.Slider.valueChanged[int].connect(self.changeSlider)
-        self.setPointEdit.returnPressed.connect(self.changeEdit)
-
-    def toggleLaser(self):
-        if self.EnableButton.isChecked():
-            self.laser.enabled = True
-        else:
-            self.laser.enabled = False
-
-    def enableLaser(self):
-        self.laser.enabled = True
-        self.laser.power_sp = float(self.setPointEdit.text()) * mW
-
-    def changeSlider(self, value):
-        self.laser.power_sp = self.Slider.value() * mW
-        self.setPointEdit.setText(str(self.laser.power_sp.magnitude))
-
-    def changeEdit(self):
-        self.laser.power_sp = float(self.setPointEdit.text()) * mW
-        self.Slider.setValue(self.laser.power_sp.magnitude)
 
 
 def SetCameraDefaults(camera):
@@ -352,6 +235,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist = pg.HistogramLUTItem()
         self.hist.setImageItem(self.img)
         self.hist.autoHistogramRange = False
+        self.hist.setLevels(90, 110)
         imagewidget.addItem(self.hist)
 
         self.fpsbox = QtGui.QLabel()
@@ -370,14 +254,15 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Temperature stabilization functionality
         self.TempPar = self.p.param('Temperature')
-        StabButton = self.TempPar.param('Stabilize')
-        self.Stabilizer = TemperatureStabilizer(self.TempPar)
-        self.StabilizerThread = QtCore.QThread()
-        self.Stabilizer.moveToThread(self.StabilizerThread)
-        StabButton.sigStateChanged.connect(self.StabilizerThread.start)
-        self.StabilizerThread.started.connect(self.Stabilizer.start)
+        stabButton = self.TempPar.param('Stabilize')
+        self.stabilizer = TemperatureStabilizer(self.TempPar)
+        self.stabilizerThread = QtCore.QThread()
+        self.stabilizer.moveToThread(self.stabilizerThread)
+        stabButton.sigStateChanged.connect(self.stabilizerThread.start)
+        self.stabilizerThread.started.connect(self.stabilizer.start)
 
-        self.LaserWidgets = LaserWidget()
+        # Laser control widget
+        self.laserWidgets = laserWidget(redlaser)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
@@ -392,7 +277,7 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.recWidget, 4, 1)
         layout.addWidget(imagewidget, 1, 2, 4, 1)
         layout.addWidget(self.fpsbox, 0, 2)
-        layout.addWidget(self.LaserWidgets, 1, 3)
+        layout.addWidget(self.laserWidgets, 1, 3)
 
     def ChangeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -466,21 +351,14 @@ class TormentaGUI(QtGui.QMainWindow):
     def Liveview(self):
         """ Image live view when not recording
         """
-
         if andor.status != 'Camera is idle, waiting for instructions.':
             andor.abort_acquisition()
 
         andor.acquisition_mode = 'Run till abort'
-        andor.free_int_mem()
         andor.shutter(0, 1, 0, 0, 0)
 
         andor.start_acquisition()
         time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
-        idata = andor.most_recent_image16(self.shape)
-
-        # Initial image and histogram
-        self.img.setImage(idata)
-        self.hist.setLevels(0.8 * idata.min(), 1.2 * idata.max())
         self.viewtimer.start(0)
 
     def UpdateView(self):
@@ -555,9 +433,10 @@ class TormentaGUI(QtGui.QMainWindow):
                 fps = fps * (1-s) + (1.0/dt) * s
             self.fpsbox.setText('%0.2f fps' % fps)
 
-        if self.j < self.n:
+        if self.j < self.n:     # It hasn't finished
             QtCore.QTimer.singleShot(0, self.UpdateWhileRec)
-        else:
+
+        else:                   # The recording is over
             self.j = 0
 
             # Saving parameters as data attributes in the HDF5 file
@@ -585,37 +464,19 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def closeEvent(self, *args, **kwargs):
 
+        self.laserWidgets.closeEvent()
+
         # Stop running threads
         self.viewtimer.stop()
-        self.LaserWidgets.updateThread.terminate()
-        self.StabilizerThread.terminate()
+        self.stabilizerThread.terminate()
 
         # Turn off camera, close shutter
         if andor.status != 'Camera is idle, waiting for instructions.':
             andor.abort_acquisition()
         andor.shutter(0, 2, 0, 0, 0)
 
-#        laserOff(bluelaser, 10 * mW)
-#        laserOff(redlaser, 150 * mW)
-        redlaser.enabled = False
-#        bluelaser.enabled = False
-
         super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
 
-
-def laserOff(laser, mini):
-    """ Lasers' shutting down protocol
-    """
-    if laser.power_sp > 2 * mini:
-        while laser.power_sp > 2 * mini:
-            ipower = laser.power_sp
-            laser.power_sp = ipower - mini
-            time.sleep(3)
-
-        laser.power_sp = mini
-        time.sleep(3)
-
-    laser.enabled = False
 
 if __name__ == '__main__':
 
