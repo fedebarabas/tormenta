@@ -19,7 +19,7 @@ import h5py as hdf
 
 # Lantz drivers
 from lantz.drivers.andor.ccd import CCD
-from lantz.drivers.cobolt import Cobolt0601
+#from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
 from lantz import Q_
 
@@ -37,11 +37,57 @@ app = QtGui.QApplication([])
 # TODO: Implement cropped sensor mode in case we want higher framerates
 
 
+class RecordingWidget(QtGui.QFrame):
+
+    def __init__(self, *args, **kwargs):
+        super(QtGui.QFrame, self).__init__(*args, **kwargs)
+
+        recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
+        recTitle.setTextFormat(QtCore.Qt.RichText)
+        self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+        recGrid = QtGui.QGridLayout()
+        self.setLayout(recGrid)
+        numExpositions = QtGui.QLabel('Number of expositions')
+        self.numExpositionsEdit = QtGui.QLineEdit('100')
+        folderLabel = QtGui.QLabel('Folder')
+        self.folderEdit = QtGui.QLineEdit(os.getcwd())
+        filenameLabel = QtGui.QLabel('Filename')
+        self.filenameEdit = QtGui.QLineEdit('filename.hdf5')
+        self.snapButton = QtGui.QPushButton('Snap')
+        self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                      QtGui.QSizePolicy.Expanding)
+        self.recButton = QtGui.QPushButton('REC')
+        self.recButton.setCheckable(True)
+        self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                     QtGui.QSizePolicy.Expanding)
+        self.convertButton = QtGui.QPushButton('Convert to .tiff')
+
+        recGrid.addWidget(recTitle, 0, 0, 1, 3)
+        recGrid.addWidget(numExpositions, 1, 0)
+        recGrid.addWidget(self.numExpositionsEdit, 1, 1)
+        recGrid.addWidget(folderLabel, 2, 0, 1, 2)
+        recGrid.addWidget(self.folderEdit, 3, 0, 1, 2)
+        recGrid.addWidget(filenameLabel, 4, 0, 1, 2)
+        recGrid.addWidget(self.filenameEdit, 5, 0, 1, 2)
+        recGrid.addWidget(self.snapButton, 1, 2, 2, 1)
+        recGrid.addWidget(self.recButton, 3, 2, 2, 1)
+        recGrid.addWidget(self.convertButton, 5, 2)
+
+    def nExpositions(self):
+        return int(self.numExpositionsEdit.text())
+
+    def folder(self):
+        return self.folderEdit.text()
+
+    def filename(self):
+        return self.filenameEdit.text()
+
+
 class UpdatePowers(QtCore.QObject):
 
     def __init__(self, laserwidget, *args, **kwargs):
 
-        global redlaser, bluelaser
+        global redlaser  # , bluelaser
 
         super(QtCore.QObject, self).__init__(*args, **kwargs)
         self.widget = laserwidget
@@ -57,31 +103,30 @@ class LaserWidget(QtGui.QFrame):
 
     def __init__(self, *args, **kwargs):
 
-        global redlaser, bluelaser
+        global redlaser  # , bluelaser
 
         super(QtGui.QFrame, self).__init__(*args, **kwargs)
 
-        LaserTitle = QtGui.QLabel()
+        LaserTitle = QtGui.QLabel('<h2>Laser control</h2>')
         LaserTitle.setTextFormat(QtCore.Qt.RichText)
-        LaserTitle.setText('<h1><strong>Laser control</strong></h1>')
 
         self.RedControl = LaserControl(redlaser,
                                        '<h3>MPB 642nm 1500mW</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
                                        tickInterval=100, singleStep=10)
 
-        self.BlueControl = LaserControl(bluelaser,
-                                        '<h3>Cobolt 405nm 100mW</h3>',
-                                        color=(73, 0, 188),
-                                        prange=(0, 100),
-                                        tickInterval=10, singleStep=1)
+#        self.BlueControl = LaserControl(bluelaser,
+#                                        '<h3>Cobolt 405nm 100mW</h3>',
+#                                        color=(73, 0, 188),
+#                                        prange=(0, 100),
+#                                        tickInterval=10, singleStep=1)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(LaserTitle, 0, 0)
         grid.addWidget(self.RedControl, 1, 1)
-        grid.addWidget(self.BlueControl, 1, 0)
+#        grid.addWidget(self.BlueControl, 1, 0)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
@@ -130,9 +175,8 @@ class LaserControl(QtGui.QWidget):
         grid.addWidget(self.EnableButton, 4, 0)
         grid.addWidget(self.Slider, 1, 1, 6, 1)
 
-        grid.setRowMinimumHeight(1, 60)
-        grid.setRowMinimumHeight(6, 60)
-        grid.setRowMinimumHeight(5, 30)
+        grid.setRowMinimumHeight(1, 50)
+        grid.setRowMinimumHeight(6, 50)
 
         # Connections
         self.EnableButton.toggled.connect(self.toggleLaser)
@@ -199,9 +243,9 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def __init__(self, *args, **kwargs):
 
-        global andor, bluelaser
+        global andor  # , bluelaser
 
-        bluelaser.enabled = True
+#        bluelaser.enabled = True
 
         super(QtGui.QMainWindow, self).__init__(*args, **kwargs)
         self.setWindowTitle('Tormenta')
@@ -253,16 +297,6 @@ class TormentaGUI(QtGui.QMainWindow):
                    {'name': 'EM gain', 'type': 'int', 'value': 1,
                     'limits': (0, andor.EM_gain_range[1])}
                    ]},
-                  {'name': 'Recording', 'type': 'group', 'children': [
-                   {'name': 'Number of expositions', 'type': 'int',
-                    'value': 100},
-                   {'name': 'Folder', 'type': 'str',
-                    'value': os.getcwd()},
-                   {'name': 'Filename', 'type': 'str',
-                    'value': 'filename.hdf5'},
-                   {'name': 'Start', 'type': 'action'},
-                   {'name': 'Convert to raw', 'type': 'action'},
-                   ]},
                   {'name': 'Temperature', 'type': 'group', 'children': [
                    {'name': 'Set point', 'type': 'int', 'value': -40,
                     'suffix': 'º', 'limits': (-80, 0)},
@@ -301,11 +335,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.GainPar.sigValueChanged.connect(UpdateGain)
 
         # Recording signals
-        self.dataname = 'data'      # In case I need a new parameter for this
-        RecButton = self.p.param('Recording').param('Start')
-        RecButton.sigStateChanged.connect(self.Record)
-        ConvertButton = self.p.param('Recording').param('Convert to raw')
-        ConvertButton.sigStateChanged.connect(self.ConvertToRaw)
+        self.dataname = 'data'      # In case I need a QLineEdit for this
+        self.recWidget = RecordingWidget()
+        self.recWidget.recButton.clicked.connect(self.Record)
+        self.recWidget.convertButton.clicked.connect(self.ConvertToRaw)
 
         # Image Widget
         # TODO: redefine axis ticks
@@ -352,12 +385,13 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setColumnMinimumWidth(1, 400)
         layout.setColumnMinimumWidth(2, 800)
         layout.setColumnMinimumWidth(3, 200)
-        layout.setRowMinimumHeight(1, 200)
-        layout.setRowMinimumHeight(2, 500)
-        layout.addWidget(LVButton, 4, 1)
+        layout.setRowMinimumHeight(1, 150)
+        layout.setRowMinimumHeight(2, 250)
+        layout.addWidget(tree, 1, 1, 2, 1)
+        layout.addWidget(LVButton, 3, 1)
+        layout.addWidget(self.recWidget, 4, 1)
         layout.addWidget(imagewidget, 1, 2, 4, 1)
         layout.addWidget(self.fpsbox, 0, 2)
-        layout.addWidget(tree, 1, 1, 3, 1)
         layout.addWidget(self.LaserWidgets, 1, 3)
 
     def ChangeParameter(self, function):
@@ -473,10 +507,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.j = 0
 
         # Data storing
-        RecordingPar = self.p.param('Recording')
-        self.folder = RecordingPar.param('Folder').value()
-        self.filename = RecordingPar.param('Filename').value()
-        self.n = RecordingPar.param('Number of expositions').value()
+        self.folder = self.recWidget.folder()
+        self.filename = self.recWidget.filename()
+        self.n = self.recWidget.nExpositions()
         self.store_file = hdf.File(os.path.join(self.folder, self.filename),
                                    "w")
         self.store_file.create_dataset(name=self.dataname,
@@ -541,6 +574,7 @@ class TormentaGUI(QtGui.QMainWindow):
                         dset.attrs[str(subParamName)] = subParam.value()
 
             self.store_file.close()
+            self.recWidget.recButton.setChecked(False)
             self.Liveview()
 
     def ConvertToRaw(self):
@@ -564,7 +598,7 @@ class TormentaGUI(QtGui.QMainWindow):
 #        laserOff(bluelaser, 10 * mW)
 #        laserOff(redlaser, 150 * mW)
         redlaser.enabled = False
-        bluelaser.enabled = False
+#        bluelaser.enabled = False
 
         super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
 
@@ -588,13 +622,11 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor, \
-        Cobolt0601('COM4') as bluelaser, \
-            VFL('COM5') as redlaser:
+    with CCD() as andor, VFL('COM5') as redlaser:
 
         print(andor.idn)
         print(redlaser.idn)
-        print(bluelaser.idn)
+#        print(bluelaser.idn)
 
         win = TormentaGUI()
         win.show()
