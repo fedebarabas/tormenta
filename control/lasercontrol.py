@@ -10,12 +10,28 @@ import time
 
 from PyQt4 import QtGui, QtCore
 
+from serial import Serial
 #from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
+from simulators import SimLaser
 from lantz import Q_
 
 mW = Q_(1, 'mW')
 
+
+class testt(object):
+
+    def __new__(cls, *args):
+
+        try:
+            Serial(*args)
+
+        except:
+            print('sasa')
+            return SimLaser()
+
+        else:
+            return VFL(*args)
 
 class updatePowers(QtCore.QObject):
 
@@ -162,10 +178,9 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-    with VFL('COM5') as redlaser:
+    with testt('COM2') as redlaser:
 
         print(redlaser.idn)
-
         win = laserWidget(redlaser)
         win.show()
 
