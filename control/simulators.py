@@ -29,6 +29,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s',
 
 mW = Q_(1, 'mW')
 
+
 class SimLaser(Driver):
 
     def __init__(self):
@@ -83,6 +84,7 @@ class SimLaser(Driver):
             return 0 * mW
 
 degC = Q_(1, 'degC')
+
 
 class SimCamera(Driver):
 
@@ -167,7 +169,7 @@ class SimCamera(Driver):
         """
         self.status_state = 'Camera is idle, waiting for instructions.'
 
-    @property()
+    @property
     def status(self):
         """ This function will return the current status of the Andor SDK
         system. This function should be called before an acquisition is started
