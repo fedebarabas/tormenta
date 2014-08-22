@@ -20,10 +20,11 @@ import h5py as hdf
 # Lantz drivers
 from lantz.drivers.andor.ccd import CCD
 #from lantz.drivers.cobolt import Cobolt0601
+from lantz.drivers.rgblasersystems import MiniLasEvo
 from lantz.drivers.mpb import VFL
 from lantz import Q_
 
-from lasercontrol import laserWidget
+from lasercontrol import LaserWidget
 
 degC = Q_(1, 'degC')
 us = Q_(1, 'us')
@@ -262,7 +263,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizerThread.started.connect(self.stabilizer.start)
 
         # Laser control widget
-        self.laserWidgets = laserWidget(redlaser)
+        self.laserWidgets = LaserWidget((redlaser, bluelaser))
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
@@ -483,11 +484,12 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor, VFL('COM5') as redlaser:
+    with CCD() as andor, VFL('COM5') as redlaser, \
+            MiniLasEvo('COM7') as bluelaser:
 
         print(andor.idn)
         print(redlaser.idn)
-#        print(bluelaser.idn)
+        print(bluelaser.idn)
 
         win = TormentaGUI()
         win.show()
