@@ -163,6 +163,7 @@ class SimCamera(Driver):
         can be monitored via GetStatus().
         """
         self.status_state = 'Acquisition in progress.'
+        self.j = 0
 
     def abort_acquisition(self):
         """This function aborts the current acquisition if one is active
@@ -206,6 +207,22 @@ class SimCamera(Driver):
         size as the complete image.
         """
         return np.random.normal(100, 10, self.image_size)
+
+    def set_n_kinetics(self, n):
+        self.n = n
+
+    @property
+    def n_images_acquired(self):
+        self.j += 1
+        if self.j == self.n:
+            self.status_state = 'Camera is idle, waiting for instructions.'
+        return self.j
+
+    def new_images_index(self):
+        return (self.j, self.j)
+
+    def shutter(self, *args):
+        pass
 
 def main(args=None):
     import argparse
