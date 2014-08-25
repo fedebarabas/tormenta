@@ -182,7 +182,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-    with Laser(VFL, 'COM2') as redlaser, \
+    with Laser(VFL, 'COM5') as redlaser, \
             Laser(MiniLasEvo, 'COM7') as bluelaser:
 
         print(redlaser.idn, bluelaser.idn)
