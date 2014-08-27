@@ -25,6 +25,7 @@ from lantz.drivers.mpb import VFL
 from lantz import Q_
 
 from lasercontrol import LaserWidget, Laser
+from simulators import SimCamera
 
 degC = Q_(1, 'degC')
 us = Q_(1, 'us')
@@ -38,6 +39,16 @@ fps = None
 app = QtGui.QApplication([])
 
 # TODO: Implement cropped sensor mode in case we want higher framerates
+
+class Camera(object):
+
+    def __new__(cls, driver, *args):
+
+        try:
+            return driver(*args)
+
+        except:
+            return SimCamera()
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -484,7 +495,10 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor, Laser(VFL, 'COM5') as redlaser, \
+#    with Camera(CCD()) as andor, Laser(VFL, 'COM5') as redlaser, \
+#            Laser(MiniLasEvo, 'COM7') as bluelaser:
+
+    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
             Laser(MiniLasEvo, 'COM7') as bluelaser:
 
         print(andor.idn)

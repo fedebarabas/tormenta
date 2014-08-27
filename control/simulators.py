@@ -27,16 +27,16 @@ from lantz.simulators.instrument import SimError, InstrumentHandler, main_tcp, m
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s',
                     datefmt='%Y-%d-%m %H:%M:%S')
 
-mW = Q_(1, 'mW')
-
 
 class SimLaser(Driver):
 
     def __init__(self):
         super().__init__()
 
+        self.mW = Q_(1, 'mW')
+
         self.enabled = False
-        self.power_sp = 0 * mW
+        self.power_sp = 0 * self.mW
         print("Simulated laser initialized")
 
     @property
@@ -78,12 +78,10 @@ class SimLaser(Driver):
     def power(self):
         """To get the laser emission power (mW)
         """
-        if self.power_sp > 0 * mW:
-            return np.random.normal(self.power_sp, self.power_sp / 10) * mW
+        if self.power_sp > 0 * self.mW:
+            return np.random.normal(self.power_sp, self.power_sp / 10) * self.mW
         else:
-            return 0 * mW
-
-degC = Q_(1, 'degC')
+            return 0 * self.mW
 
 
 class SimCamera(Driver):
@@ -91,13 +89,19 @@ class SimCamera(Driver):
     def __init__(self):
         super().__init__()
 
-        self.temperature_setpoint = -10 * degC
+        self.degC = Q_(1, 'degC')
+        self.s = Q_(1, 's')
+
+        self.temperature_setpoint = -10 * self.degC
         self.cooler_on_state = False
         self.acq_mode = 'Run till abort'
         self.status_state = 'Camera is idle, waiting for instructions.'
-        self.image_size = self.detector_size
-
-        print("Simulated camera initialized")
+        self.image_size = self.detector_shape
+        self.preamp_st = 1
+        self.EM_gain_st = 1
+        self.ftm_state = False
+        self.horiz_shift_speed_state = 1
+        self.n_preamps =  1
 
     @property
     def idn(self):
@@ -106,7 +110,7 @@ class SimCamera(Driver):
         return 'Simulated Andor camera'
 
     @property
-    def detector_size(self):
+    def detector_shape(self):
         return (512, 512)
 
     @property
@@ -123,9 +127,9 @@ class SimCamera(Driver):
         """
         if self.cooler_on_state:
             return np.random.normal(self.temperature_setpoint,
-                                    self.temperature_setpoint / 19) * degC
+                                    self.temperature_setpoint / 19) * self.degC
         else:
-            return 21 * degC
+            return 21 * self.degC
 
     @property
     def temperature_setpoint(self):
@@ -224,36 +228,60 @@ class SimCamera(Driver):
     def shutter(self, *args):
         pass
 
-def main(args=None):
-    import argparse
-    parser = argparse.ArgumentParser(description='Function Generator Simulator')
-    subparsers = parser.add_subparsers()
+    @property
+    def preamp(self):
+        return self.preamp_st
 
-    subparser = subparsers.add_parser('serial')
-    subparser.add_argument('-p', '--port', type=str, default='1',
-                            help='Serial port')
-    subparser.set_defaults(func=main_serial)
+    @preamp.setter
+    def preamp(self, value):
+        self.preamp_st = value
 
-    subparser = subparsers.add_parser('tcp')
-    subparser.add_argument('-H', '--host', type=str, default='localhost',
-                           help='TCP hostname')
-    subparser.add_argument('-p', '--port', type=int, default=5678,
-                            help='TCP port')
-    subparser.set_defaults(func=main_tcp)
+#    @property
+    def true_preamp(self, n):
+        return 10
 
-    instrument = SimLaser()
-    args = parser.parse_args(args)
-    server = args.func(instrument, args)
+    @property
+    def n_horiz_shift_speeds(self):
+        return 1
 
-    logging.info('interrupt the program with Ctrl-C')
-    print(instrument.idn)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        logging.info('Ending')
-    finally:
-        server.shutdown()
+    @property
+    def true_horiz_shift_speed(self, n):
+        return 100
 
+    @property
+    def horiz_shift_speed(self):
+        return self.horiz_shift_speed_state
 
-if __name__ == "__main__":
-    main()
+    @horiz_shift_speed.setter
+    def horiz_shift_speed(self, value):
+        self.horiz_shift_speed_state = value
+
+    @property
+    def max_exposure(self):
+        return 12 * self.s
+
+    def acquisition_timings(self):
+        return (1 * self.s, 1 * self.s, 1 * self.s)
+
+    @property
+    def EM_gain_range(self):
+        return (0, 1000)
+
+    @property
+    def EM_gain(self):
+        return self.EM_gain_st
+
+    @EM_gain.setter
+    def EM_gain(self, value):
+        self.EM_gain_st = value
+
+    def set_exposure_time(self, t):
+        pass
+
+    @property
+    def frame_transfer_mode(self):
+        return self.ftm_state
+
+    @frame_transfer_mode.setter
+    def frame_transfer_mode(self, state):
+        self.ftm_state = state
