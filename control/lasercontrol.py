@@ -90,8 +90,6 @@ class LaserWidget(QtGui.QFrame):
 
         # Stop running threads
         self.updateThread.terminate()
-#        laserOff(bluelaser, 10 * mW)
-#        laserOff(redlaser, 150 * mW)
         self.redlaser.enabled = False
         self.bluelaser.enabled = False
 

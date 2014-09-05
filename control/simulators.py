@@ -148,6 +148,13 @@ class SimCamera(Driver):
         self.cooler_on_state = value
 
     @property
+    def temperature_status(self):
+        if self.cooler_on_state:
+            return 'Temperature stabilized'
+        else:
+            return 'Temperature not stabilized'
+
+    @property
     def acquisition_mode(self):
         """ This function will set the acquisition mode to be used on the next
         StartAcquisition.
@@ -215,6 +222,15 @@ class SimCamera(Driver):
     def set_n_kinetics(self, n):
         self.n = n
 
+    def set_n_accum(self, i):
+        pass
+
+    def set_accum_time(self, dt):
+        pass
+
+    def set_kinetic_cycle_time(self, dt):
+        pass
+
     @property
     def n_images_acquired(self):
         self.j += 1
@@ -236,15 +252,12 @@ class SimCamera(Driver):
     def preamp(self, value):
         self.preamp_st = value
 
-#    @property
     def true_preamp(self, n):
         return 10
 
-    @property
     def n_horiz_shift_speeds(self):
         return 1
 
-    @property
     def true_horiz_shift_speed(self, n):
         return 100
 
@@ -260,8 +273,9 @@ class SimCamera(Driver):
     def max_exposure(self):
         return 12 * self.s
 
+    @property
     def acquisition_timings(self):
-        return (1 * self.s, 1 * self.s, 1 * self.s)
+        return 1, 1, 1
 
     @property
     def EM_gain_range(self):

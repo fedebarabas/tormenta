@@ -67,13 +67,18 @@ class RecordingWidget(QtGui.QFrame):
         self.folderEdit = QtGui.QLineEdit(os.getcwd())
         filenameLabel = QtGui.QLabel('Filename')
         self.filenameEdit = QtGui.QLineEdit('filename.hdf5')
+
         self.snapButton = QtGui.QPushButton('Snap')
+        self.snapButton.setEnabled(False)
         self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
+
         self.recButton = QtGui.QPushButton('REC')
         self.recButton.setCheckable(True)
+        self.recButton.setEnabled(False)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
+
         self.convertButton = QtGui.QPushButton('Convert to .tiff')
 
         recGrid.addWidget(recTitle, 0, 0, 1, 3)
@@ -97,7 +102,7 @@ class RecordingWidget(QtGui.QFrame):
         return self.filenameEdit.text()
 
 
-def SetCameraDefaults(camera):
+def setCameraDefaults(camera):
     """ Initial camera's configuration
     """
     camera.readout_mode = 'Image'
@@ -138,9 +143,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def __init__(self, *args, **kwargs):
 
-        global andor  # , bluelaser
-
-#        bluelaser.enabled = True
+        global andor
 
         super(QtGui.QMainWindow, self).__init__(*args, **kwargs)
         self.setWindowTitle('Tormenta')
@@ -208,32 +211,33 @@ class TormentaGUI(QtGui.QMainWindow):
         tree.setParameters(self.p, showTop=False)
 
         # Frame signals
-        FrameUpdateButton = self.p.param('Image frame').param('Update')
-        UpdateFrame = lambda: self.ChangeParameter(self.UpdateFrame)
-        FrameUpdateButton.sigStateChanged.connect(UpdateFrame)
+        frameUpdateButton = self.p.param('Image frame').param('Update')
+        changeFrame = lambda: self.changeParameter(self.updateFrame)
+        frameUpdateButton.sigStateChanged.connect(changeFrame)
 
         # Exposition signals
         self.TimingsPar = self.p.param('Timings')
         self.ExpPar = self.TimingsPar.param('Set exposure time')
         self.FTMPar = self.TimingsPar.param('Frame Transfer Mode')
         self.HRRatePar = self.TimingsPar.param('Horizontal readout rate')
-        UpdateExposure = lambda: self.ChangeParameter(self.SetExposure)
-        self.ExpPar.sigValueChanged.connect(UpdateExposure)
-        self.FTMPar.sigValueChanged.connect(UpdateExposure)
-        self.HRRatePar.sigValueChanged.connect(UpdateExposure)
+        changeExposure = lambda: self.changeParameter(self.setExposure)
+        self.ExpPar.sigValueChanged.connect(changeExposure)
+        self.FTMPar.sigValueChanged.connect(changeExposure)
+        self.HRRatePar.sigValueChanged.connect(changeExposure)
 
         # Gain signals
         self.PreGainPar = self.p.param('Gain').param('Pre-amp gain')
-        UpdateGain = lambda: self.ChangeParameter(self.SetGain)
-        self.PreGainPar.sigValueChanged.connect(UpdateGain)
+        updateGain = lambda: self.changeParameter(self.setGain)
+        self.PreGainPar.sigValueChanged.connect(updateGain)
         self.GainPar = self.p.param('Gain').param('EM gain')
-        self.GainPar.sigValueChanged.connect(UpdateGain)
+        self.GainPar.sigValueChanged.connect(updateGain)
 
         # Recording signals
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.recWidget = RecordingWidget()
-        self.recWidget.recButton.clicked.connect(self.Record)
-        self.recWidget.convertButton.clicked.connect(self.ConvertToRaw)
+        self.recWidget.recButton.clicked.connect(self.record)
+        self.recWidget.snapButton.clicked.connect(self.snap)
+        self.recWidget.convertButton.clicked.connect(self.convertToRaw)
 
         # Image Widget
         # TODO: redefine axis ticks
@@ -253,16 +257,17 @@ class TormentaGUI(QtGui.QMainWindow):
         self.fpsbox = QtGui.QLabel()
 
         # Initial camera configuration taken from the parameter tree
-        SetCameraDefaults(andor)
+        setCameraDefaults(andor)
         andor.set_exposure_time(self.ExpPar.value() * s)
-        self.AdjustFrame()
-        self.UpdateTimings()
+        self.adjustFrame()
+        self.updateTimings()
 
         # Liveview functionality
-        LVButton = QtGui.QPushButton('Liveview')
-        LVButton.pressed.connect(self.Liveview)
+        liveviewButton = QtGui.QPushButton('Liveview')
+        liveviewButton.setCheckable(True)
+        liveviewButton.pressed.connect(self.liveview)
         self.viewtimer = QtCore.QTimer()
-        self.viewtimer.timeout.connect(self.UpdateView)
+        self.viewtimer.timeout.connect(self.updateView)
 
         # Temperature stabilization functionality
         self.TempPar = self.p.param('Temperature')
@@ -285,13 +290,13 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setRowMinimumHeight(1, 150)
         layout.setRowMinimumHeight(2, 250)
         layout.addWidget(tree, 1, 1, 2, 1)
-        layout.addWidget(LVButton, 3, 1)
+        layout.addWidget(liveviewButton, 3, 1)
         layout.addWidget(self.recWidget, 4, 1)
         layout.addWidget(imagewidget, 1, 2, 4, 1)
         layout.addWidget(self.fpsbox, 0, 2)
         layout.addWidget(self.laserWidgets, 1, 3)
 
-    def ChangeParameter(self, function):
+    def changeParameter(self, function):
         """ This method is used to change those camera properties that need
         the camera to be idle to be able to be adjusted.
         """
@@ -307,7 +312,7 @@ class TormentaGUI(QtGui.QMainWindow):
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
             self.viewtimer.start(0)
 
-    def SetGain(self):
+    def setGain(self):
         """ Method to change the pre-amp gain and main gain of the EMCCD
         """
         PreAmpGain = self.PreGainPar.value()
@@ -315,7 +320,7 @@ class TormentaGUI(QtGui.QMainWindow):
         andor.preamp = n
         andor.EM_gain = self.GainPar.value()
 
-    def SetExposure(self):
+    def setExposure(self):
         """ Method to change the exposure time setting
         """
         andor.set_exposure_time(self.ExpPar.value() * s)
@@ -324,9 +329,9 @@ class TormentaGUI(QtGui.QMainWindow):
         HRRatesMagnitude = np.array([item.magnitude for item in self.HRRates])
         n = np.where(HRRatesMagnitude == HRRate.magnitude)[0][0]
         andor.horiz_shift_speed = n
-        self.UpdateTimings()
+        self.updateTimings()
 
-    def AdjustFrame(self):
+    def adjustFrame(self):
         """ Method to change the area of the CCD to be used and adjust the
         image widget accordingly.
         """
@@ -341,13 +346,13 @@ class TormentaGUI(QtGui.QMainWindow):
                                        yMin=-0.5, yMax=self.shape[1] - 0.5,
                                        minXRange=4, minYRange=4)
 
-    def UpdateFrame(self):
+    def updateFrame(self):
         """ Method to change the image frame size and position in the sensor
         """
-        self.AdjustFrame()
-        self.UpdateTimings()
+        self.adjustFrame()
+        self.updateTimings()
 
-    def UpdateTimings(self):
+    def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
         tree.
         """
@@ -356,11 +361,11 @@ class TormentaGUI(QtGui.QMainWindow):
         RealExpPar = self.p.param('Timings').param('Real exposure time')
         RealAccPar = self.p.param('Timings').param('Real accumulation time')
         EffFRPar = self.p.param('Timings').param('Effective frame rate')
-        RealExpPar.setValue(self.t_exp_real.magnitude)
-        RealAccPar.setValue(self.t_acc_real.magnitude)
-        EffFRPar.setValue(1 / self.t_acc_real.magnitude)
+        RealExpPar.setValue(self.t_exp_real)
+        RealAccPar.setValue(self.t_acc_real)
+        EffFRPar.setValue(1 / self.t_acc_real)
 
-    def Liveview(self):
+    def liveview(self):
         """ Image live view when not recording
         """
         if andor.status != 'Camera is idle, waiting for instructions.':
@@ -370,10 +375,12 @@ class TormentaGUI(QtGui.QMainWindow):
         andor.shutter(0, 1, 0, 0, 0)
 
         andor.start_acquisition()
-        time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
+        time.sleep(np.min((5 * self.t_exp_real, 1)))
+        self.recWidget.snapButton.setEnabled(True)
+        self.recWidget.recButton.setEnabled(True)
         self.viewtimer.start(0)
 
-    def UpdateView(self):
+    def updateView(self):
         """ Image update while in Liveview mode
         """
         global lastTime, fps
@@ -392,7 +399,21 @@ class TormentaGUI(QtGui.QMainWindow):
         except:
             pass
 
-    def Record(self):
+    def snap(self):
+
+        image = andor.most_recent_image16(self.shape)
+
+        # Data storing
+        self.folder = self.recWidget.folder()
+        self.filename = self.recWidget.filename()
+        self.n = self.recWidget.nExpositions()
+        self.store_file = hdf.File(os.path.join(self.folder, self.filename),
+                                   "w")
+        self.store_file.create_dataset(name=self.dataname + '_snap', data=image)
+        # TODO: add attributes
+        self.store_file.close()
+
+    def record(self):
 
         self.j = 0
 
@@ -424,9 +445,9 @@ class TormentaGUI(QtGui.QMainWindow):
         # Stop the QTimer that updates the image with incoming data from the
         # 'Run till abort' acquisition mode.
         self.viewtimer.stop()
-        QtCore.QTimer.singleShot(1, self.UpdateWhileRec)
+        QtCore.QTimer.singleShot(1, self.updateWhileRec)
 
-    def UpdateWhileRec(self):
+    def updateWhileRec(self):
         global lastTime, fps
 
         if andor.n_images_acquired > self.j:
@@ -466,9 +487,9 @@ class TormentaGUI(QtGui.QMainWindow):
 
             self.store_file.close()
             self.recWidget.recButton.setChecked(False)
-            self.Liveview()
+            self.liveview()
 
-    def ConvertToRaw(self):
+    def convertToRaw(self):
 
         # TODO: implement this
         self.store_file = hdf.File(os.path.join(self.folder, self.filename),
