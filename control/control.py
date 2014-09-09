@@ -40,6 +40,7 @@ app = QtGui.QApplication([])
 
 # TODO: Implement cropped sensor mode in case we want higher framerates
 
+
 class Camera(object):
 
     def __new__(cls, driver, *args):
@@ -361,9 +362,9 @@ class TormentaGUI(QtGui.QMainWindow):
         RealExpPar = self.p.param('Timings').param('Real exposure time')
         RealAccPar = self.p.param('Timings').param('Real accumulation time')
         EffFRPar = self.p.param('Timings').param('Effective frame rate')
-        RealExpPar.setValue(self.t_exp_real)
-        RealAccPar.setValue(self.t_acc_real)
-        EffFRPar.setValue(1 / self.t_acc_real)
+        RealExpPar.setValue(self.t_exp_real.magnitude)
+        RealAccPar.setValue(self.t_acc_real.magnitude)
+        EffFRPar.setValue(1 / self.t_acc_real.magnitude)
 
     def liveview(self):
         """ Image live view when not recording
@@ -375,7 +376,7 @@ class TormentaGUI(QtGui.QMainWindow):
         andor.shutter(0, 1, 0, 0, 0)
 
         andor.start_acquisition()
-        time.sleep(np.min((5 * self.t_exp_real, 1)))
+        time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
         self.recWidget.snapButton.setEnabled(True)
         self.recWidget.recButton.setEnabled(True)
         self.viewtimer.start(0)
@@ -409,7 +410,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.n = self.recWidget.nExpositions()
         self.store_file = hdf.File(os.path.join(self.folder, self.filename),
                                    "w")
-        self.store_file.create_dataset(name=self.dataname + '_snap', data=image)
+        self.store_file.create_dataset(name=self.dataname + '_snap',
+                                       data=image)
         # TODO: add attributes
         self.store_file.close()
 
@@ -516,11 +518,11 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-#    with Camera(CCD()) as andor, Laser(VFL, 'COM5') as redlaser, \
-#            Laser(MiniLasEvo, 'COM7') as bluelaser:
-
-    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
+    with CCD() as andor, Laser(VFL, 'COM5') as redlaser, \
             Laser(MiniLasEvo, 'COM7') as bluelaser:
+
+#    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
+#            Laser(MiniLasEvo, 'COM7') as bluelaser:
 
         print(andor.idn)
         print(redlaser.idn)

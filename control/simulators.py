@@ -22,7 +22,6 @@ import numpy as np
 
 from lantz import Driver
 from lantz import Q_
-from lantz.simulators.instrument import SimError, InstrumentHandler, main_tcp, main_serial
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s',
                     datefmt='%Y-%d-%m %H:%M:%S')
@@ -79,7 +78,8 @@ class SimLaser(Driver):
         """To get the laser emission power (mW)
         """
         if self.power_sp > 0 * self.mW:
-            return np.random.normal(self.power_sp, self.power_sp / 10) * self.mW
+            return np.random.normal(self.power_sp,
+                                    self.power_sp / 10) * self.mW
         else:
             return 0 * self.mW
 
@@ -101,7 +101,7 @@ class SimCamera(Driver):
         self.EM_gain_st = 1
         self.ftm_state = False
         self.horiz_shift_speed_state = 1
-        self.n_preamps =  1
+        self.n_preamps = 1
 
     @property
     def idn(self):
@@ -275,7 +275,7 @@ class SimCamera(Driver):
 
     @property
     def acquisition_timings(self):
-        return 1, 1, 1
+        return 1 * self.s, 1 * self.s, 1 * self.s
 
     @property
     def EM_gain_range(self):
