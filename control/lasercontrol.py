@@ -11,8 +11,7 @@ import time
 from PyQt4 import QtGui, QtCore
 
 from serial import Serial
-# from lantz.drivers.cobolt import Cobolt0601
-from lantz.drivers.rgblasersystems import MiniLasEvo
+from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
 from simulators import SimLaser
 from lantz import Q_
@@ -43,7 +42,9 @@ class UpdatePowers(QtCore.QObject):
 
     def update(self):
         redpower = str(np.round(self.widget.redlaser.power))
+        bluepower = str(abs(self.widget.bluelaser.power))
         self.widget.redControl.powerIndicator.setText(redpower)
+        self.widget.blueControl.powerIndicator.setText(bluepower)
         time.sleep(1)
         QtCore.QTimer.singleShot(1, self.update)
 
@@ -61,15 +62,13 @@ class LaserWidget(QtGui.QFrame):
 
         self.redControl = LaserControl(self.redlaser,
                                        '<h3>MPB 642nm 1500mW</h3>',
-                                       power_report=True,
                                        color=(255, 11, 0), prange=(150, 1500),
                                        tickInterval=100, singleStep=10)
 
         self.blueControl = LaserControl(self.bluelaser,
-                                        '<h3>MiniLasEvo 405nm 53mW</h3>',
-                                        power_report=False,
+                                        '<h3>Cobolt 405nm 100mW</h3>',
                                         color=(73, 0, 188),
-                                        prange=(0, 53),
+                                        prange=(0, 100),
                                         tickInterval=10, singleStep=1)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
@@ -96,8 +95,8 @@ class LaserWidget(QtGui.QFrame):
 
 class LaserControl(QtGui.QWidget):
 
-    def __init__(self, laser, name, power_report, color, prange, tickInterval,
-                 singleStep, *args, **kwargs):
+    def __init__(self, laser, name, color, prange, tickInterval, singleStep,
+                 *args, **kwargs):
         super(QtGui.QWidget, self).__init__(*args, **kwargs)
         self.laser = laser
         self.laser.power_sp = prange[0] * mW
@@ -128,8 +127,7 @@ class LaserControl(QtGui.QWidget):
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.name, 0, 0, 1, 2)
-        if power_report:
-            grid.addWidget(self.powerIndicator, 2, 0)
+        grid.addWidget(self.powerIndicator, 2, 0)
         grid.addWidget(self.setPointEdit, 3, 0)
         grid.addWidget(self.enableButton, 4, 0)
         grid.addWidget(self.slider, 1, 1, 6, 1)
@@ -181,7 +179,7 @@ if __name__ == '__main__':
     app = QtGui.QApplication([])
 
     with Laser(VFL, 'COM5') as redlaser, \
-            Laser(MiniLasEvo, 'COM7') as bluelaser:
+            Laser(Cobolt0601, 'COM4') as bluelaser:
 
         print(redlaser.idn, bluelaser.idn)
         win = LaserWidget((redlaser, bluelaser))
