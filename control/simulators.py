@@ -77,11 +77,7 @@ class SimLaser(Driver):
     def power(self):
         """To get the laser emission power (mW)
         """
-        if self.power_sp > 0 * self.mW:
-            return np.random.normal(self.power_sp,
-                                    self.power_sp / 10) * self.mW
-        else:
-            return 0 * self.mW
+        return 55555555555
 
 
 class SimCamera(Driver):

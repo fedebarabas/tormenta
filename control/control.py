@@ -19,8 +19,7 @@ import h5py as hdf
 
 # Lantz drivers
 from lantz.drivers.andor.ccd import CCD
-# from lantz.drivers.cobolt import Cobolt0601
-from lantz.drivers.rgblasersystems import MiniLasEvo
+from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
 from lantz import Q_
 
@@ -157,6 +156,11 @@ class TormentaGUI(QtGui.QMainWindow):
                                  decimals=1)
         self.HRRates = [andor.true_horiz_shift_speed(n)
                         for n in np.arange(andor.n_horiz_shift_speeds())]
+        self.vertSpeeds = [andor.true_vert_shift_speed(n)
+                           for n in np.arange(andor.n_vert_shift_speeds)]
+        self.vertAmps = ['+' + str(andor.true_vert_amp(n))
+                         for n in np.arange(andor.n_vert_clock_amps)]
+        self.vertAmps[0] = 'Normal'
 
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
@@ -177,6 +181,11 @@ class TormentaGUI(QtGui.QMainWindow):
                     'value': False},
                    {'name': 'Horizontal readout rate', 'type': 'list',
                     'values': self.HRRates[::-1]},
+                   {'name': 'Vertical pixel shift', 'type': 'group',
+                    'children': [{'name': 'Speed', 'type': 'list',
+                                  'values': self.vertSpeeds[::-1]},
+                                 {'name': 'Clock voltage amplitude',
+                                  'type': 'list', 'values': self.vertAmps}]},
                    {'name': 'Set exposure time', 'type': 'float',
                     'value': 0.1, 'limits': (0, andor.max_exposure.magnitude),
                     'siPrefix': True, 'suffix': 's'},
@@ -217,14 +226,19 @@ class TormentaGUI(QtGui.QMainWindow):
         frameUpdateButton.sigStateChanged.connect(changeFrame)
 
         # Exposition signals
-        self.TimingsPar = self.p.param('Timings')
-        self.ExpPar = self.TimingsPar.param('Set exposure time')
-        self.FTMPar = self.TimingsPar.param('Frame Transfer Mode')
-        self.HRRatePar = self.TimingsPar.param('Horizontal readout rate')
         changeExposure = lambda: self.changeParameter(self.setExposure)
+        TimingsPar = self.p.param('Timings')
+        self.ExpPar = TimingsPar.param('Set exposure time')
         self.ExpPar.sigValueChanged.connect(changeExposure)
+        self.FTMPar = TimingsPar.param('Frame Transfer Mode')
         self.FTMPar.sigValueChanged.connect(changeExposure)
+        self.HRRatePar = TimingsPar.param('Horizontal readout rate')
         self.HRRatePar.sigValueChanged.connect(changeExposure)
+        vertShiftPar = TimingsPar.param('Vertical pixel shift')
+        self.vertShiftSpeedPar = vertShiftPar.param('Speed')
+        self.vertShiftSpeedPar.sigValueChanged.connect(changeExposure)
+        self.vertShiftAmpPar = vertShiftPar.param('Clock voltage amplitude')
+        self.vertShiftAmpPar.sigValueChanged.connect(changeExposure)
 
         # Gain signals
         self.PreGainPar = self.p.param('Gain').param('Pre-amp gain')
@@ -328,8 +342,16 @@ class TormentaGUI(QtGui.QMainWindow):
         andor.frame_transfer_mode = self.FTMPar.value()
         HRRate = self.HRRatePar.value()
         HRRatesMagnitude = np.array([item.magnitude for item in self.HRRates])
-        n = np.where(HRRatesMagnitude == HRRate.magnitude)[0][0]
-        andor.horiz_shift_speed = n
+        n_hrr = np.where(HRRatesMagnitude == HRRate.magnitude)[0][0]
+        andor.horiz_shift_speed = n_hrr
+
+        self.vertShiftSpeedPar
+
+        # TODO: seguir con esto
+
+        n_hrr = np.where(HRRatesMagnitude == HRRate.magnitude)[0][0]
+        self.vertShiftAmpPar.value
+
         self.updateTimings()
 
     def adjustFrame(self):
@@ -519,7 +541,7 @@ if __name__ == '__main__':
     s = Q_(1, 's')
 
     with CCD() as andor, Laser(VFL, 'COM5') as redlaser, \
-            Laser(MiniLasEvo, 'COM7') as bluelaser:
+            Laser(Cobolt0601, 'COM4') as bluelaser:
 
 #    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
 #            Laser(MiniLasEvo, 'COM7') as bluelaser:
