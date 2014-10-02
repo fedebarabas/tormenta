@@ -66,7 +66,7 @@ class RecordingWidget(QtGui.QFrame):
         folderLabel = QtGui.QLabel('Folder')
         self.folderEdit = QtGui.QLineEdit(os.getcwd())
         filenameLabel = QtGui.QLabel('Filename')
-        self.filenameEdit = QtGui.QLineEdit('filename.hdf5')
+        self.filenameEdit = QtGui.QLineEdit('filename')
 
         self.snapButton = QtGui.QPushButton('Snap')
         self.snapButton.setEnabled(False)
@@ -79,7 +79,8 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
 
-        self.convertButton = QtGui.QPushButton('Convert to .tiff')
+        self.formatBox = QtGui.QComboBox()
+        self.formatBox.addItems(['tiff', 'hdf5'])
 
         recGrid.addWidget(recTitle, 0, 0, 1, 3)
         recGrid.addWidget(numExpositions, 1, 0)
@@ -90,7 +91,7 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(self.filenameEdit, 5, 0, 1, 2)
         recGrid.addWidget(self.snapButton, 1, 2, 2, 1)
         recGrid.addWidget(self.recButton, 3, 2, 2, 1)
-        recGrid.addWidget(self.convertButton, 5, 2)
+        recGrid.addWidget(self.formatBox, 5, 2)
 
     def nExpositions(self):
         return int(self.numExpositionsEdit.text())
@@ -111,11 +112,12 @@ def setCameraDefaults(camera):
     camera.EM_advanced_enabled = False
     camera.EM_gain_mode = 'RealGain'
     camera.amp_typ = 0
-    camera.vert_shift_speed = 0
+    camera.vert_shift_speed = 4
     camera.set_n_accum(1)                 # No accumulation of exposures
     camera.set_accum_time(0 * s)          # Minimum accumulation and kinetic
     camera.set_kinetic_cycle_time(0 * s)  # times
     camera.horiz_shift_speed = 3
+    camera.set_vert_clock(0)
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -156,7 +158,7 @@ class TormentaGUI(QtGui.QMainWindow):
                                  decimals=1)
         self.HRRates = [andor.true_horiz_shift_speed(n)
                         for n in np.arange(andor.n_horiz_shift_speeds())]
-        self.vertSpeeds = [andor.true_vert_shift_speed(n)
+        self.vertSpeeds = [np.round(andor.true_vert_shift_speed(n), 1)
                            for n in np.arange(andor.n_vert_shift_speeds)]
         self.vertAmps = ['+' + str(andor.true_vert_amp(n))
                          for n in np.arange(andor.n_vert_clock_amps)]
@@ -252,7 +254,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget = RecordingWidget()
         self.recWidget.recButton.clicked.connect(self.record)
         self.recWidget.snapButton.clicked.connect(self.snap)
-        self.recWidget.convertButton.clicked.connect(self.convertToRaw)
 
         # Image Widget
         # TODO: redefine axis ticks
@@ -303,7 +304,7 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setColumnMinimumWidth(2, 800)
         layout.setColumnMinimumWidth(3, 200)
         layout.setRowMinimumHeight(1, 150)
-        layout.setRowMinimumHeight(2, 250)
+        layout.setRowMinimumHeight(2, 320)
         layout.addWidget(tree, 1, 1, 2, 1)
         layout.addWidget(liveviewButton, 3, 1)
         layout.addWidget(self.recWidget, 4, 1)
@@ -340,17 +341,17 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         andor.set_exposure_time(self.ExpPar.value() * s)
         andor.frame_transfer_mode = self.FTMPar.value()
-        HRRate = self.HRRatePar.value()
-        HRRatesMagnitude = np.array([item.magnitude for item in self.HRRates])
-        n_hrr = np.where(HRRatesMagnitude == HRRate.magnitude)[0][0]
+        n_hrr = np.where(np.array([item.magnitude for item in self.HRRates])
+                         == self.HRRatePar.value().magnitude)[0][0]
         andor.horiz_shift_speed = n_hrr
 
-        self.vertShiftSpeedPar
+        n_vss = np.where(np.array([item.magnitude for item in self.vertSpeeds])
+                         == self.vertShiftSpeedPar.value().magnitude)[0][0]
+        andor.vert_shift_speed = n_vss
 
-        # TODO: seguir con esto
-
-        n_hrr = np.where(HRRatesMagnitude == HRRate.magnitude)[0][0]
-        self.vertShiftAmpPar.value
+        n_vsa = np.where(np.array(self.vertAmps) ==
+                         self.vertShiftAmpPar.value())[0][0]
+        andor.set_vert_clock(n_vsa)
 
         self.updateTimings()
 
@@ -426,6 +427,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         image = andor.most_recent_image16(self.shape)
 
+        # TODO: snap format if
+
         # Data storing
         self.folder = self.recWidget.folder()
         self.filename = self.recWidget.filename()
@@ -439,20 +442,18 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def record(self):
 
+        # TODO: debug
+        # TODO: counter to gui
+        # TODO: x, y histograms
+
+        # Frame counter
         self.j = 0
 
         # Data storing
-        self.folder = self.recWidget.folder()
-        self.filename = self.recWidget.filename()
+        self.filename = os.path.join(self.recWidget.folder(),
+                                     self.recWidget.filename())
         self.n = self.recWidget.nExpositions()
-        self.store_file = hdf.File(os.path.join(self.folder, self.filename),
-                                   "w")
-        self.store_file.create_dataset(name=self.dataname,
-                                       shape=(self.n,
-                                              self.shape[0],
-                                              self.shape[1]),
-                                       fillvalue=0.0)
-        self.stack = self.store_file['data']
+        self.format = self.recWidget.formatBox.currentText()
 
         # Acquisition preparation
         if andor.status != 'Camera is idle, waiting for instructions.':
@@ -469,7 +470,26 @@ class TormentaGUI(QtGui.QMainWindow):
         # Stop the QTimer that updates the image with incoming data from the
         # 'Run till abort' acquisition mode.
         self.viewtimer.stop()
-        QtCore.QTimer.singleShot(1, self.updateWhileRec)
+
+        if self.format == 'hdf5':
+            """ Useful format for big data as it saves new frames in chunks.
+            Therefore, you don't have the whole stack in memory."""
+
+            self.store_file = hdf.File(self.filename + '.hdf5', "w")
+            self.store_file.create_dataset(name=self.dataname,
+                                           shape=(self.n,
+                                                  self.shape[0],
+                                                  self.shape[1]),
+                                           fillvalue=0.0)
+            self.stack = self.store_file['data']
+
+            QtCore.QTimer.singleShot(1, self.updateWhileRecHDF5)
+
+        elif self.format == 'tiff':
+            """ This format has the problem of placing the whole stack in
+            memory before saving."""
+
+            self.stack = np.zeros((self.n, self.shape[0], self.shape[1]))
 
     def updateWhileRec(self):
         global lastTime, fps
@@ -495,29 +515,30 @@ class TormentaGUI(QtGui.QMainWindow):
 
         else:                   # The recording is over
             self.j = 0
-
-            # Saving parameters as data attributes in the HDF5 file
-            dset = self.store_file[self.dataname]
-            dset.attrs['Date'] = time.strftime("%Y-%m-%d")
-            dset.attrs['Time'] = time.strftime("%H:%M:%S")
-            for ParamName in self.p.getValues():
-                Param = self.p.param(str(ParamName))
-                if not(Param.hasChildren()):
-                    dset.attrs[str(ParamName)] = Param.value()
-                for subParamName in Param.getValues():
-                    subParam = Param.param(str(subParamName))
-                    if subParam.type() != 'action':
-                        dset.attrs[str(subParamName)] = subParam.value()
-
-            self.store_file.close()
             self.recWidget.recButton.setChecked(False)
             self.liveview()
 
-    def convertToRaw(self):
+            if self.format == 'hdf5':
 
-        # TODO: implement this
-        self.store_file = hdf.File(os.path.join(self.folder, self.filename),
-                                   "r")
+                # Saving parameters as data attributes in the HDF5 file
+                dset = self.store_file[self.dataname]
+                dset.attrs['Date'] = time.strftime("%Y-%m-%d")
+                dset.attrs['Time'] = time.strftime("%H:%M:%S")
+                for ParamName in self.p.getValues():
+                    Param = self.p.param(str(ParamName))
+                    if not(Param.hasChildren()):
+                        dset.attrs[str(ParamName)] = Param.value()
+                    for subParamName in Param.getValues():
+                        subParam = Param.param(str(subParamName))
+                        if subParam.type() != 'action':
+                            dset.attrs[str(subParamName)] = subParam.value()
+
+                self.store_file.close()
+
+            elif self.format == 'tiff':
+
+                import tifffile as tiff
+                tiff.imsave(self.filename + '.tiff', self.stack)
 
     def closeEvent(self, *args, **kwargs):
 
