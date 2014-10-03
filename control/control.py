@@ -16,6 +16,9 @@ import pyqtgraph.ptime as ptime
 from pyqtgraph.parametertree import Parameter, ParameterTree
 
 import h5py as hdf
+# http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
+# http://www.lfd.uci.edu/~gohlke/
+import tifffile as tiff
 
 # Lantz drivers
 from lantz.drivers.andor.ccd import CCD
@@ -59,39 +62,39 @@ class RecordingWidget(QtGui.QFrame):
         recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
         recTitle.setTextFormat(QtCore.Qt.RichText)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
-        recGrid = QtGui.QGridLayout()
-        self.setLayout(recGrid)
-        numExpositions = QtGui.QLabel('Number of expositions')
+
+        self.currentFrame = QtGui.QLabel('0 /')
         self.numExpositionsEdit = QtGui.QLineEdit('100')
-        folderLabel = QtGui.QLabel('Folder')
         self.folderEdit = QtGui.QLineEdit(os.getcwd())
-        filenameLabel = QtGui.QLabel('Filename')
         self.filenameEdit = QtGui.QLineEdit('filename')
+        self.formatBox = QtGui.QComboBox()
+        self.formatBox.addItems(['tiff', 'hdf5'])
 
         self.snapButton = QtGui.QPushButton('Snap')
         self.snapButton.setEnabled(False)
         self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
-
         self.recButton = QtGui.QPushButton('REC')
         self.recButton.setCheckable(True)
         self.recButton.setEnabled(False)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
 
-        self.formatBox = QtGui.QComboBox()
-        self.formatBox.addItems(['tiff', 'hdf5'])
-
+        recGrid = QtGui.QGridLayout()
+        self.setLayout(recGrid)
         recGrid.addWidget(recTitle, 0, 0, 1, 3)
-        recGrid.addWidget(numExpositions, 1, 0)
-        recGrid.addWidget(self.numExpositionsEdit, 1, 1)
-        recGrid.addWidget(folderLabel, 2, 0, 1, 2)
-        recGrid.addWidget(self.folderEdit, 3, 0, 1, 2)
-        recGrid.addWidget(filenameLabel, 4, 0, 1, 2)
-        recGrid.addWidget(self.filenameEdit, 5, 0, 1, 2)
-        recGrid.addWidget(self.snapButton, 1, 2, 2, 1)
-        recGrid.addWidget(self.recButton, 3, 2, 2, 1)
-        recGrid.addWidget(self.formatBox, 5, 2)
+        recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
+        recGrid.addWidget(self.currentFrame, 5, 1)
+        recGrid.addWidget(self.numExpositionsEdit, 5, 2)
+        recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0, 1, 2)
+        recGrid.addWidget(self.folderEdit, 2, 0, 1, 3)
+        recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
+        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 2)
+        recGrid.addWidget(self.formatBox, 4, 2)
+        recGrid.addWidget(self.snapButton, 1, 3, 2, 1)
+        recGrid.addWidget(self.recButton, 3, 3, 3, 1)
+
+        recGrid.setColumnMinimumWidth(0, 200)
 
     def nExpositions(self):
         return int(self.numExpositionsEdit.text())
@@ -427,7 +430,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         image = andor.most_recent_image16(self.shape)
 
-        # TODO: snap format if
+        # TODO: snap format tiff
 
         # Data storing
         self.folder = self.recWidget.folder()
@@ -437,21 +440,19 @@ class TormentaGUI(QtGui.QMainWindow):
                                    "w")
         self.store_file.create_dataset(name=self.dataname + '_snap',
                                        data=image)
-        # TODO: add attributes
         self.store_file.close()
 
     def record(self):
 
-        # TODO: debug
-        # TODO: counter to gui
         # TODO: x, y histograms
+        # TODO: disable buttons while recording
 
         # Frame counter
         self.j = 0
 
         # Data storing
-        self.filename = os.path.join(self.recWidget.folder(),
-                                     self.recWidget.filename())
+        self.recPath = self.recWidget.folder()
+        self.recFilename = self.recWidget.filename()
         self.n = self.recWidget.nExpositions()
         self.format = self.recWidget.formatBox.currentText()
 
@@ -475,30 +476,36 @@ class TormentaGUI(QtGui.QMainWindow):
             """ Useful format for big data as it saves new frames in chunks.
             Therefore, you don't have the whole stack in memory."""
 
-            self.store_file = hdf.File(self.filename + '.hdf5', "w")
+            self.store_file = hdf.File(os.path.join(self.recPath,
+                                                    self.recFilename)
+                                       + '.hdf5', "w")
             self.store_file.create_dataset(name=self.dataname,
                                            shape=(self.n,
                                                   self.shape[0],
                                                   self.shape[1]),
-                                           fillvalue=0.0)
+                                           fillvalue=0, dtype=np.uint16)
             self.stack = self.store_file['data']
-
-            QtCore.QTimer.singleShot(1, self.updateWhileRecHDF5)
 
         elif self.format == 'tiff':
             """ This format has the problem of placing the whole stack in
             memory before saving."""
 
-            self.stack = np.zeros((self.n, self.shape[0], self.shape[1]))
+            self.stack = np.empty((self.n, self.shape[0], self.shape[1]),
+                                  dtype=np.uint16)
+
+        QtCore.QTimer.singleShot(1, self.updateWhileRec)
 
     def updateWhileRec(self):
         global lastTime, fps
+
+        time.sleep(self.t_exp_real.magnitude)
 
         if andor.n_images_acquired > self.j:
             i, self.j = andor.new_images_index
             self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape,
                                                       1, self.n)
             self.img.setImage(self.stack[self.j - 1], autoLevels=False)
+            self.recWidget.currentFrame.setText(str(self.j) + ' /')
 
             now = ptime.time()
             dt = now - lastTime
@@ -511,10 +518,10 @@ class TormentaGUI(QtGui.QMainWindow):
             self.fpsbox.setText('%0.2f fps' % fps)
 
         if self.j < self.n:     # It hasn't finished
-            QtCore.QTimer.singleShot(0, self.UpdateWhileRec)
+            QtCore.QTimer.singleShot(0, self.updateWhileRec)
 
-        else:                   # The recording is over
-            self.j = 0
+        else:                                           # The recording is over
+            self.j = 0                                  # Reset counter
             self.recWidget.recButton.setChecked(False)
             self.liveview()
 
@@ -524,21 +531,33 @@ class TormentaGUI(QtGui.QMainWindow):
                 dset = self.store_file[self.dataname]
                 dset.attrs['Date'] = time.strftime("%Y-%m-%d")
                 dset.attrs['Time'] = time.strftime("%H:%M:%S")
-                for ParamName in self.p.getValues():
-                    Param = self.p.param(str(ParamName))
-                    if not(Param.hasChildren()):
-                        dset.attrs[str(ParamName)] = Param.value()
-                    for subParamName in Param.getValues():
-                        subParam = Param.param(str(subParamName))
-                        if subParam.type() != 'action':
-                            dset.attrs[str(subParamName)] = subParam.value()
+                attrs = []
+                for ParName in self.p.getValues():
+                    Par = self.p.param(str(ParName))
+                    if not(Par.hasChildren()):
+                        attrs.append((str(ParName), Par.value()))
+                    else:
+                        for sParName in Par.getValues():
+                            sPar = Par.param(str(sParName))
+                            if sPar.type() != 'action':
+                                if not(sPar.hasChildren()):
+                                    attrs.append((str(sParName), sPar.value()))
+                                else:
+                                    for ssParName in sPar.getValues():
+                                        ssPar = sPar.param(str(ssParName))
+                                        attrs.append((str(ssParName),
+                                                      ssPar.value()))
+
+                for item in attrs:
+                    dset.attrs[item[0]] = item[1]
 
                 self.store_file.close()
 
             elif self.format == 'tiff':
 
-                import tifffile as tiff
-                tiff.imsave(self.filename + '.tiff', self.stack)
+                os.chdir(self.recPath)
+                tiff.imsave(self.recFilename + '.tiff', self.stack,
+                            description=self.dataname, software='Tormenta')
 
     def closeEvent(self, *args, **kwargs):
 
@@ -561,7 +580,7 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor, Laser(VFL, 'COM5') as redlaser, \
+    with CCD() as andor, Laser(VFL, 'COM5') as redlaser,  \
             Laser(Cobolt0601, 'COM4') as bluelaser:
 
 #    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
