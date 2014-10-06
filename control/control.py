@@ -131,10 +131,14 @@ class TemperatureStabilizer(QtCore.QObject):
 
         super(QtCore.QObject, self).__init__(*args, **kwargs)
         self.parameter = parameter
+        self.setPointPar = self.parameter.param('Set point')
+        self.setPointPar.sigValueChanged.connect(self.updateTemp)
+
+    def updateTemp(self):
+        andor.temperature_setpoint = self.setPointPar.value() * degC
 
     def start(self):
-        SetPointPar = self.parameter.param('Set point')
-        andor.temperature_setpoint = SetPointPar.value() * degC
+        self.updateTemp()
         andor.cooler_on = True
         stable = 'Temperature has stabilized at set point.'
         CurrTempPar = self.parameter.param('Current temperature')
@@ -211,14 +215,13 @@ class TormentaGUI(QtGui.QMainWindow):
                     'limits': (0, andor.EM_gain_range[1])}
                    ]},
                   {'name': 'Temperature', 'type': 'group', 'children': [
-                   {'name': 'Set point', 'type': 'int', 'value': -40,
+                   {'name': 'Set point', 'type': 'int', 'value': -70,
                     'suffix': 'º', 'limits': (-80, 0)},
                    {'name': 'Current temperature', 'type': 'int',
                     'value': andor.temperature.magnitude, 'suffix': 'ºC',
                     'readonly': True},
                    {'name': 'Status', 'type': 'str', 'readonly': True,
                     'value': andor.temperature_status},
-                   {'name': 'Stabilize', 'type': 'action'},
                    ]}]
 
         self.p = Parameter.create(name='params', type='group', children=params)
@@ -290,12 +293,11 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Temperature stabilization functionality
         self.TempPar = self.p.param('Temperature')
-        stabButton = self.TempPar.param('Stabilize')
         self.stabilizer = TemperatureStabilizer(self.TempPar)
         self.stabilizerThread = QtCore.QThread()
         self.stabilizer.moveToThread(self.stabilizerThread)
-        stabButton.sigStateChanged.connect(self.stabilizerThread.start)
         self.stabilizerThread.started.connect(self.stabilizer.start)
+        self.stabilizerThread.start()
 
         # Laser control widget
         self.laserWidgets = LaserWidget((redlaser, bluelaser))
@@ -435,12 +437,17 @@ class TormentaGUI(QtGui.QMainWindow):
         # Data storing
         self.folder = self.recWidget.folder()
         self.filename = self.recWidget.filename()
-        self.n = self.recWidget.nExpositions()
-        self.store_file = hdf.File(os.path.join(self.folder, self.filename),
-                                   "w")
-        self.store_file.create_dataset(name=self.dataname + '_snap',
-                                       data=image)
-        self.store_file.close()
+        self.format = self.recWidget.formatBox.currentText()
+
+        if self.format == 'hdf5':
+            self.store_file = hdf.File(os.path.join(self.folder,
+                                                    self.filename) + '.hdf5')
+            self.store_file.create_dataset(name=self.dataname + '_snap',
+                                           data=image)
+            self.store_file.close()
+
+#        elif self.format == 'tiff':
+
 
     def record(self):
 
