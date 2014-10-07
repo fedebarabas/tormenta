@@ -587,11 +587,11 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor, Laser(VFL, 'COM5') as redlaser,  \
-            Laser(Cobolt0601, 'COM4') as bluelaser:
+#    with CCD() as andor, Laser(VFL, 'COM5') as redlaser,  \
+#            Laser(Cobolt0601, 'COM4') as bluelaser:
 
-#    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
-#            Laser(MiniLasEvo, 'COM7') as bluelaser:
+    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
+            Laser(Cobolt0601, 'COM7') as bluelaser:
 
         print(andor.idn)
         print(redlaser.idn)

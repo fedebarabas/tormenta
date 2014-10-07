@@ -87,6 +87,7 @@ class SimCamera(Driver):
 
         self.degC = Q_(1, 'degC')
         self.s = Q_(1, 's')
+        self.us = Q_(1, 'us')
 
         self.temperature_setpoint = -10 * self.degC
         self.cooler_on_state = False
@@ -215,6 +216,9 @@ class SimCamera(Driver):
         """
         return np.random.normal(100, 10, self.image_size)
 
+    def images16(self, i, j, npixels):
+        return np.random.normal(100, 10, self.image_size)
+
     def set_n_kinetics(self, n):
         self.n = n
 
@@ -234,6 +238,7 @@ class SimCamera(Driver):
             self.status_state = 'Camera is idle, waiting for instructions.'
         return self.j
 
+    @property
     def new_images_index(self):
         return (self.j, self.j)
 
@@ -271,7 +276,7 @@ class SimCamera(Driver):
 
     @property
     def acquisition_timings(self):
-        return 1 * self.s, 1 * self.s, 1 * self.s
+        return 0.01 * self.s, 0.01 * self.s, 0.01 * self.s
 
     @property
     def EM_gain_range(self):
@@ -284,6 +289,23 @@ class SimCamera(Driver):
     @EM_gain.setter
     def EM_gain(self, value):
         self.EM_gain_st = value
+
+    @property
+    def n_vert_shift_speeds(self):
+        return 4
+
+    def true_vert_shift_speed(self, n):
+        return 3.3 * self.us
+
+    @property
+    def n_vert_clock_amps(self):
+        return 4
+
+    def true_vert_amp(self, n):
+        return 1
+
+    def set_vert_clock(self, n):
+        pass
 
     def set_exposure_time(self, t):
         pass
