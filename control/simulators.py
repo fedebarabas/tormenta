@@ -122,11 +122,7 @@ class SimCamera(Driver):
         """ This function returns the temperature of the detector to the
         nearest degree. It also gives the status of cooling process.
         """
-        if self.cooler_on_state:
-            return np.random.normal(self.temperature_setpoint,
-                                    self.temperature_setpoint / 19) * self.degC
-        else:
-            return 21 * self.degC
+        return 5555555555 * self.degC
 
     @property
     def temperature_setpoint(self):

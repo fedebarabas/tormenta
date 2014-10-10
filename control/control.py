@@ -591,7 +591,7 @@ if __name__ == '__main__':
 #            Laser(Cobolt0601, 'COM4') as bluelaser:
 
     with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
-            Laser(Cobolt0601, 'COM7') as bluelaser:
+            Laser(Cobolt0601, 'COM4') as bluelaser:
 
         print(andor.idn)
         print(redlaser.idn)
