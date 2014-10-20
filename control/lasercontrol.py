@@ -42,7 +42,7 @@ class UpdatePowers(QtCore.QObject):
 
     def update(self):
         redpower = str(np.round(self.widget.redlaser.power))
-        bluepower = str(abs(self.widget.bluelaser.power))
+        bluepower = str(np.round(abs(self.widget.bluelaser.power), 1)
         self.widget.redControl.powerIndicator.setText(redpower)
         self.widget.blueControl.powerIndicator.setText(bluepower)
         time.sleep(1)
@@ -71,12 +71,19 @@ class LaserWidget(QtGui.QFrame):
                                         prange=(0, 100),
                                         tickInterval=10, singleStep=1)
 
+        self.greenControl = LaserControl(self.greenlaser,
+                                        '<h3>Ventus 532nm 1500mW</h3>',
+                                        color=(80, 255, 0),
+                                        prange=(0, 1500),
+                                        tickInterval=10, singleStep=1)
+
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(laserTitle, 0, 0)
         grid.addWidget(self.redControl, 1, 1)
         grid.addWidget(self.blueControl, 1, 0)
+        grid.addWidget(self.greenControl, 1, 2)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
