@@ -42,7 +42,7 @@ class UpdatePowers(QtCore.QObject):
 
     def update(self):
         redpower = str(np.round(self.widget.redlaser.power))
-        bluepower = str(np.round(abs(self.widget.bluelaser.power), 1)
+        bluepower = str(np.round(abs(self.widget.bluelaser.power), 1))
         self.widget.redControl.powerIndicator.setText(redpower)
         self.widget.blueControl.powerIndicator.setText(bluepower)
         time.sleep(1)
@@ -71,11 +71,11 @@ class LaserWidget(QtGui.QFrame):
                                         prange=(0, 100),
                                         tickInterval=10, singleStep=1)
 
-        self.greenControl = LaserControl(self.greenlaser,
-                                        '<h3>Ventus 532nm 1500mW</h3>',
-                                        color=(80, 255, 0),
-                                        prange=(0, 1500),
-                                        tickInterval=10, singleStep=1)
+#        self.greenControl = LaserControl(self.greenlaser,
+#                                        '<h3>Ventus 532nm 1500mW</h3>',
+#                                        color=(80, 255, 0),
+#                                        prange=(0, 1500),
+#                                        tickInterval=10, singleStep=1)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
@@ -83,7 +83,7 @@ class LaserWidget(QtGui.QFrame):
         grid.addWidget(laserTitle, 0, 0)
         grid.addWidget(self.redControl, 1, 1)
         grid.addWidget(self.blueControl, 1, 0)
-        grid.addWidget(self.greenControl, 1, 2)
+#        grid.addWidget(self.greenControl, 1, 2)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
@@ -93,11 +93,8 @@ class LaserWidget(QtGui.QFrame):
         self.updateThread.started.connect(self.updatePowers.update)
 
     def closeEvent(self, *args, **kwargs):
-
         # Stop running threads
         self.updateThread.terminate()
-        self.redlaser.enabled = False
-        self.bluelaser.enabled = False
 
 
 class LaserControl(QtGui.QWidget):
@@ -106,7 +103,6 @@ class LaserControl(QtGui.QWidget):
                  *args, **kwargs):
         super(QtGui.QWidget, self).__init__(*args, **kwargs)
         self.laser = laser
-        self.laser.power_sp = prange[0] * mW
 
         self.setGeometry(10, 10, 30, 150)
 
@@ -123,6 +119,8 @@ class LaserControl(QtGui.QWidget):
         style = "background-color: rgb{}".format(color)
         self.enableButton.setStyleSheet(style)
         self.enableButton.setCheckable(True)
+        if self.laser.enabled:
+            self.enableButton.setChecked(True)
 
         self.slider = QtGui.QSlider(QtCore.Qt.Vertical, self)
         self.slider.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -185,7 +183,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-    with Laser(VFL, 'COM5') as redlaser, \
+    with Laser(VFL, 'COM3') as redlaser, \
             Laser(Cobolt0601, 'COM4') as bluelaser:
 
         print(redlaser.idn, bluelaser.idn)
