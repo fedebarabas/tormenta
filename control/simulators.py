@@ -77,7 +77,7 @@ class SimLaser(Driver):
     def power(self):
         """To get the laser emission power (mW)
         """
-        return 55555555555
+        return 55555 * self.mW
 
 
 class SimCamera(Driver):
