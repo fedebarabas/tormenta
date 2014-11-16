@@ -89,7 +89,7 @@ class SimCamera(Driver):
         self.s = Q_(1, 's')
         self.us = Q_(1, 'us')
 
-        self.temperature_setpoint = -10 * self.degC
+        self.temperature_setpoint = Q_(-10, 'degC')
         self.cooler_on_state = False
         self.acq_mode = 'Run till abort'
         self.status_state = 'Camera is idle, waiting for instructions.'
@@ -122,7 +122,7 @@ class SimCamera(Driver):
         """ This function returns the temperature of the detector to the
         nearest degree. It also gives the status of cooling process.
         """
-        return 5555555555 * self.degC
+        return Q_(55555, 'degC')
 
     @property
     def temperature_setpoint(self):

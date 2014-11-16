@@ -24,6 +24,7 @@ import tifffile as tiff
 from lantz.drivers.andor.ccd import CCD
 from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
+from lantz.drivers.laserquantum import Ventus
 from lantz import Q_
 
 from lasercontrol import LaserWidget, Laser
@@ -135,7 +136,7 @@ class TemperatureStabilizer(QtCore.QObject):
         self.setPointPar.sigValueChanged.connect(self.updateTemp)
 
     def updateTemp(self):
-        andor.temperature_setpoint = self.setPointPar.value() * degC
+        andor.temperature_setpoint = Q_(self.setPointPar.value(), 'degC')
 
     def start(self):
         self.updateTemp()
@@ -175,63 +176,66 @@ class TormentaGUI(QtGui.QMainWindow):
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
                   {'name': 'Image frame', 'type': 'group', 'children': [
-                   {'name': 'x_start', 'type': 'int', 'suffix': 'px',
-                    'value': 1},
-                   {'name': 'y_start', 'type': 'int', 'suffix': 'px',
-                    'value': 1},
-                   {'name': 'x_size', 'type': 'int', 'suffix': 'px',
-                    'value': andor.detector_shape[0]},
-                   {'name': 'y_size', 'type': 'int', 'suffix': 'px',
-                    'value': andor.detector_shape[1]},
-                   {'name': 'Update', 'type': 'action'},
-                   ]},
+                      {'name': 'Size', 'type': 'list',
+                       'values': ['Full chip', '256x256', '128x128', '64x64',
+                                  'Custom']}]},
                   {'name': 'Timings', 'type': 'group', 'children': [
-                   {'name': 'Frame Transfer Mode', 'type': 'bool',
-                    'value': False},
-                   {'name': 'Horizontal readout rate', 'type': 'list',
-                    'values': self.HRRates[::-1]},
-                   {'name': 'Vertical pixel shift', 'type': 'group',
-                    'children': [{'name': 'Speed', 'type': 'list',
-                                  'values': self.vertSpeeds[::-1]},
-                                 {'name': 'Clock voltage amplitude',
-                                  'type': 'list', 'values': self.vertAmps}]},
-                   {'name': 'Set exposure time', 'type': 'float',
-                    'value': 0.1, 'limits': (0, andor.max_exposure.magnitude),
-                    'siPrefix': True, 'suffix': 's'},
-                   {'name': 'Real exposure time', 'type': 'float',
-                    'value': 0, 'readonly': True, 'siPrefix': True,
-                    'suffix': 's'},
-                   {'name': 'Real accumulation time', 'type': 'float',
-                    'value': 0, 'readonly': True, 'siPrefix': True,
-                    'suffix': 's'},
-                   {'name': 'Effective frame rate', 'type': 'float',
-                    'value': 0, 'readonly': True, 'siPrefix': True,
-                    'suffix': 'Hz'},
-                   ]},
+                      {'name': 'Frame Transfer Mode', 'type': 'bool',
+                       'value': False},
+                      {'name': 'Horizontal readout rate', 'type': 'list',
+                       'values': self.HRRates[::-1]},
+                      {'name': 'Vertical pixel shift', 'type': 'group',
+                       'children': [
+                          {'name': 'Speed', 'type': 'list',
+                           'values': self.vertSpeeds[::-1]},
+                          {'name': 'Clock voltage amplitude',
+                           'type': 'list', 'values': self.vertAmps}]},
+                      {'name': 'Set exposure time', 'type': 'float',
+                       'value': 0.1, 'limits': (0,
+                                                andor.max_exposure.magnitude),
+                       'siPrefix': True, 'suffix': 's'},
+                      {'name': 'Real exposure time', 'type': 'float',
+                       'value': 0, 'readonly': True, 'siPrefix': True,
+                       'suffix': 's'},
+                      {'name': 'Real accumulation time', 'type': 'float',
+                       'value': 0, 'readonly': True, 'siPrefix': True,
+                       'suffix': 's'},
+                      {'name': 'Effective frame rate', 'type': 'float',
+                       'value': 0, 'readonly': True, 'siPrefix': True,
+                       'suffix': 'Hz'}]},
                   {'name': 'Gain', 'type': 'group', 'children': [
-                   {'name': 'Pre-amp gain', 'type': 'list',
-                    'values': list(self.PreAmps)},
-                   {'name': 'EM gain', 'type': 'int', 'value': 1,
-                    'limits': (0, andor.EM_gain_range[1])}
-                   ]},
+                      {'name': 'Pre-amp gain', 'type': 'list',
+                       'values': list(self.PreAmps)},
+                      {'name': 'EM gain', 'type': 'int', 'value': 1,
+                       'limits': (0, andor.EM_gain_range[1])}]},
                   {'name': 'Temperature', 'type': 'group', 'children': [
-                   {'name': 'Set point', 'type': 'int', 'value': -70,
-                    'suffix': 'º', 'limits': (-80, 0)},
-                   {'name': 'Current temperature', 'type': 'int',
-                    'value': andor.temperature.magnitude, 'suffix': 'ºC',
-                    'readonly': True},
-                   {'name': 'Status', 'type': 'str', 'readonly': True,
-                    'value': andor.temperature_status},
-                   ]}]
+                      {'name': 'Set point', 'type': 'int', 'value': -70,
+                       'suffix': 'º', 'limits': (-80, 0)},
+                      {'name': 'Current temperature', 'type': 'int',
+                       'value': andor.temperature.magnitude, 'suffix': 'ºC',
+                       'readonly': True},
+                      {'name': 'Status', 'type': 'str', 'readonly': True,
+                       'value': andor.temperature_status}]}]
+
+        self.customParam = {'name': 'Custom', 'type': 'group', 'children': [
+                               {'name': 'x_start', 'type': 'int',
+                                'suffix': 'px', 'value': 1},
+                               {'name': 'y_start', 'type': 'int',
+                                'suffix': 'px', 'value': 1},
+                               {'name': 'x_size', 'type': 'int', 'suffix': 'px',
+                                'value': andor.detector_shape[0]},
+                               {'name': 'y_size', 'type': 'int', 'suffix': 'px',
+                                'value': andor.detector_shape[1]},
+                               {'name': 'Apply', 'type': 'action'}]}
 
         self.p = Parameter.create(name='params', type='group', children=params)
         tree = ParameterTree()
         tree.setParameters(self.p, showTop=False)
 
         # Frame signals
-        frameUpdateButton = self.p.param('Image frame').param('Update')
-        changeFrame = lambda: self.changeParameter(self.updateFrame)
-        frameUpdateButton.sigStateChanged.connect(changeFrame)
+        self.shape = andor.detector_shape
+        frameParam = self.p.param('Image frame')
+        frameParam.param('Size').sigValueChanged.connect(self.updateFrame)
 
         # Exposition signals
         changeExposure = lambda: self.changeParameter(self.setExposure)
@@ -273,8 +277,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist = pg.HistogramLUTItem()
         self.hist.setImageItem(self.img)
         self.hist.autoHistogramRange = False
-        self.hist.setLevels(90, 110)
         imagewidget.addItem(self.hist)
+
+
+        # TODO: grid option and profiles
 
         self.fpsbox = QtGui.QLabel()
 
@@ -300,7 +306,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizerThread.start()
 
         # Laser control widget
-        self.laserWidgets = LaserWidget((redlaser, bluelaser))
+        self.laserWidgets = LaserWidget((redlaser, bluelaser, greenlaser))
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
@@ -360,26 +366,55 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
-    def adjustFrame(self):
+    def adjustFrame(self, shape=None, start=(1, 1)):
         """ Method to change the area of the CCD to be used and adjust the
         image widget accordingly.
         """
-        self.shape = [self.p.param('Image frame').param('x_size').value(),
-                      self.p.param('Image frame').param('y_size').value()]
-        self.p_0 = [self.p.param('Image frame').param('x_start').value(),
-                    self.p.param('Image frame').param('y_start').value()]
-        andor.set_image(shape=self.shape, p_0=self.p_0)
-        self.p1.setRange(xRange=(-0.5, self.shape[0] - 0.5),
-                         yRange=(-0.5, self.shape[1] - 0.5), padding=0)
-        self.p1.getViewBox().setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5,
-                                       yMin=-0.5, yMax=self.shape[1] - 0.5,
+        if shape is None:
+            shape = andor.detector_shape
+
+        andor.set_image(shape=shape, p_0=start)
+        self.p1.setRange(xRange=(-0.5, shape[0] - 0.5),
+                         yRange=(-0.5, shape[1] - 0.5), padding=0)
+        self.p1.getViewBox().setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
+                                       yMin=-0.5, yMax=shape[1] - 0.5,
                                        minXRange=4, minYRange=4)
+        self.updateTimings()
 
     def updateFrame(self):
         """ Method to change the image frame size and position in the sensor
         """
-        self.adjustFrame()
-        self.updateTimings()
+        frameParam = self.p.param('Image frame')
+        if frameParam.param('Size').value() == 'Custom':
+
+            # Add new parameters for custom frame setting
+            frameParam.addChild(self.customParam)
+            customParam = frameParam.param('Custom')
+
+            # Signals
+            customParam.param('Apply').sigStateChanged.connect(self.customFrame)
+
+        elif frameParam.param('Size').value() == 'Full chip':
+            self.shape = andor.detector_shape
+            self.changeParameter(self.adjustFrame)
+
+        else:
+            side = int(frameParam.param('Size').value().split('x')[0])
+            start = (0.5 * (andor.detector_shape[0] - side),
+                     0.5 * (andor.detector_shape[1] - side))
+            self.shape = (side, side)
+            self.changeParameter(lambda: self.adjustFrame(self.shape, start))
+
+    def customFrame(self):
+        customParam = self.p.param('Image frame').param('Custom')
+
+        self.shape = (customParam.param('x_size').value(),
+                      customParam.param('y_size').value())
+        start = (customParam.param('x_start').value(),
+                 customParam.param('y_start').value())
+
+
+        self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
@@ -407,6 +442,13 @@ class TormentaGUI(QtGui.QMainWindow):
         time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
         self.recWidget.snapButton.setEnabled(True)
         self.recWidget.recButton.setEnabled(True)
+
+        # Initial image
+        image = andor.most_recent_image16(self.shape)
+        self.img.setImage(image)
+        self.hist.setLevels(np.min(image) - np.std(image),
+                            np.max(image) + np.std(image))
+
         self.viewtimer.start(0)
 
     def updateView(self):
@@ -590,8 +632,9 @@ if __name__ == '__main__':
 #    with CCD() as andor, Laser(VFL, 'COM5') as redlaser,  \
 #            Laser(Cobolt0601, 'COM4') as bluelaser:
 
-    with SimCamera() as andor, Laser(VFL, 'COM5') as redlaser, \
-            Laser(Cobolt0601, 'COM4') as bluelaser:
+    with SimCamera() as andor, Laser(VFL, 'COM3') as redlaser, \
+            Laser(Cobolt0601, 'COM4') as bluelaser, \
+            Laser(Ventus, 'COM5') as greenlaser:
 
         print(andor.idn)
         print(redlaser.idn)
