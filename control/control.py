@@ -267,6 +267,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Image Widget
         # TODO: redefine axis ticks
+        self.shape = andor.detector_shape
         imagewidget = pg.GraphicsLayoutWidget()
         self.p1 = imagewidget.addPlot()
         self.p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
@@ -279,10 +280,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist.autoHistogramRange = False
         imagewidget.addItem(self.hist)
 
-
-        # TODO: grid option and profiles
-
-        self.fpsbox = QtGui.QLabel()
+        # TODO: x, y profiles
+        self.fpsBox = QtGui.QLabel()
+        self.gridBox = QtGui.QCheckBox('Show grid')
+        self.gridBox.stateChanged.connect(self.toggleGrid)
 
         # Initial camera configuration taken from the parameter tree
         setCameraDefaults(andor)
@@ -311,17 +312,18 @@ class TormentaGUI(QtGui.QMainWindow):
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
-        layout.setColumnMinimumWidth(1, 400)
-        layout.setColumnMinimumWidth(2, 800)
-        layout.setColumnMinimumWidth(3, 200)
-        layout.setRowMinimumHeight(1, 150)
-        layout.setRowMinimumHeight(2, 320)
-        layout.addWidget(tree, 1, 1, 2, 1)
-        layout.addWidget(liveviewButton, 3, 1)
-        layout.addWidget(self.recWidget, 4, 1)
-        layout.addWidget(imagewidget, 1, 2, 4, 1)
-        layout.addWidget(self.fpsbox, 0, 2)
-        layout.addWidget(self.laserWidgets, 1, 3)
+        layout.setColumnMinimumWidth(0, 400)
+        layout.setColumnMinimumWidth(1, 800)
+        layout.setColumnMinimumWidth(2, 200)
+        layout.setRowMinimumHeight(0, 150)
+        layout.setRowMinimumHeight(1, 320)
+        layout.addWidget(tree, 0, 0, 2, 1)
+        layout.addWidget(liveviewButton, 2, 0)
+        layout.addWidget(self.recWidget, 3, 0, 2, 1)
+        layout.addWidget(imagewidget, 0, 1, 4, 3)
+        layout.addWidget(self.fpsBox, 4, 1)
+        layout.addWidget(self.gridBox, 4, 2)
+        layout.addWidget(self.laserWidgets, 0, 4)
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -366,12 +368,44 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
+    """ Grid methods """
+    def showGrid(self):
+        self.yline1 = pg.InfiniteLine(pos=0.25 * self.shape[0], pen = 'y')
+        self.yline2 = pg.InfiniteLine(pos=0.5 * self.shape[0], pen = 'y')
+        self.yline3 = pg.InfiniteLine(pos=0.75 * self.shape[0], pen = 'y')
+        self.xline1 = pg.InfiniteLine(pos=0.25 * self.shape[1], angle=0,
+                                      pen = 'y')
+        self.xline2 = pg.InfiniteLine(pos=0.5 * self.shape[1], angle=0,
+                                      pen = 'y')
+        self.xline3 = pg.InfiniteLine(pos=0.75 * self.shape[1], angle=0,
+                                      pen = 'y')
+        self.p1.getViewBox().addItem(self.xline1)
+        self.p1.getViewBox().addItem(self.xline2)
+        self.p1.getViewBox().addItem(self.xline3)
+        self.p1.getViewBox().addItem(self.yline1)
+        self.p1.getViewBox().addItem(self.yline2)
+        self.p1.getViewBox().addItem(self.yline3)
+
+    def hideGrid(self):
+        self.p1.getViewBox().removeItem(self.xline1)
+        self.p1.getViewBox().removeItem(self.xline2)
+        self.p1.getViewBox().removeItem(self.xline3)
+        self.p1.getViewBox().removeItem(self.yline1)
+        self.p1.getViewBox().removeItem(self.yline2)
+        self.p1.getViewBox().removeItem(self.yline3)
+
+    def toggleGrid(self, state):
+        if state == QtCore.Qt.Checked:
+            self.showGrid()
+        else:
+            self.hideGrid()
+
     def adjustFrame(self, shape=None, start=(1, 1)):
         """ Method to change the area of the CCD to be used and adjust the
         image widget accordingly.
         """
         if shape is None:
-            shape = andor.detector_shape
+            shape = self.shape
 
         andor.set_image(shape=shape, p_0=start)
         self.p1.setRange(xRange=(-0.5, shape[0] - 0.5),
@@ -379,6 +413,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.p1.getViewBox().setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
                                        yMin=-0.5, yMax=shape[1] - 0.5,
                                        minXRange=4, minYRange=4)
+        if self.gridBox.isChecked():
+            self.hideGrid()
+            self.showGrid()
+
         self.updateTimings()
 
     def updateFrame(self):
@@ -466,7 +504,7 @@ class TormentaGUI(QtGui.QMainWindow):
             else:
                 s = np.clip(dt*3., 0, 1)
                 fps = fps * (1-s) + (1.0/dt) * s
-            self.fpsbox.setText('%0.2f fps' % fps)
+            self.fpsBox.setText('%0.2f fps' % fps)
         except:
             pass
 
@@ -564,7 +602,7 @@ class TormentaGUI(QtGui.QMainWindow):
             else:
                 s = np.clip(dt*3., 0, 1)
                 fps = fps * (1-s) + (1.0/dt) * s
-            self.fpsbox.setText('%0.2f fps' % fps)
+            self.fpsBox.setText('%0.2f fps' % fps)
 
         if self.j < self.n:     # It hasn't finished
             QtCore.QTimer.singleShot(0, self.updateWhileRec)
