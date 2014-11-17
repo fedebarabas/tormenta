@@ -186,10 +186,10 @@ class TormentaGUI(QtGui.QMainWindow):
                        'values': self.HRRates[::-1]},
                       {'name': 'Vertical pixel shift', 'type': 'group',
                        'children': [
-                          {'name': 'Speed', 'type': 'list',
-                           'values': self.vertSpeeds[::-1]},
-                          {'name': 'Clock voltage amplitude',
-                           'type': 'list', 'values': self.vertAmps}]},
+                           {'name': 'Speed', 'type': 'list',
+                            'values': self.vertSpeeds[::-1]},
+                           {'name': 'Clock voltage amplitude',
+                            'type': 'list', 'values': self.vertAmps}]},
                       {'name': 'Set exposure time', 'type': 'float',
                        'value': 0.1, 'limits': (0,
                                                 andor.max_exposure.magnitude),
@@ -218,15 +218,15 @@ class TormentaGUI(QtGui.QMainWindow):
                        'value': andor.temperature_status}]}]
 
         self.customParam = {'name': 'Custom', 'type': 'group', 'children': [
-                               {'name': 'x_start', 'type': 'int',
-                                'suffix': 'px', 'value': 1},
-                               {'name': 'y_start', 'type': 'int',
-                                'suffix': 'px', 'value': 1},
-                               {'name': 'x_size', 'type': 'int', 'suffix': 'px',
-                                'value': andor.detector_shape[0]},
-                               {'name': 'y_size', 'type': 'int', 'suffix': 'px',
-                                'value': andor.detector_shape[1]},
-                               {'name': 'Apply', 'type': 'action'}]}
+                            {'name': 'x_start', 'type': 'int', 'suffix': 'px',
+                             'value': 1},
+                            {'name': 'y_start', 'type': 'int', 'suffix': 'px',
+                             'value': 1},
+                            {'name': 'x_size', 'type': 'int', 'suffix': 'px',
+                             'value': andor.detector_shape[0]},
+                            {'name': 'y_size', 'type': 'int', 'suffix': 'px',
+                             'value': andor.detector_shape[1]},
+                            {'name': 'Apply', 'type': 'action'}]}
 
         self.p = Parameter.create(name='params', type='group', children=params)
         tree = ParameterTree()
@@ -368,17 +368,16 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
+    # TODO: grid for ROIs
+
     """ Grid methods """
     def showGrid(self):
-        self.yline1 = pg.InfiniteLine(pos=0.25 * self.shape[0], pen = 'y')
-        self.yline2 = pg.InfiniteLine(pos=0.5 * self.shape[0], pen = 'y')
-        self.yline3 = pg.InfiniteLine(pos=0.75 * self.shape[0], pen = 'y')
-        self.xline1 = pg.InfiniteLine(pos=0.25 * self.shape[1], angle=0,
-                                      pen = 'y')
-        self.xline2 = pg.InfiniteLine(pos=0.5 * self.shape[1], angle=0,
-                                      pen = 'y')
-        self.xline3 = pg.InfiniteLine(pos=0.75 * self.shape[1], angle=0,
-                                      pen = 'y')
+        self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
+        self.yline2 = pg.InfiniteLine(pos=0.50*self.shape[0], pen='y')
+        self.yline3 = pg.InfiniteLine(pos=0.75*self.shape[0], pen='y')
+        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], angle=0, pen='y')
+        self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1], angle=0, pen='y')
+        self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1], angle=0, pen='y')
         self.p1.getViewBox().addItem(self.xline1)
         self.p1.getViewBox().addItem(self.xline2)
         self.p1.getViewBox().addItem(self.xline3)
@@ -430,7 +429,8 @@ class TormentaGUI(QtGui.QMainWindow):
             customParam = frameParam.param('Custom')
 
             # Signals
-            customParam.param('Apply').sigStateChanged.connect(self.customFrame)
+            applyParam = customParam.param('Apply')
+            applyParam.sigStateChanged.connect(self.customFrame)
 
         elif frameParam.param('Size').value() == 'Full chip':
             self.shape = andor.detector_shape
@@ -438,8 +438,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         else:
             side = int(frameParam.param('Size').value().split('x')[0])
-            start = (0.5 * (andor.detector_shape[0] - side),
-                     0.5 * (andor.detector_shape[1] - side))
+            start = (int(0.5 * (andor.detector_shape[0] - side)),
+                     int(0.5 * (andor.detector_shape[1] - side)))
             self.shape = (side, side)
             self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
@@ -527,7 +527,6 @@ class TormentaGUI(QtGui.QMainWindow):
             self.store_file.close()
 
 #        elif self.format == 'tiff':
-
 
     def record(self):
 
@@ -667,16 +666,14 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-#    with CCD() as andor, Laser(VFL, 'COM5') as redlaser,  \
-#            Laser(Cobolt0601, 'COM4') as bluelaser:
-
-    with SimCamera() as andor, Laser(VFL, 'COM3') as redlaser, \
+    with CCD() as andor, Laser(VFL, 'COM11') as redlaser, \
             Laser(Cobolt0601, 'COM4') as bluelaser, \
-            Laser(Ventus, 'COM5') as greenlaser:
+            Laser(Ventus, 'COM111') as greenlaser:
 
         print(andor.idn)
         print(redlaser.idn)
         print(bluelaser.idn)
+        print(greenlaser.idn)
 
         win = TormentaGUI()
         win.show()

@@ -74,10 +74,10 @@ class LaserWidget(QtGui.QFrame):
                                         tickInterval=10, singleStep=1)
 
         self.greenControl = LaserControl(self.greenlaser,
-                                        '<h3>Ventus 532nm</h3>',
-                                        color=(80, 255, 0),
-                                        prange=(0, 1500),
-                                        tickInterval=10, singleStep=1)
+                                         '<h3>Ventus 532nm</h3>',
+                                         color=(80, 255, 0),
+                                         prange=(0, 1500),
+                                         tickInterval=10, singleStep=1)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
@@ -191,9 +191,9 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-    with Laser(VFL, 'COM3') as redlaser, \
+    with Laser(VFL, 'COM11') as redlaser, \
             Laser(Cobolt0601, 'COM4') as bluelaser, \
-            Laser(Ventus, 'COM5') as greenlaser:
+            Laser(Ventus, 'COM10') as greenlaser:
 
         print(redlaser.idn, bluelaser.idn, greenlaser.idn)
         win = LaserWidget((redlaser, bluelaser, greenlaser))
