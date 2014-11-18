@@ -369,15 +369,16 @@ class TormentaGUI(QtGui.QMainWindow):
         self.updateTimings()
 
     # TODO: grid for ROIs
+    # TODO: create grid class
 
     """ Grid methods """
     def showGrid(self):
         self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
         self.yline2 = pg.InfiniteLine(pos=0.50*self.shape[0], pen='y')
         self.yline3 = pg.InfiniteLine(pos=0.75*self.shape[0], pen='y')
-        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], angle=0, pen='y')
-        self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1], angle=0, pen='y')
-        self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1], angle=0, pen='y')
+        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], pen='y', angle=0)
+        self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1], pen='y', angle=0)
+        self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1], pen='y', angle=0)
         self.p1.getViewBox().addItem(self.xline1)
         self.p1.getViewBox().addItem(self.xline2)
         self.p1.getViewBox().addItem(self.xline3)
@@ -666,9 +667,10 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor, Laser(VFL, 'COM11') as redlaser, \
+    with CCD() as andor, \
+            Laser(VFL, 'COM11') as redlaser, \
             Laser(Cobolt0601, 'COM4') as bluelaser, \
-            Laser(Ventus, 'COM111') as greenlaser:
+            Laser(Ventus, 'COM10') as greenlaser:
 
         print(andor.idn)
         print(redlaser.idn)
