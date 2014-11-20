@@ -42,6 +42,8 @@ fps = None
 app = QtGui.QApplication([])
 
 # TODO: Implement cropped sensor mode in case we want higher framerates
+# TODO: limits in histogram
+# TODO: log en histograma para single molecule
 
 
 class Camera(object):
@@ -452,7 +454,6 @@ class TormentaGUI(QtGui.QMainWindow):
         start = (customParam.param('x_start').value(),
                  customParam.param('y_start').value())
 
-
         self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
     def updateTimings(self):
@@ -468,7 +469,7 @@ class TormentaGUI(QtGui.QMainWindow):
         RealAccPar.setValue(self.t_acc_real.magnitude)
         EffFRPar.setValue(1 / self.t_acc_real.magnitude)
 
-    def liveview(self):
+    def liveview(self, update=True):
         """ Image live view when not recording
         """
         if andor.status != 'Camera is idle, waiting for instructions.':
@@ -484,9 +485,10 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Initial image
         image = andor.most_recent_image16(self.shape)
-        self.img.setImage(image)
-        self.hist.setLevels(np.min(image) - np.std(image),
-                            np.max(image) + np.std(image))
+        self.img.setImage(image, autoLevels=False)
+        if update:
+            self.hist.setLevels(np.min(image) - np.std(image),
+                                np.max(image) + np.std(image))
 
         self.viewtimer.start(0)
 
@@ -559,13 +561,25 @@ class TormentaGUI(QtGui.QMainWindow):
         # 'Run till abort' acquisition mode.
         self.viewtimer.stop()
 
+        self.savename = os.path.join(self.recPath,
+                                     self.recFilename) + '.' + self.format
+
+        # Check for same name conflict
+        n = 1
+        while os.path.exists(self.savename):
+            if n > 1:
+                self.savename = self.savename.replace('_{}.'.format(n - 1),
+                                                      '_{}.'.format(n))
+            else:
+                names = os.path.splitext(self.savename)
+                self.savename = names[0] + '_{}'.format(n) + names[1]
+            n += 1
+
         if self.format == 'hdf5':
             """ Useful format for big data as it saves new frames in chunks.
             Therefore, you don't have the whole stack in memory."""
 
-            self.store_file = hdf.File(os.path.join(self.recPath,
-                                                    self.recFilename)
-                                       + '.hdf5', "w")
+            self.store_file = hdf.File(self.savename, "w")
             self.store_file.create_dataset(name=self.dataname,
                                            shape=(self.n,
                                                   self.shape[0],
@@ -610,7 +624,7 @@ class TormentaGUI(QtGui.QMainWindow):
         else:                                           # The recording is over
             self.j = 0                                  # Reset counter
             self.recWidget.recButton.setChecked(False)
-            self.liveview()
+            self.liveview(update=False)
 
             if self.format == 'hdf5':
 
@@ -642,8 +656,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
             elif self.format == 'tiff':
 
-                os.chdir(self.recPath)
-                tiff.imsave(self.recFilename + '.tiff', self.stack,
+                tiff.imsave(self.savename, self.stack,
                             description=self.dataname, software='Tormenta')
 
     def closeEvent(self, *args, **kwargs):
