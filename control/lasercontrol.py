@@ -9,7 +9,6 @@ import time
 
 from PyQt4 import QtGui, QtCore
 
-from serial import Serial
 from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
 from lantz.drivers.laserquantum import Ventus
@@ -24,12 +23,14 @@ class Laser(object):
     def __new__(cls, driver, *args):
 
         try:
-            Serial(*args)
+            laser = driver(*args)
+            laser.initialize()
 
         except:
             return SimLaser()
 
         else:
+            laser.finalize()
             return driver(*args)
 
 
