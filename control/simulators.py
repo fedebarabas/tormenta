@@ -210,10 +210,11 @@ class SimCamera(Driver):
         integers (32-bit signed integers). The "array" must be exactly the same
         size as the complete image.
         """
-        return np.random.normal(100, 10, self.image_size)
+        return np.random.normal(100, 10, self.image_size).astype(np.uint16)
 
-    def images16(self, i, j, npixels):
-        return np.random.normal(100, 10, self.image_size)
+    def images16(self, first, last, shape, validfirst, validlast):
+        arr = np.random.normal(100, 10, (last - first + 1, shape[0], shape[1]))
+        return arr.astype(np.uint16)
 
     def set_n_kinetics(self, n):
         self.n = n

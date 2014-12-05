@@ -150,6 +150,19 @@ class TemperatureStabilizer(QtCore.QObject):
             self.parameter.param('Status').setValue(andor.temperature_status)
             time.sleep(10)
 
+# Check for same name conflict
+def getUniqueName(name):
+
+    n = 1
+    while os.path.exists(name):
+        if n > 1:
+            name = name.replace('_{}.'.format(n - 1), '_{}.'.format(n))
+        else:
+            names = os.path.splitext(name)
+            name = names[0] + '_{}'.format(n) + names[1]
+        n += 1
+
+    return name
 
 class TormentaGUI(QtGui.QMainWindow):
 
@@ -515,21 +528,25 @@ class TormentaGUI(QtGui.QMainWindow):
 
         image = andor.most_recent_image16(self.shape)
 
-        # TODO: snap format tiff
-
         # Data storing
         self.folder = self.recWidget.folder()
         self.filename = self.recWidget.filename()
         self.format = self.recWidget.formatBox.currentText()
+        self.savename = (os.path.join(self.folder, self.filename) + '.' +
+                         self.format)
 
         if self.format == 'hdf5':
-            self.store_file = hdf.File(os.path.join(self.folder,
-                                                    self.filename) + '.hdf5')
+            self.store_file = hdf.File(getUniqueName(self.savename))
             self.store_file.create_dataset(name=self.dataname + '_snap',
                                            data=image)
             self.store_file.close()
 
-#        elif self.format == 'tiff':
+        elif self.format == 'tiff':
+            splitted = os.path.splitext(self.savename)
+            snapname = splitted[0] + '_snap' + splitted[1]
+            tiff.imsave(getUniqueName(snapname), image,
+                        description=self.dataname, software='Tormenta')
+
 
     def record(self):
 
@@ -564,22 +581,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.savename = os.path.join(self.recPath,
                                      self.recFilename) + '.' + self.format
 
-        # Check for same name conflict
-        n = 1
-        while os.path.exists(self.savename):
-            if n > 1:
-                self.savename = self.savename.replace('_{}.'.format(n - 1),
-                                                      '_{}.'.format(n))
-            else:
-                names = os.path.splitext(self.savename)
-                self.savename = names[0] + '_{}'.format(n) + names[1]
-            n += 1
-
         if self.format == 'hdf5':
             """ Useful format for big data as it saves new frames in chunks.
             Therefore, you don't have the whole stack in memory."""
 
-            self.store_file = hdf.File(self.savename, "w")
+            self.store_file = hdf.File(getUniqueName(self.savename), "w")
             self.store_file.create_dataset(name=self.dataname,
                                            shape=(self.n,
                                                   self.shape[0],
@@ -656,7 +662,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
             elif self.format == 'tiff':
 
-                tiff.imsave(self.savename, self.stack,
+                tiff.imsave(getUniqueName(self.savename), self.stack,
                             description=self.dataname, software='Tormenta')
 
     def closeEvent(self, *args, **kwargs):
@@ -680,7 +686,7 @@ if __name__ == '__main__':
     from lantz import Q_
     s = Q_(1, 's')
 
-    with CCD() as andor, \
+    with Camera(CCD) as andor, \
             Laser(VFL, 'COM11') as redlaser, \
             Laser(Cobolt0601, 'COM4') as bluelaser, \
             Laser(Ventus, 'COM10') as greenlaser:
