@@ -51,10 +51,15 @@ class Camera(object):
     def __new__(cls, driver, *args):
 
         try:
-            return driver(*args)
+            camera = driver(*args)
+            camera.lib.Initialize()
 
         except:
             return SimCamera()
+
+        else:
+            camera.finalize()
+            return driver(*args)
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -150,6 +155,7 @@ class TemperatureStabilizer(QtCore.QObject):
             self.parameter.param('Status').setValue(andor.temperature_status)
             time.sleep(10)
 
+
 # Check for same name conflict
 def getUniqueName(name):
 
@@ -163,6 +169,7 @@ def getUniqueName(name):
         n += 1
 
     return name
+
 
 class TormentaGUI(QtGui.QMainWindow):
 
@@ -546,7 +553,6 @@ class TormentaGUI(QtGui.QMainWindow):
             snapname = splitted[0] + '_snap' + splitted[1]
             tiff.imsave(getUniqueName(snapname), image,
                         description=self.dataname, software='Tormenta')
-
 
     def record(self):
 
