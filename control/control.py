@@ -607,6 +607,8 @@ class TormentaGUI(QtGui.QMainWindow):
             """ This format has the problem of placing the whole stack in
             memory before saving."""
 
+            # TODO: Work with memmap
+
             self.stack = np.empty((self.n, self.shape[0], self.shape[1]),
                                   dtype=np.uint16)
 
