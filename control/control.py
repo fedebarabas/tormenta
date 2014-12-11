@@ -282,7 +282,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # Recording signals
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.recWidget = RecordingWidget()
-        self.recWidget.recButton.pressed.connect(self.record)
+        self.recWidget.recButton.clicked.connect(self.toggleRecord)
         self.recWidget.snapButton.clicked.connect(self.snap)
 
         # Image Widget
@@ -552,10 +552,16 @@ class TormentaGUI(QtGui.QMainWindow):
             tiff.imsave(getUniqueName(snapname), image,
                         description=self.dataname, software='Tormenta')
 
+    def toggleRecord(self):
+
+        if self.recWidget.recButton.isChecked():
+            self.record()
+
     def record(self):
 
         # TODO: x, y histograms
         self.recWidget.snapButton.setEnabled(False)
+        # TODO: disable the rest of parameters
 
         # Frame counter
         self.j = 0
@@ -595,7 +601,7 @@ class TormentaGUI(QtGui.QMainWindow):
                                                   self.shape[0],
                                                   self.shape[1]),
                                            fillvalue=0, dtype=np.uint16)
-            self.stack = self.store_file['data']
+            self.stack = self.store_file[self.dataname]
 
         elif self.format == 'tiff':
             """ This format has the problem of placing the whole stack in
@@ -636,12 +642,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def endRecording(self):
 
-        self.j = 0                                  # Reset counter
-        self.recWidget.recButton.setChecked(False)
-        self.recWidget.snapButton.setEnabled(True)
-        self.liveview(update=False)
-
         if self.format == 'hdf5':
+            # TODO: Crop results to self.j frames
 
             # Saving parameters as data attributes in the HDF5 file
             dset = self.store_file[self.dataname]
@@ -671,8 +673,13 @@ class TormentaGUI(QtGui.QMainWindow):
 
         elif self.format == 'tiff':
 
-            tiff.imsave(getUniqueName(self.savename), self.stack,
+            tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
                         description=self.dataname, software='Tormenta')
+
+        self.j = 0                                  # Reset counter
+        self.recWidget.recButton.setChecked(False)
+        self.recWidget.snapButton.setEnabled(True)
+        self.liveview(update=False)
 
     def closeEvent(self, *args, **kwargs):
 

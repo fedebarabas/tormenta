@@ -257,7 +257,7 @@ class SimCamera(Driver):
         return 1
 
     def true_horiz_shift_speed(self, n):
-        return 100
+        return 100 * self.us
 
     @property
     def horiz_shift_speed(self):
