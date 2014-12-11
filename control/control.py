@@ -119,16 +119,11 @@ def setCameraDefaults(camera):
     """
     camera.readout_mode = 'Image'
     camera.trigger_mode = 'Internal'
-    camera.preamp = 0
     camera.EM_advanced_enabled = False
     camera.EM_gain_mode = 'RealGain'
     camera.amp_typ = 0
-    camera.vert_shift_speed = 4
-    camera.set_n_accum(1)                 # No accumulation of exposures
     camera.set_accum_time(0 * s)          # Minimum accumulation and kinetic
     camera.set_kinetic_cycle_time(0 * s)  # times
-    camera.horiz_shift_speed = 3
-    camera.set_vert_clock(0)
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -185,7 +180,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # Lists needed for the parameter tree
         self.PreAmps = np.around([andor.true_preamp(n)
                                   for n in np.arange(andor.n_preamps)],
-                                 decimals=1)
+                                 decimals=1)[::-1]
         self.HRRates = [andor.true_horiz_shift_speed(n)
                         for n in np.arange(andor.n_horiz_shift_speeds())]
         self.vertSpeeds = [np.round(andor.true_vert_shift_speed(n), 1)
@@ -205,11 +200,12 @@ class TormentaGUI(QtGui.QMainWindow):
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
                        'value': False},
                       {'name': 'Horizontal readout rate', 'type': 'list',
-                       'values': self.HRRates[::-1]},
+                       'values': self.HRRates},
                       {'name': 'Vertical pixel shift', 'type': 'group',
                        'children': [
                            {'name': 'Speed', 'type': 'list',
-                            'values': self.vertSpeeds[::-1]},
+                            'values': self.vertSpeeds[::-1],
+                            'value':self.vertSpeeds[1]},
                            {'name': 'Clock voltage amplitude',
                             'type': 'list', 'values': self.vertAmps}]},
                       {'name': 'Set exposure time', 'type': 'float',
@@ -231,7 +227,7 @@ class TormentaGUI(QtGui.QMainWindow):
                       {'name': 'EM gain', 'type': 'int', 'value': 1,
                        'limits': (0, andor.EM_gain_range[1])}]},
                   {'name': 'Temperature', 'type': 'group', 'children': [
-                      {'name': 'Set point', 'type': 'int', 'value': -70,
+                      {'name': 'Set point', 'type': 'int', 'value': -50,
                        'suffix': 'º', 'limits': (-80, 0)},
                       {'name': 'Current temperature', 'type': 'int',
                        'value': andor.temperature.magnitude, 'suffix': 'ºC',
@@ -273,6 +269,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vertShiftSpeedPar.sigValueChanged.connect(changeExposure)
         self.vertShiftAmpPar = vertShiftPar.param('Clock voltage amplitude')
         self.vertShiftAmpPar.sigValueChanged.connect(changeExposure)
+        changeExposure()    # Set default values
 
         # Gain signals
         self.PreGainPar = self.p.param('Gain').param('Pre-amp gain')
@@ -280,11 +277,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.PreGainPar.sigValueChanged.connect(updateGain)
         self.GainPar = self.p.param('Gain').param('EM gain')
         self.GainPar.sigValueChanged.connect(updateGain)
+        updateGain()        # Set default values
 
         # Recording signals
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.recWidget = RecordingWidget()
-        self.recWidget.recButton.clicked.connect(self.record)
+        self.recWidget.recButton.pressed.connect(self.record)
         self.recWidget.snapButton.clicked.connect(self.snap)
 
         # Image Widget
@@ -557,7 +555,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def record(self):
 
         # TODO: x, y histograms
-        # TODO: disable buttons while recording
+        self.recWidget.snapButton.setEnabled(False)
 
         # Frame counter
         self.j = 0
@@ -630,46 +628,51 @@ class TormentaGUI(QtGui.QMainWindow):
                 fps = fps * (1-s) + (1.0/dt) * s
             self.fpsBox.setText('%0.2f fps' % fps)
 
-        if self.j < self.n:     # It hasn't finished
+        if self.j < self.n and self.recWidget.recButton.isChecked():
             QtCore.QTimer.singleShot(0, self.updateWhileRec)
 
-        else:                                           # The recording is over
-            self.j = 0                                  # Reset counter
-            self.recWidget.recButton.setChecked(False)
-            self.liveview(update=False)
+        else:
+            self.endRecording()
 
-            if self.format == 'hdf5':
+    def endRecording(self):
 
-                # Saving parameters as data attributes in the HDF5 file
-                dset = self.store_file[self.dataname]
-                dset.attrs['Date'] = time.strftime("%Y-%m-%d")
-                dset.attrs['Time'] = time.strftime("%H:%M:%S")
-                attrs = []
-                for ParName in self.p.getValues():
-                    Par = self.p.param(str(ParName))
-                    if not(Par.hasChildren()):
-                        attrs.append((str(ParName), Par.value()))
-                    else:
-                        for sParName in Par.getValues():
-                            sPar = Par.param(str(sParName))
-                            if sPar.type() != 'action':
-                                if not(sPar.hasChildren()):
-                                    attrs.append((str(sParName), sPar.value()))
-                                else:
-                                    for ssParName in sPar.getValues():
-                                        ssPar = sPar.param(str(ssParName))
-                                        attrs.append((str(ssParName),
-                                                      ssPar.value()))
+        self.j = 0                                  # Reset counter
+        self.recWidget.recButton.setChecked(False)
+        self.recWidget.snapButton.setEnabled(True)
+        self.liveview(update=False)
 
-                for item in attrs:
-                    dset.attrs[item[0]] = item[1]
+        if self.format == 'hdf5':
 
-                self.store_file.close()
+            # Saving parameters as data attributes in the HDF5 file
+            dset = self.store_file[self.dataname]
+            dset.attrs['Date'] = time.strftime("%Y-%m-%d")
+            dset.attrs['Time'] = time.strftime("%H:%M:%S")
+            attrs = []
+            for ParName in self.p.getValues():
+                Par = self.p.param(str(ParName))
+                if not(Par.hasChildren()):
+                    attrs.append((str(ParName), Par.value()))
+                else:
+                    for sParName in Par.getValues():
+                        sPar = Par.param(str(sParName))
+                        if sPar.type() != 'action':
+                            if not(sPar.hasChildren()):
+                                attrs.append((str(sParName), sPar.value()))
+                            else:
+                                for ssParName in sPar.getValues():
+                                    ssPar = sPar.param(str(ssParName))
+                                    attrs.append((str(ssParName),
+                                                  ssPar.value()))
 
-            elif self.format == 'tiff':
+            for item in attrs:
+                dset.attrs[item[0]] = item[1]
 
-                tiff.imsave(getUniqueName(self.savename), self.stack,
-                            description=self.dataname, software='Tormenta')
+            self.store_file.close()
+
+        elif self.format == 'tiff':
+
+            tiff.imsave(getUniqueName(self.savename), self.stack,
+                        description=self.dataname, software='Tormenta')
 
     def closeEvent(self, *args, **kwargs):
 
