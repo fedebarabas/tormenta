@@ -62,6 +62,82 @@ class Camera(object):
             return driver(*args)
 
 
+# TODO: Seguir con esto
+class camParamTree(ParameterTree):
+
+    def __init__(self, *args, **kwargs):
+        super(ParameterTree, self).__init__(*args, **kwargs)
+
+        # Lists needed for the parameter tree
+        self.PreAmps = np.around([andor.true_preamp(n)
+                                  for n in np.arange(andor.n_preamps)],
+                                 decimals=1)[::-1]
+        self.HRRates = [andor.true_horiz_shift_speed(n)
+                        for n in np.arange(andor.n_horiz_shift_speeds())]
+        self.vertSpeeds = [np.round(andor.true_vert_shift_speed(n), 1)
+                           for n in np.arange(andor.n_vert_shift_speeds)]
+        self.vertAmps = ['+' + str(andor.true_vert_amp(n))
+                         for n in np.arange(andor.n_vert_clock_amps)]
+        self.vertAmps[0] = 'Normal'
+
+        # Parameter tree for the camera configuration
+        params = [{'name': 'Camera', 'type': 'str',
+                   'value': andor.idn.split(',')[0]},
+                  {'name': 'Image frame', 'type': 'group', 'children': [
+                      {'name': 'Size', 'type': 'list',
+                       'values': ['Full chip', '256x256', '128x128', '64x64',
+                                  'Custom']}]},
+                  {'name': 'Timings', 'type': 'group', 'children': [
+                      {'name': 'Frame Transfer Mode', 'type': 'bool',
+                       'value': False},
+                      {'name': 'Horizontal readout rate', 'type': 'list',
+                       'values': self.HRRates},
+                      {'name': 'Vertical pixel shift', 'type': 'group',
+                       'children': [
+                           {'name': 'Speed', 'type': 'list',
+                            'values': self.vertSpeeds[::-1],
+                            'value':self.vertSpeeds[1]},
+                           {'name': 'Clock voltage amplitude',
+                            'type': 'list', 'values': self.vertAmps}]},
+                      {'name': 'Set exposure time', 'type': 'float',
+                       'value': 0.1, 'limits': (0,
+                                                andor.max_exposure.magnitude),
+                       'siPrefix': True, 'suffix': 's'},
+                      {'name': 'Real exposure time', 'type': 'float',
+                       'value': 0, 'readonly': True, 'siPrefix': True,
+                       'suffix': 's'},
+                      {'name': 'Real accumulation time', 'type': 'float',
+                       'value': 0, 'readonly': True, 'siPrefix': True,
+                       'suffix': 's'},
+                      {'name': 'Effective frame rate', 'type': 'float',
+                       'value': 0, 'readonly': True, 'siPrefix': True,
+                       'suffix': 'Hz'}]},
+                  {'name': 'Gain', 'type': 'group', 'children': [
+                      {'name': 'Pre-amp gain', 'type': 'list',
+                       'values': list(self.PreAmps)},
+                      {'name': 'EM gain', 'type': 'int', 'value': 1,
+                       'limits': (0, andor.EM_gain_range[1])}]},
+                  {'name': 'Temperature', 'type': 'group', 'children': [
+                      {'name': 'Set point', 'type': 'int', 'value': -50,
+                       'suffix': 'º', 'limits': (-80, 0)},
+                      {'name': 'Current temperature', 'type': 'int',
+                       'value': andor.temperature.magnitude, 'suffix': 'ºC',
+                       'readonly': True},
+                      {'name': 'Status', 'type': 'str', 'readonly': True,
+                       'value': andor.temperature_status}]}]
+
+        self.customParam = {'name': 'Custom', 'type': 'group', 'children': [
+                            {'name': 'x_start', 'type': 'int', 'suffix': 'px',
+                             'value': 1},
+                            {'name': 'y_start', 'type': 'int', 'suffix': 'px',
+                             'value': 1},
+                            {'name': 'x_size', 'type': 'int', 'suffix': 'px',
+                             'value': andor.detector_shape[0]},
+                            {'name': 'y_size', 'type': 'int', 'suffix': 'px',
+                             'value': andor.detector_shape[1]},
+                            {'name': 'Apply', 'type': 'action'}]}
+
+
 class RecordingWidget(QtGui.QFrame):
 
     def __init__(self, *args, **kwargs):
@@ -104,6 +180,8 @@ class RecordingWidget(QtGui.QFrame):
 
         recGrid.setColumnMinimumWidth(0, 200)
 
+        self._editable = True
+
     def nExpositions(self):
         return int(self.numExpositionsEdit.text())
 
@@ -112,6 +190,19 @@ class RecordingWidget(QtGui.QFrame):
 
     def filename(self):
         return self.filenameEdit.text()
+
+    @property
+    def editable(self):
+        return self._editable
+
+    @editable.setter
+    def editable(self, value):
+        self.snapButton.setEnabled(value)
+        self.folderEdit.setEnabled(value)
+        self.filenameEdit.setEnabled(value)
+        self.numExpositionsEdit.setEnabled(value)
+        self.formatBox.setEnabled(value)
+        self._editable = value
 
 
 def setCameraDefaults(camera):
@@ -249,6 +340,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.p = Parameter.create(name='params', type='group', children=params)
         tree = ParameterTree()
         tree.setParameters(self.p, showTop=False)
+        self._paramTreeEditable = True
 
         # Frame signals
         self.shape = andor.detector_shape
@@ -282,7 +374,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # Recording signals
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.recWidget = RecordingWidget()
-        self.recWidget.recButton.clicked.connect(self.toggleRecord)
+        self.recWidget.recButton.clicked.connect(self.record)
         self.recWidget.snapButton.clicked.connect(self.snap)
 
         # Image Widget
@@ -344,6 +436,27 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.fpsBox, 4, 1)
         layout.addWidget(self.gridBox, 4, 2)
         layout.addWidget(self.laserWidgets, 0, 4)
+
+    @property
+    def paramTreeEditable(self):
+        return self._paramTreeEditable
+
+    @paramTreeEditable.setter
+    def paramTreeEditable(self, value):
+        self._paramTreeEditable = value
+        value = not(value)
+        self.p.param('Image frame').param('Size').setReadonly(value)
+        timeParams = self.p.param('Timings')
+        timeParams.param('Frame Transfer Mode').setReadonly(value)
+        timeParams.param('Horizontal readout rate').setReadonly(value)
+        timeParams.param('Set exposure time').setReadonly(value)
+        vpsParams = timeParams.param('Vertical pixel shift')
+        vpsParams.param('Speed').setReadonly(True)
+        vpsParams.param('Clock voltage amplitude').setReadonly(value)
+        gainParams = self.p.param('Gain')
+        gainParams.param('Pre-amp gain').setReadonly(value)
+        gainParams.param('EM gain').setReadonly(value)
+
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -552,67 +665,63 @@ class TormentaGUI(QtGui.QMainWindow):
             tiff.imsave(getUniqueName(snapname), image,
                         description=self.dataname, software='Tormenta')
 
-    def toggleRecord(self):
-
-        if self.recWidget.recButton.isChecked():
-            self.record()
-
     def record(self):
 
-        # TODO: x, y histograms
-        self.recWidget.snapButton.setEnabled(False)
-        # TODO: disable the rest of parameters
+        if self.recWidget.recButton.isChecked():
 
-        # Frame counter
-        self.j = 0
+            # TODO: x, y histograms
+            self.recWidget.editable = False
+            self.paramTreeEditable = False
 
-        # Data storing
-        self.recPath = self.recWidget.folder()
-        self.recFilename = self.recWidget.filename()
-        self.n = self.recWidget.nExpositions()
-        self.format = self.recWidget.formatBox.currentText()
+            # Frame counter
+            self.j = 0
 
-        # Acquisition preparation
-        if andor.status != 'Camera is idle, waiting for instructions.':
-            andor.abort_acquisition()
-        else:
-            andor.shutter(0, 1, 0, 0, 0)
+            # Data storing
+            self.recPath = self.recWidget.folder()
+            self.recFilename = self.recWidget.filename()
+            self.n = self.recWidget.nExpositions()
+            self.format = self.recWidget.formatBox.currentText()
 
-        andor.free_int_mem()
-        andor.acquisition_mode = 'Kinetics'
-        andor.set_n_kinetics(self.n)
-        andor.start_acquisition()
-        time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
+            # Acquisition preparation
+            if andor.status != 'Camera is idle, waiting for instructions.':
+                andor.abort_acquisition()
+            else:
+                andor.shutter(0, 1, 0, 0, 0)
 
-        # Stop the QTimer that updates the image with incoming data from the
-        # 'Run till abort' acquisition mode.
-        self.viewtimer.stop()
+            andor.free_int_mem()
+            andor.acquisition_mode = 'Kinetics'
+            andor.set_n_kinetics(self.n)
+            andor.start_acquisition()
+            time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
 
-        self.savename = os.path.join(self.recPath,
-                                     self.recFilename) + '.' + self.format
+            # Stop the QTimer that updates the image with incoming data from
+            # the 'Run till abort' acquisition mode.
+            self.viewtimer.stop()
 
-        if self.format == 'hdf5':
-            """ Useful format for big data as it saves new frames in chunks.
-            Therefore, you don't have the whole stack in memory."""
+            self.savename = os.path.join(self.recPath,
+                                         self.recFilename) + '.' + self.format
 
-            self.store_file = hdf.File(getUniqueName(self.savename), "w")
-            self.store_file.create_dataset(name=self.dataname,
-                                           shape=(self.n,
-                                                  self.shape[0],
-                                                  self.shape[1]),
-                                           fillvalue=0, dtype=np.uint16)
-            self.stack = self.store_file[self.dataname]
+            if self.format == 'hdf5':
+                """ Useful format for big data as it saves new frames in chunks.
+                Therefore, you don't have the whole stack in memory."""
 
-        elif self.format == 'tiff':
-            """ This format has the problem of placing the whole stack in
-            memory before saving."""
+                self.store_file = hdf.File(getUniqueName(self.savename), "w")
+                self.store_file.create_dataset(name=self.dataname,
+                                               shape=(self.n,
+                                                      self.shape[0],
+                                                      self.shape[1]),
+                                               fillvalue=0, dtype=np.uint16)
+                self.stack = self.store_file[self.dataname]
 
-            # TODO: Work with memmap
+            elif self.format == 'tiff':
+                """ This format has the problem of placing the whole stack in
+                memory before saving."""
 
-            self.stack = np.empty((self.n, self.shape[0], self.shape[1]),
-                                  dtype=np.uint16)
+                # TODO: Work with memmap
+                self.stack = np.empty((self.n, self.shape[0], self.shape[1]),
+                                      dtype=np.uint16)
 
-        QtCore.QTimer.singleShot(1, self.updateWhileRec)
+            QtCore.QTimer.singleShot(1, self.updateWhileRec)
 
     def updateWhileRec(self):
         global lastTime, fps
@@ -680,7 +789,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.j = 0                                  # Reset counter
         self.recWidget.recButton.setChecked(False)
-        self.recWidget.snapButton.setEnabled(True)
+        self.recWidget.editable = True
+        self.paramTreeEditable = True
         self.liveview(update=False)
 
     def closeEvent(self, *args, **kwargs):
