@@ -46,28 +46,14 @@ app = QtGui.QApplication([])
 # TODO: log en histograma para single molecule
 
 
-#class Camera(object):
-#
-#    def __new__(cls, driver, *args):
-#
-#        try:
-#            camera = driver(*args)
-#            camera.lib.Initialize()
-#
-#        except:
-#            return SimCamera()
-#
-#        else:
-#            camera.finalize()
-#            return driver(*args)
+class Camera(object):
+    """ Buffer class for testing whether the camera is connected. If it's not,
+    it returns a dummy class for program testing. """
 
-
-class Camera(CCD):
-
-    def __new__(self, *args):
+    def __new__(cls, driver, *args):
 
         try:
-            camera = self(*args)
+            camera = driver(*args)
             camera.lib.Initialize()
 
         except:
@@ -75,11 +61,28 @@ class Camera(CCD):
 
         else:
             camera.finalize()
-            return self(*args)
+            return STORMCamera(*args)
+
+
+class STORMCamera(CCD):
+    """ Subclass of the Andor's lantz driver. It adapts to our needs the whole
+    functionality of the camera. """
 
     def __init__(self, *args, **kwargs):
-        super(Camera, self).__init__(*args, **kwargs)
 
+        super(STORMCamera, self).__init__(*args, **kwargs)
+        super(STORMCamera, self).initialize(*args, **kwargs)
+
+        # Default imaging parameters
+        self.readout_mode = 'Image'
+        self.trigger_mode = 'Internal'
+        self.EM_advanced_enabled = False
+        self.EM_gain_mode = 'RealGain'
+        self.amp_typ = 0
+        self.set_accum_time(0 * s)          # Minimum accumulation and kinetic
+        self.set_kinetic_cycle_time(0 * s)  # times
+
+        # Lists needed for the ParameterTree
         self.PreAmps = np.around([self.true_preamp(n)
                                   for n in np.arange(self.n_preamps)],
                                  decimals=1)[::-1]
@@ -94,23 +97,13 @@ class Camera(CCD):
 
 # TODO: Seguir con esto
 class CamParamTree(ParameterTree):
+    """ Making the ParameterTree for configuration of the camera during imaging
+    """
 
     global andor
 
     def __init__(self, *args, **kwargs):
         super(CamParamTree, self).__init__(*args, **kwargs)
-
-#        # Lists needed for the parameter tree
-#        andor.PreAmps = np.around([andor.true_preamp(n)
-#                                  for n in np.arange(andor.n_preamps)],
-#                                 decimals=1)[::-1]
-#        andor.HRRates = [andor.true_horiz_shift_speed(n)
-#                        for n in np.arange(andor.n_horiz_shift_speeds())]
-#        andor.vertSpeeds = [np.round(andor.true_vert_shift_speed(n), 1)
-#                           for n in np.arange(andor.n_vert_shift_speeds)]
-#        andor.vertAmps = ['+' + str(andor.true_vert_amp(n))
-#                         for n in np.arange(andor.n_vert_clock_amps)]
-#        andor.vertAmps[0] = 'Normal'
 
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
@@ -240,18 +233,6 @@ class RecordingWidget(QtGui.QFrame):
         self._editable = value
 
 
-def setCameraDefaults(camera):
-    """ Initial camera's configuration
-    """
-    camera.readout_mode = 'Image'
-    camera.trigger_mode = 'Internal'
-    camera.EM_advanced_enabled = False
-    camera.EM_gain_mode = 'RealGain'
-    camera.amp_typ = 0
-    camera.set_accum_time(0 * s)          # Minimum accumulation and kinetic
-    camera.set_kinetic_cycle_time(0 * s)  # times
-
-
 class TemperatureStabilizer(QtCore.QObject):
 
     def __init__(self, parameter, *args, **kwargs):
@@ -363,7 +344,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.gridBox.stateChanged.connect(self.toggleGrid)
 
         # Initial camera configuration taken from the parameter tree
-        setCameraDefaults(andor)
         andor.set_exposure_time(self.ExpPar.value() * s)
         self.adjustFrame()
         self.updateTimings()
@@ -764,7 +744,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Stop running threads
         self.viewtimer.stop()
-        self.stabilizerThread.terminate()
+        self.stabilizerThread.terminate()       # TODO: Make this work
 
         # Turn off camera, close shutter
         if andor.status != 'Camera is idle, waiting for instructions.':
