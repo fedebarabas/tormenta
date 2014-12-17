@@ -100,6 +100,17 @@ class SimCamera(Driver):
         self.horiz_shift_speed_state = 1
         self.n_preamps = 1
 
+        self.PreAmps = np.around([self.true_preamp(n)
+                                  for n in np.arange(self.n_preamps)],
+                                 decimals=1)[::-1]
+        self.HRRates = [self.true_horiz_shift_speed(n)
+                        for n in np.arange(self.n_horiz_shift_speeds())]
+        self.vertSpeeds = [np.round(self.true_vert_shift_speed(n), 1)
+                           for n in np.arange(self.n_vert_shift_speeds)]
+        self.vertAmps = ['+' + str(self.true_vert_amp(n))
+                         for n in np.arange(self.n_vert_clock_amps)]
+        self.vertAmps[0] = 'Normal'
+
     @property
     def idn(self):
         """Identification of the device

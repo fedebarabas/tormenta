@@ -46,12 +46,28 @@ app = QtGui.QApplication([])
 # TODO: log en histograma para single molecule
 
 
-class Camera(object):
+#class Camera(object):
+#
+#    def __new__(cls, driver, *args):
+#
+#        try:
+#            camera = driver(*args)
+#            camera.lib.Initialize()
+#
+#        except:
+#            return SimCamera()
+#
+#        else:
+#            camera.finalize()
+#            return driver(*args)
 
-    def __new__(cls, driver, *args):
+
+class Camera(CCD):
+
+    def __new__(self, *args):
 
         try:
-            camera = driver(*args)
+            camera = self(*args)
             camera.lib.Initialize()
 
         except:
@@ -59,26 +75,42 @@ class Camera(object):
 
         else:
             camera.finalize()
-            return driver(*args)
+            return self(*args)
+
+    def __init__(self, *args, **kwargs):
+        super(Camera, self).__init__(*args, **kwargs)
+
+        self.PreAmps = np.around([self.true_preamp(n)
+                                  for n in np.arange(self.n_preamps)],
+                                 decimals=1)[::-1]
+        self.HRRates = [self.true_horiz_shift_speed(n)
+                        for n in np.arange(self.n_horiz_shift_speeds())]
+        self.vertSpeeds = [np.round(self.true_vert_shift_speed(n), 1)
+                           for n in np.arange(self.n_vert_shift_speeds)]
+        self.vertAmps = ['+' + str(self.true_vert_amp(n))
+                         for n in np.arange(self.n_vert_clock_amps)]
+        self.vertAmps[0] = 'Normal'
 
 
 # TODO: Seguir con esto
-class camParamTree(ParameterTree):
+class CamParamTree(ParameterTree):
+
+    global andor
 
     def __init__(self, *args, **kwargs):
-        super(ParameterTree, self).__init__(*args, **kwargs)
+        super(CamParamTree, self).__init__(*args, **kwargs)
 
-        # Lists needed for the parameter tree
-        self.PreAmps = np.around([andor.true_preamp(n)
-                                  for n in np.arange(andor.n_preamps)],
-                                 decimals=1)[::-1]
-        self.HRRates = [andor.true_horiz_shift_speed(n)
-                        for n in np.arange(andor.n_horiz_shift_speeds())]
-        self.vertSpeeds = [np.round(andor.true_vert_shift_speed(n), 1)
-                           for n in np.arange(andor.n_vert_shift_speeds)]
-        self.vertAmps = ['+' + str(andor.true_vert_amp(n))
-                         for n in np.arange(andor.n_vert_clock_amps)]
-        self.vertAmps[0] = 'Normal'
+#        # Lists needed for the parameter tree
+#        andor.PreAmps = np.around([andor.true_preamp(n)
+#                                  for n in np.arange(andor.n_preamps)],
+#                                 decimals=1)[::-1]
+#        andor.HRRates = [andor.true_horiz_shift_speed(n)
+#                        for n in np.arange(andor.n_horiz_shift_speeds())]
+#        andor.vertSpeeds = [np.round(andor.true_vert_shift_speed(n), 1)
+#                           for n in np.arange(andor.n_vert_shift_speeds)]
+#        andor.vertAmps = ['+' + str(andor.true_vert_amp(n))
+#                         for n in np.arange(andor.n_vert_clock_amps)]
+#        andor.vertAmps[0] = 'Normal'
 
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
@@ -91,14 +123,14 @@ class camParamTree(ParameterTree):
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
                        'value': False},
                       {'name': 'Horizontal readout rate', 'type': 'list',
-                       'values': self.HRRates},
+                       'values': andor.HRRates},
                       {'name': 'Vertical pixel shift', 'type': 'group',
                        'children': [
                            {'name': 'Speed', 'type': 'list',
-                            'values': self.vertSpeeds[::-1],
-                            'value':self.vertSpeeds[1]},
+                            'values': andor.vertSpeeds[::-1],
+                            'value':andor.vertSpeeds[1]},
                            {'name': 'Clock voltage amplitude',
-                            'type': 'list', 'values': self.vertAmps}]},
+                            'type': 'list', 'values': andor.vertAmps}]},
                       {'name': 'Set exposure time', 'type': 'float',
                        'value': 0.1, 'limits': (0,
                                                 andor.max_exposure.magnitude),
@@ -114,7 +146,7 @@ class camParamTree(ParameterTree):
                        'suffix': 'Hz'}]},
                   {'name': 'Gain', 'type': 'group', 'children': [
                       {'name': 'Pre-amp gain', 'type': 'list',
-                       'values': list(self.PreAmps)},
+                       'values': list(andor.PreAmps)},
                       {'name': 'EM gain', 'type': 'int', 'value': 1,
                        'limits': (0, andor.EM_gain_range[1])}]},
                   {'name': 'Temperature', 'type': 'group', 'children': [
@@ -137,11 +169,14 @@ class camParamTree(ParameterTree):
                              'value': andor.detector_shape[1]},
                             {'name': 'Apply', 'type': 'action'}]}
 
+        self.p = Parameter.create(name='params', type='group', children=params)
+        self.setParameters(self.p, showTop=False)
+
 
 class RecordingWidget(QtGui.QFrame):
 
     def __init__(self, *args, **kwargs):
-        super(QtGui.QFrame, self).__init__(*args, **kwargs)
+        super(RecordingWidget, self).__init__(*args, **kwargs)
 
         recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
         recTitle.setTextFormat(QtCore.Qt.RichText)
@@ -223,7 +258,7 @@ class TemperatureStabilizer(QtCore.QObject):
 
         global andor
 
-        super(QtCore.QObject, self).__init__(*args, **kwargs)
+        super(TemperatureStabilizer, self).__init__(*args, **kwargs)
         self.parameter = parameter
         self.setPointPar = self.parameter.param('Set point')
         self.setPointPar.sigValueChanged.connect(self.updateTemp)
@@ -263,83 +298,13 @@ class TormentaGUI(QtGui.QMainWindow):
 
         global andor
 
-        super(QtGui.QMainWindow, self).__init__(*args, **kwargs)
+        super(TormentaGUI, self).__init__(*args, **kwargs)
         self.setWindowTitle('Tormenta')
         self.cwidget = QtGui.QWidget()
         self.setCentralWidget(self.cwidget)
 
-        # Lists needed for the parameter tree
-        self.PreAmps = np.around([andor.true_preamp(n)
-                                  for n in np.arange(andor.n_preamps)],
-                                 decimals=1)[::-1]
-        self.HRRates = [andor.true_horiz_shift_speed(n)
-                        for n in np.arange(andor.n_horiz_shift_speeds())]
-        self.vertSpeeds = [np.round(andor.true_vert_shift_speed(n), 1)
-                           for n in np.arange(andor.n_vert_shift_speeds)]
-        self.vertAmps = ['+' + str(andor.true_vert_amp(n))
-                         for n in np.arange(andor.n_vert_clock_amps)]
-        self.vertAmps[0] = 'Normal'
-
-        # Parameter tree for the camera configuration
-        params = [{'name': 'Camera', 'type': 'str',
-                   'value': andor.idn.split(',')[0]},
-                  {'name': 'Image frame', 'type': 'group', 'children': [
-                      {'name': 'Size', 'type': 'list',
-                       'values': ['Full chip', '256x256', '128x128', '64x64',
-                                  'Custom']}]},
-                  {'name': 'Timings', 'type': 'group', 'children': [
-                      {'name': 'Frame Transfer Mode', 'type': 'bool',
-                       'value': False},
-                      {'name': 'Horizontal readout rate', 'type': 'list',
-                       'values': self.HRRates},
-                      {'name': 'Vertical pixel shift', 'type': 'group',
-                       'children': [
-                           {'name': 'Speed', 'type': 'list',
-                            'values': self.vertSpeeds[::-1],
-                            'value':self.vertSpeeds[1]},
-                           {'name': 'Clock voltage amplitude',
-                            'type': 'list', 'values': self.vertAmps}]},
-                      {'name': 'Set exposure time', 'type': 'float',
-                       'value': 0.1, 'limits': (0,
-                                                andor.max_exposure.magnitude),
-                       'siPrefix': True, 'suffix': 's'},
-                      {'name': 'Real exposure time', 'type': 'float',
-                       'value': 0, 'readonly': True, 'siPrefix': True,
-                       'suffix': 's'},
-                      {'name': 'Real accumulation time', 'type': 'float',
-                       'value': 0, 'readonly': True, 'siPrefix': True,
-                       'suffix': 's'},
-                      {'name': 'Effective frame rate', 'type': 'float',
-                       'value': 0, 'readonly': True, 'siPrefix': True,
-                       'suffix': 'Hz'}]},
-                  {'name': 'Gain', 'type': 'group', 'children': [
-                      {'name': 'Pre-amp gain', 'type': 'list',
-                       'values': list(self.PreAmps)},
-                      {'name': 'EM gain', 'type': 'int', 'value': 1,
-                       'limits': (0, andor.EM_gain_range[1])}]},
-                  {'name': 'Temperature', 'type': 'group', 'children': [
-                      {'name': 'Set point', 'type': 'int', 'value': -50,
-                       'suffix': 'º', 'limits': (-80, 0)},
-                      {'name': 'Current temperature', 'type': 'int',
-                       'value': andor.temperature.magnitude, 'suffix': 'ºC',
-                       'readonly': True},
-                      {'name': 'Status', 'type': 'str', 'readonly': True,
-                       'value': andor.temperature_status}]}]
-
-        self.customParam = {'name': 'Custom', 'type': 'group', 'children': [
-                            {'name': 'x_start', 'type': 'int', 'suffix': 'px',
-                             'value': 1},
-                            {'name': 'y_start', 'type': 'int', 'suffix': 'px',
-                             'value': 1},
-                            {'name': 'x_size', 'type': 'int', 'suffix': 'px',
-                             'value': andor.detector_shape[0]},
-                            {'name': 'y_size', 'type': 'int', 'suffix': 'px',
-                             'value': andor.detector_shape[1]},
-                            {'name': 'Apply', 'type': 'action'}]}
-
-        self.p = Parameter.create(name='params', type='group', children=params)
-        tree = ParameterTree()
-        tree.setParameters(self.p, showTop=False)
+        self.tree = CamParamTree()
+        self.p = self.tree.p
         self._paramTreeEditable = True
 
         # Frame signals
@@ -429,7 +394,7 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setColumnMinimumWidth(2, 200)
         layout.setRowMinimumHeight(0, 150)
         layout.setRowMinimumHeight(1, 320)
-        layout.addWidget(tree, 0, 0, 2, 1)
+        layout.addWidget(self.tree, 0, 0, 2, 1)
         layout.addWidget(liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
         layout.addWidget(imagewidget, 0, 1, 4, 3)
@@ -478,7 +443,7 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Method to change the pre-amp gain and main gain of the EMCCD
         """
         PreAmpGain = self.PreGainPar.value()
-        n = np.where(self.PreAmps == PreAmpGain)[0][0]
+        n = np.where(andor.PreAmps == PreAmpGain)[0][0]
         andor.preamp = n
         andor.EM_gain = self.GainPar.value()
 
@@ -487,15 +452,15 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         andor.set_exposure_time(self.ExpPar.value() * s)
         andor.frame_transfer_mode = self.FTMPar.value()
-        n_hrr = np.where(np.array([item.magnitude for item in self.HRRates])
+        n_hrr = np.where(np.array([item.magnitude for item in andor.HRRates])
                          == self.HRRatePar.value().magnitude)[0][0]
         andor.horiz_shift_speed = n_hrr
 
-        n_vss = np.where(np.array([item.magnitude for item in self.vertSpeeds])
+        n_vss = np.where(np.array([item.magnitude for item in andor.vertSpeeds])
                          == self.vertShiftSpeedPar.value().magnitude)[0][0]
         andor.vert_shift_speed = n_vss
 
-        n_vsa = np.where(np.array(self.vertAmps) ==
+        n_vsa = np.where(np.array(andor.vertAmps) ==
                          self.vertShiftAmpPar.value())[0][0]
         andor.set_vert_clock(n_vsa)
 
@@ -806,7 +771,7 @@ class TormentaGUI(QtGui.QMainWindow):
             andor.abort_acquisition()
         andor.shutter(0, 2, 0, 0, 0)
 
-        super(QtGui.QMainWindow, self).closeEvent(*args, **kwargs)
+        super(TormentaGUI, self).closeEvent(*args, **kwargs)
 
 
 if __name__ == '__main__':
