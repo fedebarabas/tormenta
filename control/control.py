@@ -25,10 +25,14 @@ from lantz.drivers.andor.ccd import CCD
 from lantz.drivers.cobolt import Cobolt0601
 from lantz.drivers.mpb import VFL
 from lantz.drivers.laserquantum import Ventus
+from lantz.drivers.labjack.t7 import T7
+from lantz.drivers.prior.nanoscanz import NanoScanZ
+
 from lantz import Q_
 
 from lasercontrol import LaserWidget, Laser
 from simulators import SimCamera
+from focus import FocusWidget
 
 degC = Q_(1, 'degC')
 us = Q_(1, 'us')
@@ -38,8 +42,6 @@ mW = Q_(1, 'mW')
 
 lastTime = ptime.time()
 fps = None
-
-app = QtGui.QApplication([])
 
 # TODO: Implement cropped sensor mode in case we want higher framerates
 # TODO: limits in histogram
@@ -250,12 +252,18 @@ class TemperatureStabilizer(QtCore.QObject):
     def start(self):
         self.updateTemp()
         andor.cooler_on = True
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update)
+        self.timer.start(10000)
+
+    def update(self):
         stable = 'Temperature has stabilized at set point.'
-        CurrTempPar = self.parameter.param('Current temperature')
-        while andor.temperature_status != stable:
+        if andor.temperature_status != stable:
+            CurrTempPar = self.parameter.param('Current temperature')
             CurrTempPar.setValue(np.round(andor.temperature.magnitude, 1))
             self.parameter.param('Status').setValue(andor.temperature_status)
-            time.sleep(10)
+        else:
+            self.timer.stop()
 
 
 # Check for same name conflict
@@ -365,6 +373,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Laser control widget
         self.laserWidgets = LaserWidget((redlaser, bluelaser, greenlaser))
+        self.focusWidget = FocusWidget(DAQ, scanZ)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
@@ -381,7 +390,9 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.fpsBox, 4, 1)
         layout.addWidget(self.gridBox, 4, 2)
         layout.addWidget(self.laserWidgets, 0, 4)
+        layout.addWidget(self.focusWidget, 1, 4)
 
+    # TODO: move this to CamParamTree class
     @property
     def paramTreeEditable(self):
         return self._paramTreeEditable
@@ -401,7 +412,6 @@ class TormentaGUI(QtGui.QMainWindow):
         gainParams = self.p.param('Gain')
         gainParams.param('Pre-amp gain').setReadonly(value)
         gainParams.param('EM gain').setReadonly(value)
-
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -436,7 +446,8 @@ class TormentaGUI(QtGui.QMainWindow):
                          == self.HRRatePar.value().magnitude)[0][0]
         andor.horiz_shift_speed = n_hrr
 
-        n_vss = np.where(np.array([item.magnitude for item in andor.vertSpeeds])
+        n_vss = np.where(np.array([item.magnitude
+                                  for item in andor.vertSpeeds])
                          == self.vertShiftSpeedPar.value().magnitude)[0][0]
         andor.vert_shift_speed = n_vss
 
@@ -741,6 +752,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def closeEvent(self, *args, **kwargs):
 
         self.laserWidgets.closeEvent()
+        self.focusWidget.closeEvent()
 
         # Stop running threads
         self.viewtimer.stop()
@@ -756,18 +768,20 @@ class TormentaGUI(QtGui.QMainWindow):
 
 if __name__ == '__main__':
 
-    from lantz import Q_
-    s = Q_(1, 's')
+    app = QtGui.QApplication([])
 
     with Camera(CCD) as andor, \
             Laser(VFL, 'COM11') as redlaser, \
             Laser(Cobolt0601, 'COM4') as bluelaser, \
-            Laser(Ventus, 'COM10') as greenlaser:
+            Laser(Ventus, 'COM10') as greenlaser, \
+            T7() as DAQ, NanoScanZ(12) as scanZ:
 
         print(andor.idn)
         print(redlaser.idn)
         print(bluelaser.idn)
         print(greenlaser.idn)
+        print(DAQ.idn)
+        print('Prior Z stage')
 
         win = TormentaGUI()
         win.show()
