@@ -173,21 +173,6 @@ class LaserControl(QtGui.QFrame):
         self.slider.setValue(self.laser.power_sp.magnitude)
 
 
-def laserOff(laser, mini):
-    """ Lasers' shutting down protocol
-    """
-    if laser.power_sp > 2 * mini:
-        while laser.power_sp > 2 * mini:
-            ipower = laser.power_sp
-            laser.power_sp = ipower - mini
-            time.sleep(3)
-
-        laser.power_sp = mini
-        time.sleep(3)
-
-    laser.enabled = False
-
-
 if __name__ == '__main__':
 
     app = QtGui.QApplication([])

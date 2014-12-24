@@ -34,6 +34,7 @@ from lasercontrol import LaserWidget, Laser
 from simulators import SimCamera
 from focus import FocusWidget
 
+# Include these in the needed class
 degC = Q_(1, 'degC')
 us = Q_(1, 'us')
 MHz = Q_(1, 'MHz')
@@ -48,6 +49,7 @@ fps = None
 # TODO: log en histograma para single molecule
 
 
+# This should go in a sepaerate module, along with STORMCamera and Laser
 class Camera(object):
     """ Buffer class for testing whether the camera is connected. If it's not,
     it returns a dummy class for program testing. """
@@ -97,7 +99,6 @@ class STORMCamera(CCD):
         self.vertAmps[0] = 'Normal'
 
 
-# TODO: Seguir con esto
 class CamParamTree(ParameterTree):
     """ Making the ParameterTree for configuration of the camera during imaging
     """
@@ -166,8 +167,30 @@ class CamParamTree(ParameterTree):
 
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
+        self._editable = True
+
+    @property
+    def editable(self):
+        return self._editable
+
+    @editable.setter
+    def editable(self, value):
+        self._editable = value
+        value = not(value)
+        self.p.param('Image frame').param('Size').setReadonly(value)
+        timeParams = self.p.param('Timings')
+        timeParams.param('Frame Transfer Mode').setReadonly(value)
+        timeParams.param('Horizontal readout rate').setReadonly(value)
+        timeParams.param('Set exposure time').setReadonly(value)
+        vpsParams = timeParams.param('Vertical pixel shift')
+        vpsParams.param('Speed').setReadonly(True)
+        vpsParams.param('Clock voltage amplitude').setReadonly(value)
+        gainParams = self.p.param('Gain')
+        gainParams.param('Pre-amp gain').setReadonly(value)
+        gainParams.param('EM gain').setReadonly(value)
 
 
+# TODO: get record methods as RecordingWidget methods
 class RecordingWidget(QtGui.QFrame):
 
     def __init__(self, *args, **kwargs):
@@ -254,7 +277,7 @@ class TemperatureStabilizer(QtCore.QObject):
         andor.cooler_on = True
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
-        self.timer.start(10000)
+        self.timer.start(1)
 
     def update(self):
         stable = 'Temperature has stabilized at set point.'
@@ -262,6 +285,7 @@ class TemperatureStabilizer(QtCore.QObject):
             CurrTempPar = self.parameter.param('Current temperature')
             CurrTempPar.setValue(np.round(andor.temperature.magnitude, 1))
             self.parameter.param('Status').setValue(andor.temperature_status)
+            time.sleep(10)
         else:
             self.timer.stop()
 
@@ -293,17 +317,15 @@ class TormentaGUI(QtGui.QMainWindow):
         self.setCentralWidget(self.cwidget)
 
         self.tree = CamParamTree()
-        self.p = self.tree.p
-        self._paramTreeEditable = True
 
         # Frame signals
         self.shape = andor.detector_shape
-        frameParam = self.p.param('Image frame')
+        frameParam = self.tree.p.param('Image frame')
         frameParam.param('Size').sigValueChanged.connect(self.updateFrame)
 
         # Exposition signals
         changeExposure = lambda: self.changeParameter(self.setExposure)
-        TimingsPar = self.p.param('Timings')
+        TimingsPar = self.tree.p.param('Timings')
         self.ExpPar = TimingsPar.param('Set exposure time')
         self.ExpPar.sigValueChanged.connect(changeExposure)
         self.FTMPar = TimingsPar.param('Frame Transfer Mode')
@@ -318,10 +340,10 @@ class TormentaGUI(QtGui.QMainWindow):
         changeExposure()    # Set default values
 
         # Gain signals
-        self.PreGainPar = self.p.param('Gain').param('Pre-amp gain')
+        self.PreGainPar = self.tree.p.param('Gain').param('Pre-amp gain')
         updateGain = lambda: self.changeParameter(self.setGain)
         self.PreGainPar.sigValueChanged.connect(updateGain)
-        self.GainPar = self.p.param('Gain').param('EM gain')
+        self.GainPar = self.tree.p.param('Gain').param('EM gain')
         self.GainPar.sigValueChanged.connect(updateGain)
         updateGain()        # Set default values
 
@@ -364,7 +386,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewtimer.timeout.connect(self.updateView)
 
         # Temperature stabilization functionality
-        self.TempPar = self.p.param('Temperature')
+        self.TempPar = self.tree.p.param('Temperature')
         self.stabilizer = TemperatureStabilizer(self.TempPar)
         self.stabilizerThread = QtCore.QThread()
         self.stabilizer.moveToThread(self.stabilizerThread)
@@ -391,27 +413,6 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.gridBox, 4, 2)
         layout.addWidget(self.laserWidgets, 0, 4)
         layout.addWidget(self.focusWidget, 1, 4)
-
-    # TODO: move this to CamParamTree class
-    @property
-    def paramTreeEditable(self):
-        return self._paramTreeEditable
-
-    @paramTreeEditable.setter
-    def paramTreeEditable(self, value):
-        self._paramTreeEditable = value
-        value = not(value)
-        self.p.param('Image frame').param('Size').setReadonly(value)
-        timeParams = self.p.param('Timings')
-        timeParams.param('Frame Transfer Mode').setReadonly(value)
-        timeParams.param('Horizontal readout rate').setReadonly(value)
-        timeParams.param('Set exposure time').setReadonly(value)
-        vpsParams = timeParams.param('Vertical pixel shift')
-        vpsParams.param('Speed').setReadonly(True)
-        vpsParams.param('Clock voltage amplitude').setReadonly(value)
-        gainParams = self.p.param('Gain')
-        gainParams.param('Pre-amp gain').setReadonly(value)
-        gainParams.param('EM gain').setReadonly(value)
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -511,7 +512,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def updateFrame(self):
         """ Method to change the image frame size and position in the sensor
         """
-        frameParam = self.p.param('Image frame')
+        frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
             # Add new parameters for custom frame setting
@@ -534,7 +535,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
     def customFrame(self):
-        customParam = self.p.param('Image frame').param('Custom')
+        customParam = self.tree.p.param('Image frame').param('Custom')
 
         self.shape = (customParam.param('x_size').value(),
                       customParam.param('y_size').value())
@@ -549,9 +550,10 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         timings = andor.acquisition_timings
         self.t_exp_real, self.t_acc_real, self.t_kin_real = timings
-        RealExpPar = self.p.param('Timings').param('Real exposure time')
-        RealAccPar = self.p.param('Timings').param('Real accumulation time')
-        EffFRPar = self.p.param('Timings').param('Effective frame rate')
+        timingsPar = self.tree.p.param('Timings')
+        RealExpPar = timingsPar.param('Real exposure time')
+        RealAccPar = timingsPar.param('Real accumulation time')
+        EffFRPar = timingsPar.param('Effective frame rate')
         RealExpPar.setValue(self.t_exp_real.magnitude)
         RealAccPar.setValue(self.t_acc_real.magnitude)
         EffFRPar.setValue(1 / self.t_acc_real.magnitude)
@@ -627,7 +629,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
             # TODO: x, y histograms
             self.recWidget.editable = False
-            self.paramTreeEditable = False
+            self.tree.editable = False
 
             # Frame counter
             self.j = 0
@@ -717,8 +719,8 @@ class TormentaGUI(QtGui.QMainWindow):
             dset.attrs['Date'] = time.strftime("%Y-%m-%d")
             dset.attrs['Time'] = time.strftime("%H:%M:%S")
             attrs = []
-            for ParName in self.p.getValues():
-                Par = self.p.param(str(ParName))
+            for ParName in self.tree.p.getValues():
+                Par = self.tree.p.param(str(ParName))
                 if not(Par.hasChildren()):
                     attrs.append((str(ParName), Par.value()))
                 else:
@@ -746,16 +748,14 @@ class TormentaGUI(QtGui.QMainWindow):
         self.j = 0                                  # Reset counter
         self.recWidget.recButton.setChecked(False)
         self.recWidget.editable = True
-        self.paramTreeEditable = True
+        self.tree.editable = True
         self.liveview(update=False)
 
     def closeEvent(self, *args, **kwargs):
 
-        self.laserWidgets.closeEvent()
-        self.focusWidget.closeEvent()
-
         # Stop running threads
         self.viewtimer.stop()
+        self.stabilizer.timer.stop()
         self.stabilizerThread.terminate()       # TODO: Make this work
 
         # Turn off camera, close shutter
@@ -763,6 +763,8 @@ class TormentaGUI(QtGui.QMainWindow):
             andor.abort_acquisition()
         andor.shutter(0, 2, 0, 0, 0)
 
+        self.laserWidgets.closeEvent(*args, **kwargs)
+        self.focusWidget.closeEvent(*args, **kwargs)
         super(TormentaGUI, self).closeEvent(*args, **kwargs)
 
 

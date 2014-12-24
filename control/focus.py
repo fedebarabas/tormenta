@@ -16,7 +16,9 @@ from lantz.drivers.prior.nanoscanz import NanoScanZ
 
 from lantz import Q_
 
-# TODO: LOCK button, fix x-axis to time in seconds
+from pi import PI
+
+# TODO: fix x-axis to time in seconds
 
 
 class FocusWidget(QtGui.QFrame):
@@ -32,6 +34,10 @@ class FocusWidget(QtGui.QFrame):
         self.V = Q_(1, 'V')
         self.um = Q_(1, 'um')
 
+        self.focusTitle = QtGui.QLabel('<h2>Focus control</h2>')
+        self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+
+        # Thread for getting data from DAQ
         scansPerS = 5
         self.stream = daqStream(DAQ, scansPerS)
         self.streamThread = QtCore.QThread()
@@ -40,21 +46,36 @@ class FocusWidget(QtGui.QFrame):
         self.streamThread.start()
 
         self.graph = FocusLockGraph(self.stream)
-        self.focusTitle = QtGui.QLabel('<h2>Focus control</h2>')
-        self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
 
+        # Z moving widgets
         self.loadButton = QtGui.QPushButton('Bajar objetivo')
         self.loadButton.pressed.connect(lambda: self.moveZ(-3000 * self.um))
         self.liftButton = QtGui.QPushButton('Subir objetivo')
         self.liftButton.pressed.connect(lambda: self.moveZ(-1000 * self.um))
 
+        # Focus lock widgets
+        self.kpEdit = QtGui.QLineEdit()
+        self.kpLabel = QtGui.QLabel('kp')
+        self.kiEdit = QtGui.QLineEdit()
+        self.kiLabel = QtGui.QLabel('ki')
+        self.lockButton = QtGui.QPushButton('Lock')
+        self.lockButton.setCheckable(True)
+        self.lockButton.clicked.connect(self.lockFocus)
+        self.lockButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                      QtGui.QSizePolicy.Expanding)
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.focusTitle, 0, 0)
-        grid.addWidget(self.graph, 1, 0, 1, 4)
-        grid.addWidget(self.loadButton, 3, 0)
+        grid.addWidget(self.graph, 1, 0, 1, 5)
         grid.addWidget(self.liftButton, 2, 0)
+        grid.addWidget(self.loadButton, 3, 0)
+        grid.addWidget(self.kpLabel, 2, 2)
+        grid.addWidget(self.kpEdit, 2, 3)
+        grid.addWidget(self.kiLabel, 3, 2)
+        grid.addWidget(self.kiEdit, 3, 3)
+        grid.addWidget(self.lockButton, 2, 4, 2, 1)
+        grid.setColumnMinimumWidth(1, 500)
 
         # Labjack configuration
         self.timer = QtCore.QTimer()
@@ -64,6 +85,15 @@ class FocusWidget(QtGui.QFrame):
 #        self.i = 0
 #        self.measurements = []
 #        self.timer.timeout.connect(self.measurement)
+
+    def lockFocus(self):
+        if self.lockButton.isChecked():
+            # Start locking
+            self.setPoint = self.stream.newData
+
+        else:
+            # Stop locking
+            pass
 
     def moveZ(self, value):
         self.z.position = value
@@ -82,6 +112,7 @@ class FocusWidget(QtGui.QFrame):
 
 
 class daqStream(QtCore.QObject):
+    """This stream only takes care of getting data from the Labjack device."""
 
     def __init__(self, DAQ, scansPerS, *args, **kwargs):
 
@@ -146,12 +177,14 @@ class FocusLockGraph(pg.GraphicsWindow):
             self.curve2.setData(self.data[1:self.ptr])
 
         else:
-            self.data[:-1] = self.data[1:]  # shift data (see also: np.roll)
+            self.data[:-1] = self.data[1:]
             self.data[-1] = self.stream.newData
-#            self.curve1.setData(self.data)
+
             self.curve2.setData(self.data)
-#            self.curve1.setPos(self.ptr - 200, 0)
             self.curve2.setPos(self.ptr - 200, 0)
+
+#            self.curve1.setData(self.data)
+#            self.curve1.setPos(self.ptr - 200, 0)
 
         self.ptr += 1
 
