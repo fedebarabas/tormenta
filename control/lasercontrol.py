@@ -6,32 +6,8 @@ Created on Tue Aug 12 11:51:21 2014
 """
 
 import time
-
 from PyQt4 import QtGui, QtCore
-
-from lantz.drivers.cobolt import Cobolt0601
-from lantz.drivers.mpb import VFL
-from lantz.drivers.laserquantum import Ventus
-from simulators import SimLaser
 from lantz import Q_
-
-mW = Q_(1, 'mW')
-
-
-class Laser(object):
-
-    def __new__(cls, driver, *args):
-
-        try:
-            laser = driver(*args)
-            laser.initialize()
-
-        except:
-            return SimLaser()
-
-        else:
-            laser.finalize()
-            return driver(*args)
 
 
 class UpdatePowers(QtCore.QObject):
@@ -56,9 +32,10 @@ class LaserWidget(QtGui.QFrame):
 
     def __init__(self, lasers, *args, **kwargs):
 
-        self.redlaser, self.bluelaser, self.greenlaser = lasers
+        super(LaserWidget, self).__init__(*args, **kwargs)
 
-        super(QtGui.QFrame, self).__init__(*args, **kwargs)
+        self.redlaser, self.bluelaser, self.greenlaser = lasers
+        self.mW = Q_(1, 'mW')
 
         laserTitle = QtGui.QLabel('<h2>Laser control</h2>')
         laserTitle.setTextFormat(QtCore.Qt.RichText)
@@ -96,7 +73,7 @@ class LaserWidget(QtGui.QFrame):
         self.updateThread.started.connect(self.updatePowers.update)
 
     def closeEvent(self, *args, **kwargs):
-        # Stop running threads
+        super(LaserWidget, self).closeEvent(*args, **kwargs)
         self.updateThread.terminate()
 
 
@@ -162,20 +139,28 @@ class LaserControl(QtGui.QFrame):
 
     def enableLaser(self):
         self.laser.enabled = True
-        self.laser.power_sp = float(self.setPointEdit.text()) * mW
+        self.laser.power_sp = float(self.setPointEdit.text()) * self.mW
 
     def changeSlider(self, value):
-        self.laser.power_sp = self.slider.value() * mW
+        self.laser.power_sp = self.slider.value() * self.mW
         self.setPointEdit.setText(str(self.laser.power_sp.magnitude))
 
     def changeEdit(self):
-        self.laser.power_sp = float(self.setPointEdit.text()) * mW
+        self.laser.power_sp = float(self.setPointEdit.text()) * self.mW
         self.slider.setValue(self.laser.power_sp.magnitude)
+
+    def closeEvent(self, *args, **kwargs):
+        super(LaserControl, self).closeEvent(*args, **kwargs)
 
 
 if __name__ == '__main__':
 
     app = QtGui.QApplication([])
+
+    from instruments import Laser
+    from lantz.drivers.cobolt import Cobolt0601
+    from lantz.drivers.mpb import VFL
+    from lantz.drivers.laserquantum import Ventus
 
     with Laser(VFL, 'COM11') as redlaser, \
             Laser(Cobolt0601, 'COM4') as bluelaser, \

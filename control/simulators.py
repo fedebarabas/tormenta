@@ -27,10 +27,91 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s',
                     datefmt='%Y-%d-%m %H:%M:%S')
 
 
+class constants:
+
+    def __init__(self):
+        self.GND = 0
+
+
+class SimDAQ(Driver):
+
+    def __init__(self):
+        self.constants = constants()
+
+    def idn(self):
+        return 'Simulated Labjack T7'
+
+    def streamStop(self):
+        pass
+
+    def streamStart(self, *args, **kwargs):
+        pass
+
+    def streamRead(self):
+        return (np.random.normal(1, 0.1, 100), 0)
+
+    def writeNames(self, *args, **kwargs):
+        pass
+
+    def address(self, port):
+        return (0, 0)
+
+
+class SimScanZ(Driver):
+
+    def __init__(self):
+        super(SimScanZ).__init__()
+        self._position = 1000
+        self.um = Q_(1, 'um')
+        self._hostPosition = 'left'
+
+    @property
+    def position(self):
+        '''Gets and sets current position.
+        If the value is set to z = 0, the display changes to REL 0 (relative
+        display mode). To return to ABS mode use inst.move_absolute(0) and then
+        inst.position = 0. Thus, the stage will return to 0 micrometers and the
+        display screen will switch to ABS mode.
+        '''
+        return self._position * self.um
+
+    @position.setter
+    def position(self, value):
+        '''Gets and sets current position.
+        If the value is set to z = 0, the display changes to REL 0 (relative
+        display mode). To return to ABS mode use inst.move_absolute(0) and then
+        inst.position = 0. Thus, the stage will return to 0 micrometers and the
+        display screen will switch to ABS mode.
+        '''
+        self._position = value
+
+    def moveRelative(self, value):
+        self.position = self.position + value
+
+    @property
+    def umPerRevolution(self):
+        return 100 * self.um
+
+    @umPerRevolution.setter
+    def umPerRevolution(self, value):
+        pass
+
+    @property
+    def hostPosition(self):
+        return self._hostPosition
+
+    @hostPosition.setter
+    def hostPosition(self, value):
+        self._hostPosition = value
+
+    def finalize(self):
+        pass
+
+
 class SimLaser(Driver):
 
     def __init__(self):
-        super().__init__()
+        super(SimLaser).__init__()
 
         self.mW = Q_(1, 'mW')
 

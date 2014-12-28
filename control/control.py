@@ -16,89 +16,17 @@ import pyqtgraph.ptime as ptime
 from pyqtgraph.parametertree import Parameter, ParameterTree
 
 import h5py as hdf
-# http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
-# http://www.lfd.uci.edu/~gohlke/
-import tifffile as tiff
-
-# Lantz drivers
-from lantz.drivers.andor.ccd import CCD
-from lantz.drivers.cobolt import Cobolt0601
-from lantz.drivers.mpb import VFL
-from lantz.drivers.laserquantum import Ventus
-from lantz.drivers.labjack.t7 import T7
-from lantz.drivers.prior.nanoscanz import NanoScanZ
-
+import tifffile as tiff      # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
+                             # http://www.lfd.uci.edu/~gohlke/
 from lantz import Q_
-
-from lasercontrol import LaserWidget, Laser
-from simulators import SimCamera
+from instruments import Laser, Camera, ScanZ, DAQ
+from lasercontrol import LaserWidget
 from focus import FocusWidget
 
-# Include these in the needed class
-degC = Q_(1, 'degC')
-us = Q_(1, 'us')
-MHz = Q_(1, 'MHz')
-s = Q_(1, 's')
-mW = Q_(1, 'mW')
-
-lastTime = ptime.time()
-fps = None
 
 # TODO: Implement cropped sensor mode in case we want higher framerates
 # TODO: limits in histogram
 # TODO: log en histograma para single molecule
-
-
-# This should go in a sepaerate module, along with STORMCamera and Laser
-class Camera(object):
-    """ Buffer class for testing whether the camera is connected. If it's not,
-    it returns a dummy class for program testing. """
-
-    def __new__(cls, driver, *args):
-
-        try:
-            camera = driver(*args)
-            camera.lib.Initialize()
-
-        except:
-            return SimCamera()
-
-        else:
-            camera.finalize()
-            return STORMCamera(*args)
-
-
-class STORMCamera(CCD):
-    """ Subclass of the Andor's lantz driver. It adapts to our needs the whole
-    functionality of the camera. """
-
-    def __init__(self, *args, **kwargs):
-
-        super(STORMCamera, self).__init__(*args, **kwargs)
-        super(STORMCamera, self).initialize(*args, **kwargs)
-
-        # Default imaging parameters
-        self.readout_mode = 'Image'
-        self.trigger_mode = 'Internal'
-        self.EM_advanced_enabled = False
-        self.EM_gain_mode = 'RealGain'
-        self.amp_typ = 0
-        self.set_accum_time(0 * s)          # Minimum accumulation and kinetic
-        self.set_kinetic_cycle_time(0 * s)  # times
-
-        # Lists needed for the ParameterTree
-        self.PreAmps = np.around([self.true_preamp(n)
-                                  for n in np.arange(self.n_preamps)],
-                                 decimals=1)[::-1]
-        self.HRRates = [self.true_horiz_shift_speed(n)
-                        for n in np.arange(self.n_horiz_shift_speeds())]
-        self.vertSpeeds = [np.round(self.true_vert_shift_speed(n), 1)
-                           for n in np.arange(self.n_vert_shift_speeds)]
-        self.vertAmps = ['+' + str(self.true_vert_amp(n))
-                         for n in np.arange(self.n_vert_clock_amps)]
-        self.vertAmps[0] = 'Normal'
-
-
 class CamParamTree(ParameterTree):
     """ Making the ParameterTree for configuration of the camera during imaging
     """
@@ -316,6 +244,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.cwidget = QtGui.QWidget()
         self.setCentralWidget(self.cwidget)
 
+        self.s = Q_(1, 's')
+        self.lastTime = ptime.time()
+        self.fps = None
+
         self.tree = CamParamTree()
 
         # Frame signals
@@ -374,7 +306,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.gridBox.stateChanged.connect(self.toggleGrid)
 
         # Initial camera configuration taken from the parameter tree
-        andor.set_exposure_time(self.ExpPar.value() * s)
+        andor.set_exposure_time(self.ExpPar.value() * self.s)
         self.adjustFrame()
         self.updateTimings()
 
@@ -441,7 +373,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def setExposure(self):
         """ Method to change the exposure time setting
         """
-        andor.set_exposure_time(self.ExpPar.value() * s)
+        andor.set_exposure_time(self.ExpPar.value() * self.s)
         andor.frame_transfer_mode = self.FTMPar.value()
         n_hrr = np.where(np.array([item.magnitude for item in andor.HRRates])
                          == self.HRRatePar.value().magnitude)[0][0]
@@ -584,19 +516,18 @@ class TormentaGUI(QtGui.QMainWindow):
     def updateView(self):
         """ Image update while in Liveview mode
         """
-        global lastTime, fps
         try:
             image = andor.most_recent_image16(self.shape)
             self.img.setImage(image, autoLevels=False)
             now = ptime.time()
-            dt = now - lastTime
-            lastTime = now
-            if fps is None:
-                fps = 1.0/dt
+            dt = now - self.lastTime
+            self.lastTime = now
+            if self.fps is None:
+                self.fps = 1.0/dt
             else:
                 s = np.clip(dt*3., 0, 1)
-                fps = fps * (1-s) + (1.0/dt) * s
-            self.fpsBox.setText('%0.2f fps' % fps)
+                self.fps = self.fps * (1-s) + (1.0/dt) * s
+            self.fpsBox.setText('%0.2f fps' % self.fps)
         except:
             pass
 
@@ -660,8 +591,8 @@ class TormentaGUI(QtGui.QMainWindow):
                                          self.recFilename) + '.' + self.format
 
             if self.format == 'hdf5':
-                """ Useful format for big data as it saves new frames in chunks.
-                Therefore, you don't have the whole stack in memory."""
+                """ Useful format for big data as it saves new frames in
+                chunks. Therefore, you don't have the whole stack in memory."""
 
                 self.store_file = hdf.File(getUniqueName(self.savename), "w")
                 self.store_file.create_dataset(name=self.dataname,
@@ -694,14 +625,14 @@ class TormentaGUI(QtGui.QMainWindow):
             self.recWidget.currentFrame.setText(str(self.j) + ' /')
 
             now = ptime.time()
-            dt = now - lastTime
-            lastTime = now
-            if fps is None:
-                fps = 1.0/dt
+            dt = now - self.lastTime
+            self.lastTime = now
+            if self.fps is None:
+                self.fps = 1.0/dt
             else:
                 s = np.clip(dt*3., 0, 1)
-                fps = fps * (1-s) + (1.0/dt) * s
-            self.fpsBox.setText('%0.2f fps' % fps)
+                self.fps = self.fps * (1-s) + (1.0/dt) * s
+            self.fpsBox.setText('%0.2f fps' % self.fps)
 
         if self.j < self.n and self.recWidget.recButton.isChecked():
             QtCore.QTimer.singleShot(0, self.updateWhileRec)
@@ -772,11 +703,11 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-    with Camera(CCD) as andor, \
-            Laser(VFL, 'COM11') as redlaser, \
-            Laser(Cobolt0601, 'COM4') as bluelaser, \
-            Laser(Ventus, 'COM10') as greenlaser, \
-            T7() as DAQ, NanoScanZ(12) as scanZ:
+    with Camera('andor.CCD') as andor, \
+            Laser('mpb.VFL', 'COM11') as redlaser, \
+            Laser('cobolt.Cobolt0601', 'COM4') as bluelaser, \
+            Laser('laserquantum.Ventus', 'COM10') as greenlaser, \
+            DAQ() as DAQ, ScanZ(12) as scanZ:
 
         print(andor.idn)
         print(redlaser.idn)

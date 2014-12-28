@@ -11,16 +11,13 @@ import time
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 
-from lantz.drivers.labjack.t7 import T7
-from lantz.drivers.prior.nanoscanz import NanoScanZ
-
 from lantz import Q_
 
+from instruments import ScanZ, DAQ
 from pi import PI
 
+
 # TODO: fix x-axis to time in seconds
-
-
 class FocusWidget(QtGui.QFrame):
 
     def __init__(self, DAQ, scanZ, *args, **kwargs):
@@ -55,8 +52,10 @@ class FocusWidget(QtGui.QFrame):
 
         # Focus lock widgets
         self.kpEdit = QtGui.QLineEdit()
+        self.kpEdit.textChanged.connect(self.lockFocus)
         self.kpLabel = QtGui.QLabel('kp')
         self.kiEdit = QtGui.QLineEdit()
+        self.kiEdit.textChanged.connect(self.lockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')
         self.lockButton.setCheckable(True)
@@ -90,6 +89,7 @@ class FocusWidget(QtGui.QFrame):
         if self.lockButton.isChecked():
             # Start locking
             self.setPoint = self.stream.newData
+            self.PI = PI(self.setPoint, self.kpEdit.text(), self.kiEdit.text())
 
         else:
             # Stop locking
@@ -99,7 +99,7 @@ class FocusWidget(QtGui.QFrame):
         self.z.position = value
 
     def closeEvent(self, *args, **kwargs):
-        self.z.position = -3000 * self.um
+        self.z.position = Q_(-3000, 'um')
 
         while self.z.position > -2800 * self.um:
             time.sleep(1)
@@ -174,7 +174,8 @@ class FocusLockGraph(pg.GraphicsWindow):
         if self.ptr < 200:
             self.data[self.ptr] = self.stream.newData
 #            self.curve1.setData(self.data[1:self.ptr])
-            self.curve2.setData(self.data[1:self.ptr])
+            xData = np.arange(0, self.ptr, 1/self.stream.scansPerS)
+            self.curve2.setData((xData, self.data[1:self.ptr]))
 
         else:
             self.data[:-1] = self.data[1:]
@@ -202,7 +203,7 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-    with T7() as DAQ, NanoScanZ(12) as z:
+    with DAQ() as DAQ, ScanZ(12) as z:
 
         win = FocusWidget(DAQ, z)
         win.show()
