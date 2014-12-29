@@ -90,12 +90,15 @@ class FocusWidget(QtGui.QFrame):
             # Start locking
             self.setPoint = self.graph.data[-1]
             self.PI = PI(self.setPoint, self.kpEdit.text(), self.kiEdit.text())
-            # QtCore.QTimer
-            timer.timeout.connect(self.newOutput)
+#            self.timer1 = QtCore.QTimer
+#            timer.timeout.connect(self.newOutput)
             # scanz.move_relative(self.PI.update)
         else:
             # Stop locking
-            timer.stop()
+            print('ping')
+            np.savetxt('medicion_foco', self.stream.measure)
+            print('pong')
+#            self.timer1.stop()
 
     def newOutput(self):
         out = self.PI.update(self.graph.data[-1])
@@ -105,14 +108,15 @@ class FocusWidget(QtGui.QFrame):
         self.z.position = value
 
     def closeEvent(self, *args, **kwargs):
-        self.z.position = Q_(-3000, 'um')
-
-        while self.z.position > -2800 * self.um:
-            time.sleep(1)
 
         self.DAQ.streamStop()
         self.streamThread.terminate()
         self.timer.stop()
+
+        self.z.position = Q_(-3000, 'um')
+
+        while self.z.position > -2800 * self.um:
+            time.sleep(1)
 
         super(FocusWidget, self).closeEvent(*args, **kwargs)
 
@@ -143,9 +147,11 @@ class daqStream(QtCore.QObject):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(1)
+        self.measure = []
 
     def update(self):
         self.newData = np.mean(self.DAQ.streamRead()[0])
+        self.measure.append(self.newData)
 
 
 class FocusLockGraph(pg.GraphicsWindow):
@@ -170,9 +176,9 @@ class FocusLockGraph(pg.GraphicsWindow):
 
         # Graph without a fixed range
         self.p2 = self.addPlot()
-        self.p2.setLabel('bottom', "Tiempo [s]")
-        self.p2.setLabel('left', 'Señal de foco [V]')
-        self.curve2 = self.p2.plot()
+        self.p2.setLabels(bottom=('Tiempo', 's'), left=('Señal de foco', 'V'))
+        self.p2.showGrid(x=True, y=True)
+        self.curve2 = self.p2.plot(pen='y')
         self.scansPerS = self.stream.scansPerS
         self.xData = np.arange(0, 200/self.scansPerS, 1/self.scansPerS)
 
@@ -210,10 +216,13 @@ class FocusLockGraph(pg.GraphicsWindow):
 if __name__ == '__main__':
 
     app = QtGui.QApplication([])
+    out = 0
 
     with DAQ() as DAQ, ScanZ(12) as z:
 
         win = FocusWidget(DAQ, z)
         win.show()
+
+
 
         app.exec_()
