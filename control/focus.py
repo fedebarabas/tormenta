@@ -88,12 +88,18 @@ class FocusWidget(QtGui.QFrame):
     def lockFocus(self):
         if self.lockButton.isChecked():
             # Start locking
-            self.setPoint = self.stream.newData
+            self.setPoint = self.graph.data[-1]
             self.PI = PI(self.setPoint, self.kpEdit.text(), self.kiEdit.text())
-
+            # QtCore.QTimer
+            timer.timeout.connect(self.newOutput)
+            # scanz.move_relative(self.PI.update)
         else:
             # Stop locking
-            pass
+            timer.stop()
+
+    def newOutput(self):
+        out = self.PI.update(self.graph.data[-1])
+        scanz.move_rel(self.PI.update(self.graph.data[-1]))
 
     def moveZ(self, value):
         self.z.position = value
@@ -164,9 +170,11 @@ class FocusLockGraph(pg.GraphicsWindow):
 
         # Graph without a fixed range
         self.p2 = self.addPlot()
-        self.p2.setLabel('bottom', "Time")
-        self.p2.setLabel('left', 'V')
+        self.p2.setLabel('bottom', "Tiempo [s]")
+        self.p2.setLabel('left', 'Señal de foco [V]')
         self.curve2 = self.p2.plot()
+        self.scansPerS = self.stream.scansPerS
+        self.xData = np.arange(0, 200/self.scansPerS, 1/self.scansPerS)
 
     def update(self):
         """ Gives an update of the data displayed in the graphs
@@ -174,15 +182,15 @@ class FocusLockGraph(pg.GraphicsWindow):
         if self.ptr < 200:
             self.data[self.ptr] = self.stream.newData
 #            self.curve1.setData(self.data[1:self.ptr])
-            xData = np.arange(0, self.ptr, 1/self.stream.scansPerS)
-            self.curve2.setData((xData, self.data[1:self.ptr]))
+            self.curve2.setData(self.xData[1:self.ptr + 1],
+                                self.data[1:self.ptr + 1])
 
         else:
             self.data[:-1] = self.data[1:]
             self.data[-1] = self.stream.newData
 
-            self.curve2.setData(self.data)
-            self.curve2.setPos(self.ptr - 200, 0)
+            self.curve2.setData(self.xData, self.data)
+            self.curve2.setPos(self.ptr/self.scansPerS - 50, 0)
 
 #            self.curve1.setData(self.data)
 #            self.curve1.setPos(self.ptr - 200, 0)

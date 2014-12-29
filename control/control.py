@@ -703,10 +703,10 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-    with Camera('andor.CCD') as andor, \
-            Laser('mpb.VFL', 'COM11') as redlaser, \
-            Laser('cobolt.Cobolt0601', 'COM4') as bluelaser, \
-            Laser('laserquantum.Ventus', 'COM10') as greenlaser, \
+    with Camera('andor.ccd.CCD') as andor, \
+            Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
+            Laser('cobolt.cobolt0601.Cobolt0601', 'COM4') as bluelaser, \
+            Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser, \
             DAQ() as DAQ, ScanZ(12) as scanZ:
 
         print(andor.idn)

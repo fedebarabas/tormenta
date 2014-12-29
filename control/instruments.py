@@ -16,10 +16,12 @@ from simulators import SimCamera, SimScanZ, SimLaser, SimDAQ
 
 class Laser(object):
 
-    def __new__(cls, driverName, *args):
+    def __new__(cls, iName, *args):
 
         try:
-            driver = importlib.import_module('lantz.drivers.' + driverName)
+            pName, driverName = iName.rsplit('.', 1)
+            package = importlib.import_module('lantz.drivers.' + pName)
+            driver = getattr(package, driverName)
             laser = driver(*args)
             laser.initialize()
 
@@ -61,10 +63,12 @@ class Camera(object):
     """ Buffer class for testing whether the camera is connected. If it's not,
     it returns a dummy class for program testing. """
 
-    def __new__(cls, driverName, *args):
+    def __new__(cls, iName, *args):
 
         try:
-            driver = importlib.import_module('lantz.drivers.' + driverName)
+            pName, driverName = iName.rsplit('.', 1)
+            package = importlib.import_module('lantz.drivers.' + pName)
+            driver = getattr(package, driverName)
             camera = driver(*args)
             camera.lib.Initialize()
 

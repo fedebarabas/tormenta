@@ -45,16 +45,16 @@ class PI:
 
         if self.started:
             self.dError = self.error - self.lastError
-            self.PI = self.PI + self.kp * self.dError + self.ki * self.error
+            self.out = self.out + self.kp * self.dError + self.ki * self.error
 
         else:
             # This only runs in the first step
-            self.PI = self.kp * self.error
+            self.out = self.kp * self.error
             self.started = True
 
         self.lastError = self.error
 
-        return self.PI
+        return self.out
 
     def restart(self):
         self.started = False
