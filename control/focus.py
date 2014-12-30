@@ -6,7 +6,6 @@ Created on Wed Oct  1 13:41:48 2014
 """
 
 import numpy as np
-import time
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
@@ -17,7 +16,6 @@ from instruments import ScanZ, DAQ
 from pi import PI
 
 
-# TODO: fix x-axis to time in seconds
 class FocusWidget(QtGui.QFrame):
 
     def __init__(self, DAQ, scanZ, *args, **kwargs):
@@ -42,24 +40,24 @@ class FocusWidget(QtGui.QFrame):
         self.streamThread.started.connect(self.stream.start)
         self.streamThread.start()
 
-        self.graph = FocusLockGraph(self.stream)
+        self.graph = FocusLockGraph(self)
 
         # Z moving widgets
         self.loadButton = QtGui.QPushButton('Bajar objetivo')
-        self.loadButton.pressed.connect(lambda: self.moveZ(-3000 * self.um))
+        self.loadButton.pressed.connect(lambda: self.moveZ(-4000 * self.um))
         self.liftButton = QtGui.QPushButton('Subir objetivo')
-        self.liftButton.pressed.connect(lambda: self.moveZ(-1000 * self.um))
+        self.liftButton.pressed.connect(lambda: self.moveZ(-3000 * self.um))
 
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit()
-        self.kpEdit.textChanged.connect(self.lockFocus)
+        self.kpEdit = QtGui.QLineEdit('25')
+        self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit()
-        self.kiEdit.textChanged.connect(self.lockFocus)
+        self.kiEdit = QtGui.QLineEdit('0.8')
+        self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')
         self.lockButton.setCheckable(True)
-        self.lockButton.clicked.connect(self.lockFocus)
+        self.lockButton.clicked.connect(self.toggleFocus)
         self.lockButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
         # GUI layout
@@ -77,48 +75,97 @@ class FocusWidget(QtGui.QFrame):
         grid.setColumnMinimumWidth(1, 500)
 
         # Labjack configuration
-        self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.graph.update)
-        self.timer.start(1000 / scansPerS)
+        self.graphTimer = QtCore.QTimer()
+        self.graphTimer.timeout.connect(self.graph.update)
+        self.graphTime = 1000 / scansPerS
+        self.graphTimer.start(self.graphTime)
 
-#        self.i = 0
-#        self.measurements = []
-#        self.timer.timeout.connect(self.measurement)
+        self.lockTimer = QtCore.QTimer()
+        self.lockTimer.timeout.connect(self.updatePI)
+        self.locked = False
 
-    def lockFocus(self):
+    def toggleFocus(self):
         if self.lockButton.isChecked():
-            # Start locking
-            self.setPoint = self.graph.data[-1]
-            self.PI = PI(self.setPoint, self.kpEdit.text(), self.kiEdit.text())
-#            self.timer1 = QtCore.QTimer
-#            timer.timeout.connect(self.newOutput)
-            # scanz.move_relative(self.PI.update)
-        else:
-            # Stop locking
-            print('ping')
-            np.savetxt('medicion_foco', self.stream.measure)
-            print('pong')
-#            self.timer1.stop()
+            self.setPoint = self.stream.newData
+            self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
+            self.PI = PI(self.setPoint,
+                         np.float(self.kpEdit.text()),
+                         np.float(self.kiEdit.text()))
 
-    def newOutput(self):
-        out = self.PI.update(self.graph.data[-1])
-        scanz.move_rel(self.PI.update(self.graph.data[-1]))
+            self.lockTimer.start(self.graphTime)
+            self.locked = True
+
+        else:
+            self.unlockFocus()
+
+    def unlockFocus(self):
+        # np.savetxt('medicion_foco', self.stream.measure)
+        if self.locked:
+            self.lockButton.setChecked(False)
+            self.graph.plot.removeItem(self.graph.line)
+            self.lockTimer.stop()
+
+    def updatePI(self):
+        out = self.PI.update(self.stream.newData)
+        self.z.moveRelative(out)
 
     def moveZ(self, value):
         self.z.position = value
 
     def closeEvent(self, *args, **kwargs):
 
+        self.graphTimer.stop()
+        if self.lockButton.isChecked():
+            self.lockTimer.stop()
         self.DAQ.streamStop()
         self.streamThread.terminate()
-        self.timer.stop()
 
-        self.z.position = Q_(-3000, 'um')
-
-        while self.z.position > -2800 * self.um:
-            time.sleep(1)
+#        self.z.position = Q_(-3000, 'um')
+#
+#        while self.z.position > -2800 * self.um:
+#            time.sleep(1)
 
         super(FocusWidget, self).closeEvent(*args, **kwargs)
+
+
+class FocusLockGraph(pg.GraphicsWindow):
+
+    def __init__(self, main, *args, **kwargs):
+
+        self.stream = main.stream
+
+        super(FocusLockGraph, self).__init__(*args, **kwargs)
+        self.setWindowTitle('Focus')
+        self.setAntialiasing(True)
+
+        self.data = np.zeros(200)
+        self.ptr = 0
+
+        # Graph without a fixed range
+        self.plot = self.addPlot()
+        self.plot.setLabels(bottom=('Tiempo', 's'),
+                            left=('Señal de foco', 'V'))
+        self.plot.showGrid(x=True, y=True)
+        self.focusCurve = self.plot.plot(pen='y')
+        self.scansPerS = self.stream.scansPerS
+        self.xData = np.arange(0, 200/self.scansPerS, 1/self.scansPerS)
+
+    def update(self):
+        """ Gives an update of the data displayed in the graphs
+        """
+        if self.ptr < 200:
+            self.data[self.ptr] = self.stream.newData
+            self.focusCurve.setData(self.xData[1:self.ptr + 1],
+                                    self.data[1:self.ptr + 1])
+
+        else:
+            self.data[:-1] = self.data[1:]
+            self.data[-1] = self.stream.newData
+
+            self.focusCurve.setData(self.xData, self.data)
+            self.focusCurve.setPos(self.ptr/self.scansPerS - 50, 0)
+
+        self.ptr += 1
 
 
 class daqStream(QtCore.QObject):
@@ -134,6 +181,7 @@ class daqStream(QtCore.QObject):
         names = [self.port + "_NEGATIVE_CH", self.port + "_RANGE",
                  "STREAM_SETTLING_US", "STREAM_RESOLUTION_INDEX"]
         # single-ended, +/-1V, 0, 0 (defaults)
+        # Voltage Ranges: ±10V, ±1V, ±0.1V, and ±0.01V
         values = [self.DAQ.constants.GND, 0.1, 0, 0]
         self.DAQ.writeNames(names, values)
         self.newData = 0.0
@@ -147,82 +195,19 @@ class daqStream(QtCore.QObject):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(1)
-        self.measure = []
+#        self.measure = []
 
     def update(self):
         self.newData = np.mean(self.DAQ.streamRead()[0])
-        self.measure.append(self.newData)
-
-
-class FocusLockGraph(pg.GraphicsWindow):
-
-    def __init__(self, stream, *args, **kwargs):
-
-        self.stream = stream
-
-        super(FocusLockGraph, self).__init__(*args, **kwargs)
-        self.setWindowTitle('Focus')
-        self.setAntialiasing(True)
-
-        self.data = np.zeros(200)
-        self.ptr = 0
-
-        # Graph with a fixed range
-#        self.p1 = self.addPlot()
-#        self.p1.setLabel('bottom', "Time")
-#        self.p1.setLabel('left', 'V')
-#        self.p1.setRange(yRange=(-0.01, 0.01))
-#        self.curve1 = self.p1.plot()
-
-        # Graph without a fixed range
-        self.p2 = self.addPlot()
-        self.p2.setLabels(bottom=('Tiempo', 's'), left=('Señal de foco', 'V'))
-        self.p2.showGrid(x=True, y=True)
-        self.curve2 = self.p2.plot(pen='y')
-        self.scansPerS = self.stream.scansPerS
-        self.xData = np.arange(0, 200/self.scansPerS, 1/self.scansPerS)
-
-    def update(self):
-        """ Gives an update of the data displayed in the graphs
-        """
-        if self.ptr < 200:
-            self.data[self.ptr] = self.stream.newData
-#            self.curve1.setData(self.data[1:self.ptr])
-            self.curve2.setData(self.xData[1:self.ptr + 1],
-                                self.data[1:self.ptr + 1])
-
-        else:
-            self.data[:-1] = self.data[1:]
-            self.data[-1] = self.stream.newData
-
-            self.curve2.setData(self.xData, self.data)
-            self.curve2.setPos(self.ptr/self.scansPerS - 50, 0)
-
-#            self.curve1.setData(self.data)
-#            self.curve1.setPos(self.ptr - 200, 0)
-
-        self.ptr += 1
-
-#    def measurement(self):
-#
-#        if self.i % 100 == 0:
-#            # el problema es que se pasa del rango porque i crece
-#            # indefinidamente y data sólo tiene 200 elementos
-#            self.measurements.append(self.data[self.i])
-#
-#        self.i += 1
-
+#        self.measure.append(self.newData)
 
 if __name__ == '__main__':
 
     app = QtGui.QApplication([])
-    out = 0
 
     with DAQ() as DAQ, ScanZ(12) as z:
 
         win = FocusWidget(DAQ, z)
         win.show()
-
-
 
         app.exec_()

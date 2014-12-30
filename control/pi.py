@@ -22,7 +22,7 @@ Created on Fri Dec 19 10:41:21 2014
 #
 
 
-class PI:
+class PI(object):
     """
     Discrete PI control
     """
@@ -40,16 +40,17 @@ class PI:
         """
         Calculate PID output value for given reference input and feedback.
         I'm using the iterative formula to avoid integrative part building.
+        ki, kp > 0
         """
         self.error = self.setPoint - currentValue
 
         if self.started:
             self.dError = self.error - self.lastError
-            self.out = self.out + self.kp * self.dError + self.ki * self.error
+            self.out = self.out - self.kp * self.dError - self.ki * self.error
 
         else:
             # This only runs in the first step
-            self.out = self.kp * self.error
+            self.out = - self.kp * self.error
             self.started = True
 
         self.lastError = self.error
