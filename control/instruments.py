@@ -11,7 +11,7 @@ import importlib
 from lantz.drivers.andor.ccd import CCD
 from lantz import Q_
 
-from simulators import SimCamera, SimScanZ, SimLaser, SimDAQ
+from mockers import MockCamera, MockScanZ, MockLaser, MockDAQ
 
 
 class Laser(object):
@@ -26,7 +26,7 @@ class Laser(object):
             laser.initialize()
 
         except:
-            return SimLaser()
+            return MockLaser()
 
         else:
             laser.finalize()
@@ -45,7 +45,7 @@ class DAQ(object):
             return T7(*args)
 
         except:
-            return SimDAQ()
+            return MockDAQ()
 
 
 class ScanZ(object):
@@ -56,7 +56,7 @@ class ScanZ(object):
             return NanoScanZ(*args)
 
         except:
-            return SimScanZ()
+            return MockScanZ()
 
 
 class Camera(object):
@@ -73,7 +73,7 @@ class Camera(object):
             camera.lib.Initialize()
 
         except:
-            return SimCamera()
+            return MockCamera()
 
         else:
             camera.finalize()
