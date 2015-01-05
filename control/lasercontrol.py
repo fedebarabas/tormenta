@@ -84,6 +84,7 @@ class LaserControl(QtGui.QFrame):
         super(QtGui.QFrame, self).__init__(*args, **kwargs)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         self.laser = laser
+        self.mW = Q_(1, 'mW')
 
         self.name = QtGui.QLabel(name)
         self.name.setTextFormat(QtCore.Qt.RichText)
