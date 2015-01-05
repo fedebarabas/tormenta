@@ -62,8 +62,9 @@ class MockScanZ(Driver):
 
     def __init__(self):
         super(MockScanZ).__init__()
-        self._position = 1000
         self.um = Q_(1, 'um')
+
+        self._position = 1000 * self.um
         self._hostPosition = 'left'
 
     @property
@@ -74,7 +75,7 @@ class MockScanZ(Driver):
         inst.position = 0. Thus, the stage will return to 0 micrometers and the
         display screen will switch to ABS mode.
         '''
-        return self._position * self.um
+        return self._position
 
     @position.setter
     def position(self, value):
@@ -84,7 +85,11 @@ class MockScanZ(Driver):
         inst.position = 0. Thus, the stage will return to 0 micrometers and the
         display screen will switch to ABS mode.
         '''
-        self._position = value
+        try:
+            value.magnitude
+            self._position = value.to('um')
+        except:
+            self._position = value * self.um
 
     def moveRelative(self, value):
         self.position = self.position + value

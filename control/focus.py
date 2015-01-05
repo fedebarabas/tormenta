@@ -107,7 +107,7 @@ class FocusWidget(QtGui.QFrame):
 
     def updatePI(self):
         out = self.PI.update(self.stream.newData)
-        self.z.moveRelative(out)
+        self.z.moveRelative(out * self.um)
 
     def moveZ(self, value):
         self.z.position = value

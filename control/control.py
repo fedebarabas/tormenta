@@ -16,8 +16,7 @@ import pyqtgraph.ptime as ptime
 from pyqtgraph.parametertree import Parameter, ParameterTree
 
 import h5py as hdf
-import tifffile as tiff      # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
-                             # http://www.lfd.uci.edu/~gohlke/
+import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
 from instruments import Laser, Camera, ScanZ, DAQ
 from lasercontrol import LaserWidget

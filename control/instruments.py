@@ -53,6 +53,10 @@ class ScanZ(object):
 
         try:
             from lantz.drivers.prior.nanoscanz import NanoScanZ
+            scan = NanoScanZ(*args)
+            scan.initialize()
+            scan.finalize()
+
             return NanoScanZ(*args)
 
         except:
