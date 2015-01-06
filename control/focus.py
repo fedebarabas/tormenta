@@ -40,13 +40,18 @@ class FocusWidget(QtGui.QFrame):
         self.streamThread.started.connect(self.stream.start)
         self.streamThread.start()
 
-        self.graph = FocusLockGraph(self)
+
 
         # Z moving widgets
         self.loadButton = QtGui.QPushButton('Bajar objetivo')
         self.loadButton.pressed.connect(lambda: self.moveZ(-4000 * self.um))
         self.liftButton = QtGui.QPushButton('Subir objetivo')
         self.liftButton.pressed.connect(lambda: self.moveZ(-3000 * self.um))
+
+        # Save focus data
+        self.savedData = []
+#        self.graphTimer.timeout.connect(self.recordData)
+
 
         # Focus lock widgets
         self.kpEdit = QtGui.QLineEdit('25')
@@ -60,20 +65,31 @@ class FocusWidget(QtGui.QFrame):
         self.lockButton.clicked.connect(self.toggleFocus)
         self.lockButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
+
+        self.focusDataBox = QtGui.QCheckBox('Save focus data')
+        self.exportDataButton = QtGui.QPushButton('Export data')
+        self.exportDataButton.clicked.connect(self.exportData)
+
+
+
+        self.graph = FocusLockGraph(self)
+
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.focusTitle, 0, 0)
-        grid.addWidget(self.graph, 1, 0, 1, 5)
+        grid.addWidget(self.graph, 1, 0, 1, 6)
         grid.addWidget(self.liftButton, 2, 0)
         grid.addWidget(self.loadButton, 3, 0)
-        grid.addWidget(self.kpLabel, 2, 2)
-        grid.addWidget(self.kpEdit, 2, 3)
-        grid.addWidget(self.kiLabel, 3, 2)
-        grid.addWidget(self.kiEdit, 3, 3)
-        grid.addWidget(self.lockButton, 2, 4, 2, 1)
-        grid.setColumnMinimumWidth(1, 500)
-
+        grid.addWidget(self.kpLabel, 2, 3)
+        grid.addWidget(self.kpEdit, 2, 4)
+        grid.addWidget(self.kiLabel, 3, 3)
+        grid.addWidget(self.kiEdit, 3, 4)
+        grid.addWidget(self.lockButton, 2, 5, 2, 1)
+        grid.addWidget(self.focusDataBox, 2, 1)
+        grid.addWidget(self.exportDataButton, 3, 1)
+        grid.setColumnMinimumWidth(1, 100)
+        grid.setColumnMinimumWidth(2, 70)
         # Labjack configuration
         self.graphTimer = QtCore.QTimer()
         self.graphTimer.timeout.connect(self.graph.update)
@@ -127,12 +143,18 @@ class FocusWidget(QtGui.QFrame):
 
         super(FocusWidget, self).closeEvent(*args, **kwargs)
 
+    def exportData(self):
+        np.savetxt('focus_data', self.savedData)
+        self.savedData = []
+
 
 class FocusLockGraph(pg.GraphicsWindow):
 
     def __init__(self, main, *args, **kwargs):
 
         self.stream = main.stream
+        self.focusDataBox = main.focusDataBox
+        self.savedData = main.savedData
 
         super(FocusLockGraph, self).__init__(*args, **kwargs)
         self.setWindowTitle('Focus')
@@ -166,6 +188,10 @@ class FocusLockGraph(pg.GraphicsWindow):
             self.focusCurve.setPos(self.ptr/self.scansPerS - 50, 0)
 
         self.ptr += 1
+
+        if self.focusDataBox.isChecked():
+
+            self.savedData.append(self.stream.newData)
 
 
 class daqStream(QtCore.QObject):
