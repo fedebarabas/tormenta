@@ -310,9 +310,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.updateTimings()
 
         # Liveview functionality
-        liveviewButton = QtGui.QPushButton('Liveview')
-        liveviewButton.setCheckable(True)
-        liveviewButton.pressed.connect(self.liveview)
+        self.liveviewButton = QtGui.QPushButton('Liveview')
+        self.liveviewButton.setCheckable(True)
+        self.liveviewButton.pressed.connect(self.liveview)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
 
@@ -337,7 +337,7 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setRowMinimumHeight(0, 150)
         layout.setRowMinimumHeight(1, 320)
         layout.addWidget(self.tree, 0, 0, 2, 1)
-        layout.addWidget(liveviewButton, 2, 0)
+        layout.addWidget(self.liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
         layout.addWidget(imagewidget, 0, 1, 4, 3)
         layout.addWidget(self.fpsBox, 4, 1)
@@ -492,25 +492,34 @@ class TormentaGUI(QtGui.QMainWindow):
     def liveview(self, update=True):
         """ Image live view when not recording
         """
-        if andor.status != 'Camera is idle, waiting for instructions.':
-            andor.abort_acquisition()
+        if self.liveviewButton.isChecked():
+            if andor.status != 'Camera is idle, waiting for instructions.':
+                andor.abort_acquisition()
 
-        andor.acquisition_mode = 'Run till abort'
-        andor.shutter(0, 1, 0, 0, 0)
+            andor.acquisition_mode = 'Run till abort'
+            andor.shutter(0, 1, 0, 0, 0)
 
-        andor.start_acquisition()
-        time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
-        self.recWidget.snapButton.setEnabled(True)
-        self.recWidget.recButton.setEnabled(True)
+            andor.start_acquisition()
+            time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
+            self.recWidget.snapButton.setEnabled(True)
+            self.recWidget.recButton.setEnabled(True)
 
-        # Initial image
-        image = andor.most_recent_image16(self.shape)
-        self.img.setImage(image, autoLevels=False)
-        if update:
-            self.hist.setLevels(np.min(image) - np.std(image),
-                                np.max(image) + np.std(image))
+            # Initial image
+            image = andor.most_recent_image16(self.shape)
+            self.img.setImage(image, autoLevels=False)
+            if update:
+                self.hist.setLevels(np.min(image) - np.std(image),
+                                    np.max(image) + np.std(image))
 
-        self.viewtimer.start(0)
+            self.viewtimer.start(0)
+
+        else:
+            andor.shutter(0, 2, 0, 0, 0)
+            self.viewtimer.stop()
+
+            # Turn off camera, close shutter
+            if andor.status != 'Camera is idle, waiting for instructions.':
+                andor.abort_acquisition()
 
     def updateView(self):
         """ Image update while in Liveview mode
@@ -557,9 +566,9 @@ class TormentaGUI(QtGui.QMainWindow):
 
         if self.recWidget.recButton.isChecked():
 
-            # TODO: x, y histograms
             self.recWidget.editable = False
             self.tree.editable = False
+            self.liveviewButton.setEnabled(False)
 
             # Frame counter
             self.j = 0
@@ -679,6 +688,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.recButton.setChecked(False)
         self.recWidget.editable = True
         self.tree.editable = True
+        self.liveviewButton.setEnabled(True)
         self.liveview(update=False)
 
     def closeEvent(self, *args, **kwargs):
@@ -686,7 +696,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # Stop running threads
         self.viewtimer.stop()
         self.stabilizer.timer.stop()
-        self.stabilizerThread.terminate()       # TODO: Make this work
+        self.stabilizerThread.terminate()
 
         # Turn off camera, close shutter
         if andor.status != 'Camera is idle, waiting for instructions.':
