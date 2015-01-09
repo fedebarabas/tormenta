@@ -35,13 +35,28 @@ class CamParamTree(ParameterTree):
     def __init__(self, *args, **kwargs):
         super(CamParamTree, self).__init__(*args, **kwargs)
 
+        self.customParam = {'name': 'Custom', 'type': 'group',
+                            'expanded': False, 'children': [
+                                {'name': 'x_start', 'type': 'int',
+                                 'suffix': 'px', 'value': 1},
+                                {'name': 'y_start', 'type': 'int',
+                                 'suffix': 'px', 'value': 1},
+                                {'name': 'x_size', 'type': 'int',
+                                 'suffix': 'px',
+                                 'value': andor.detector_shape[0]},
+                                {'name': 'y_size', 'type': 'int',
+                                 'suffix': 'px',
+                                 'value': andor.detector_shape[1]},
+                                {'name': 'Apply', 'type': 'action'}]}
+
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
                   {'name': 'Image frame', 'type': 'group', 'children': [
                       {'name': 'Size', 'type': 'list',
                        'values': ['Full chip', '256x256', '128x128', '64x64',
-                                  'Custom']}]},
+                                  'Custom']},
+                      self.customParam]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
                        'value': False},
@@ -81,20 +96,11 @@ class CamParamTree(ParameterTree):
                       {'name': 'Status', 'type': 'str', 'readonly': True,
                        'value': andor.temperature_status}]}]
 
-        self.customParam = {'name': 'Custom', 'type': 'group', 'children': [
-                            {'name': 'x_start', 'type': 'int', 'suffix': 'px',
-                             'value': 1},
-                            {'name': 'y_start', 'type': 'int', 'suffix': 'px',
-                             'value': 1},
-                            {'name': 'x_size', 'type': 'int', 'suffix': 'px',
-                             'value': andor.detector_shape[0]},
-                            {'name': 'y_size', 'type': 'int', 'suffix': 'px',
-                             'value': andor.detector_shape[1]},
-                            {'name': 'Apply', 'type': 'action'}]}
-
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
         self._editable = True
+
+        self.p.param('Image frame').param('Size')
 
     @property
     def editable(self):
@@ -312,7 +318,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('Liveview')
         self.liveviewButton.setCheckable(True)
-        self.liveviewButton.pressed.connect(self.liveview)
+        self.liveviewButton.clicked.connect(self.liveview)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
 
@@ -446,12 +452,11 @@ class TormentaGUI(QtGui.QMainWindow):
         frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
-            # Add new parameters for custom frame setting
-            frameParam.addChild(self.customParam)
-            customParam = frameParam.param('Custom')
+#            frameParam.param('Custom').items.keys().setExpanded(True)
+#           not working
 
             # Signals
-            applyParam = customParam.param('Apply')
+            applyParam = frameParam.param('Custom').param('Apply')
             applyParam.sigStateChanged.connect(self.customFrame)
 
         elif frameParam.param('Size').value() == 'Full chip':
