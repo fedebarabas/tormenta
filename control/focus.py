@@ -14,6 +14,7 @@ from lantz import Q_
 
 from instruments import ScanZ, DAQ
 from pi import PI
+import easygui as e
 
 
 class FocusWidget(QtGui.QFrame):
@@ -23,6 +24,7 @@ class FocusWidget(QtGui.QFrame):
 
         self.DAQ = DAQ
         self.z = scanZ
+        self.setPoint = 0
 
         self.z.hostPosition = 'left'
 
@@ -40,18 +42,11 @@ class FocusWidget(QtGui.QFrame):
         self.streamThread.started.connect(self.stream.start)
         self.streamThread.start()
 
-
-
         # Z moving widgets
         self.loadButton = QtGui.QPushButton('Bajar objetivo')
-        self.loadButton.pressed.connect(lambda: self.moveZ(-4000 * self.um))
+        self.loadButton.pressed.connect(lambda: self.moveZ(0 * self.um))
         self.liftButton = QtGui.QPushButton('Subir objetivo')
-        self.liftButton.pressed.connect(lambda: self.moveZ(-3000 * self.um))
-
-        # Save focus data
-        self.savedData = []
-#        self.graphTimer.timeout.connect(self.recordData)
-
+        self.liftButton.pressed.connect(lambda: self.moveZ(700 * self.um))
 
         # Focus lock widgets
         self.kpEdit = QtGui.QLineEdit('25')
@@ -69,8 +64,6 @@ class FocusWidget(QtGui.QFrame):
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
         self.exportDataButton = QtGui.QPushButton('Export data')
         self.exportDataButton.clicked.connect(self.exportData)
-
-
 
         self.graph = FocusLockGraph(self)
 
@@ -110,20 +103,27 @@ class FocusWidget(QtGui.QFrame):
 
             self.lockTimer.start(self.graphTime)
             self.locked = True
+            self.initialZ = self.z.position
 
         else:
             self.unlockFocus()
 
     def unlockFocus(self):
-        # np.savetxt('medicion_foco', self.stream.measure)
         if self.locked:
             self.lockButton.setChecked(False)
             self.graph.plot.removeItem(self.graph.line)
             self.lockTimer.stop()
 
     def updatePI(self):
-        out = self.PI.update(self.stream.newData)
-        self.z.moveRelative(out * self.um)
+        self.distance = self.z.position - self.initialZ
+
+        if abs(self.distance) > 10 * self.um:
+            self.unlockFocus()
+            e.msgbox("Maximum error allowed exceded, "
+                     "focus control has been turned off", "Error")
+        else:
+            out = self.PI.update(self.stream.newData)
+            self.z.moveRelative(out * self.um)
 
     def moveZ(self, value):
         self.z.position = value
@@ -144,8 +144,16 @@ class FocusWidget(QtGui.QFrame):
         super(FocusWidget, self).closeEvent(*args, **kwargs)
 
     def exportData(self):
+
+    #the code fails to export into txt self.savedData, although it worked
+    #allright without self.setPoint
+        self.sizeofData = np.size(self.graph.savedDataSignal)
+        self.savedData = [np.ones(self.sizeofData)*self.setPoint,
+                          self.graph.savedDataSignal, self.graph.savedDataTime]
         np.savetxt('focus_data', self.savedData)
-        self.savedData = []
+        self.graph.savedDataSignal = []
+        self.graph.savedDataTime = []
+#        self.graph.savedDataPosition = []
 
 
 class FocusLockGraph(pg.GraphicsWindow):
@@ -154,7 +162,9 @@ class FocusLockGraph(pg.GraphicsWindow):
 
         self.stream = main.stream
         self.focusDataBox = main.focusDataBox
-        self.savedData = main.savedData
+        self.savedDataSignal = []
+        self.savedDataTime = []
+        self.savedDataPosition = []
 
         super(FocusLockGraph, self).__init__(*args, **kwargs)
         self.setWindowTitle('Focus')
@@ -190,8 +200,9 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.ptr += 1
 
         if self.focusDataBox.isChecked():
-
-            self.savedData.append(self.stream.newData)
+            self.savedDataSignal.append(self.stream.newData)
+            self.savedDataTime.append(self.ptr/self.scansPerS)
+#            self.savedDataPosition.append(self.DAQ.position)
 
 
 class daqStream(QtCore.QObject):
@@ -208,7 +219,7 @@ class daqStream(QtCore.QObject):
                  "STREAM_SETTLING_US", "STREAM_RESOLUTION_INDEX"]
         # single-ended, +/-1V, 0, 0 (defaults)
         # Voltage Ranges: ±10V, ±1V, ±0.1V, and ±0.01V
-        values = [self.DAQ.constants.GND, 0.1, 0, 0]
+        values = [self.DAQ.constants.GND, 10, 0, 0]
         self.DAQ.writeNames(names, values)
         self.newData = 0.0
 
@@ -221,11 +232,9 @@ class daqStream(QtCore.QObject):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(1)
-#        self.measure = []
 
     def update(self):
         self.newData = np.mean(self.DAQ.streamRead()[0])
-#        self.measure.append(self.newData)
 
 if __name__ == '__main__':
 
