@@ -519,12 +519,14 @@ class TormentaGUI(QtGui.QMainWindow):
             self.viewtimer.start(0)
 
         else:
-            andor.shutter(0, 2, 0, 0, 0)
             self.viewtimer.stop()
 
             # Turn off camera, close shutter
             if andor.status != 'Camera is idle, waiting for instructions.':
                 andor.abort_acquisition()
+
+            andor.shutter(0, 2, 0, 0, 0)
+            self.img.setImage(np.zeros(self.shape), autoLevels=False)
 
     def updateView(self):
         """ Image update while in Liveview mode
