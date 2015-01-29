@@ -301,6 +301,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.p1.addItem(self.img)
         self.p1.getViewBox().setAspectLocked(True)
         self.hist = pg.HistogramLUTItem()
+        self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
         self.hist.autoHistogramRange = False
         imagewidget.addItem(self.hist)
