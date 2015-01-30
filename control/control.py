@@ -35,20 +35,6 @@ class CamParamTree(ParameterTree):
     def __init__(self, *args, **kwargs):
         super(CamParamTree, self).__init__(*args, **kwargs)
 
-        self.customParam = {'name': 'Custom', 'type': 'group',
-                            'expanded': False, 'children': [
-                                {'name': 'x_start', 'type': 'int',
-                                 'suffix': 'px', 'value': 1},
-                                {'name': 'y_start', 'type': 'int',
-                                 'suffix': 'px', 'value': 1},
-                                {'name': 'x_size', 'type': 'int',
-                                 'suffix': 'px',
-                                 'value': andor.detector_shape[0]},
-                                {'name': 'y_size', 'type': 'int',
-                                 'suffix': 'px',
-                                 'value': andor.detector_shape[1]},
-                                {'name': 'Apply', 'type': 'action'}]}
-
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
@@ -56,7 +42,7 @@ class CamParamTree(ParameterTree):
                       {'name': 'Size', 'type': 'list',
                        'values': ['Full chip', '256x256', '128x128', '64x64',
                                   'Custom']},
-                      self.customParam]},
+                      {'name': 'Apply', 'type': 'action'}]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
                        'value': False},
@@ -396,9 +382,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
-    # TODO: grid for ROIs
-    # TODO: create grid class
-
     """ Grid methods """
     def showGrid(self):
         self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
@@ -453,11 +436,15 @@ class TormentaGUI(QtGui.QMainWindow):
         frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
-#            frameParam.param('Custom').items.keys().setExpanded(True)
-#           not working
+            self.roi = pg.ROI((0.5 * self.shape[0] - 64,
+                               0.5 * self.shape[1] - 64),
+                              size=(128, 128), scaleSnap=True,
+                              translateSnap=True, pen='y')
+            self.roi.addScaleHandle((1, 0), (0, 1), lockAspect=True)
+            self.p1.addItem(self.roi)
 
             # Signals
-            applyParam = frameParam.param('Custom').param('Apply')
+            applyParam = frameParam.param('Apply')
             applyParam.sigStateChanged.connect(self.customFrame)
 
         elif frameParam.param('Size').value() == 'Full chip':
@@ -472,14 +459,12 @@ class TormentaGUI(QtGui.QMainWindow):
             self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
     def customFrame(self):
-        customParam = self.tree.p.param('Image frame').param('Custom')
 
-        self.shape = (customParam.param('x_size').value(),
-                      customParam.param('y_size').value())
-        start = (customParam.param('x_start').value(),
-                 customParam.param('y_start').value())
+        self.shape = self.roi.size()
+        start = self.roi.pos()
 
         self.changeParameter(lambda: self.adjustFrame(self.shape, start))
+        self.roi.hide()
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
