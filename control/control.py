@@ -24,8 +24,6 @@ from focus import FocusWidget
 
 
 # TODO: Implement cropped sensor mode in case we want higher framerates
-# TODO: limits in histogram
-# TODO: log en histograma para single molecule
 class CamParamTree(ParameterTree):
     """ Making the ParameterTree for configuration of the camera during imaging
     """
@@ -290,6 +288,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
         self.hist.autoHistogramRange = False
+        self.hist.plot.setLogMode(False, True)
+        self.hist.vb.setLimits(yMin=0, yMax=20000)
         imagewidget.addItem(self.hist)
 
         # TODO: x, y profiles
