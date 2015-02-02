@@ -49,10 +49,10 @@ class FocusWidget(QtGui.QFrame):
         self.liftButton.pressed.connect(lambda: self.moveZ(-3000 * self.um))
 
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit('25')
+        self.kpEdit = QtGui.QLineEdit('26')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('0.8')
+        self.kiEdit = QtGui.QLineEdit('1')
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')

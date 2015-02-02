@@ -287,7 +287,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist = pg.HistogramLUTItem()
         self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
-        self.hist.autoHistogramRange = False
         self.hist.plot.setLogMode(False, True)
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imagewidget.addItem(self.hist)
@@ -436,12 +435,12 @@ class TormentaGUI(QtGui.QMainWindow):
         frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
-            self.roi = pg.ROI((0.5 * self.shape[0] - 64,
+            self.ROI = pg.ROI((0.5 * self.shape[0] - 64,
                                0.5 * self.shape[1] - 64),
                               size=(128, 128), scaleSnap=True,
                               translateSnap=True, pen='y')
-            self.roi.addScaleHandle((1, 0), (0, 1), lockAspect=True)
-            self.p1.addItem(self.roi)
+            self.ROI.addScaleHandle((1, 0), (0, 1), lockAspect=True)
+            self.p1.addItem(self.ROI)
 
             # Signals
             applyParam = frameParam.param('Apply')
@@ -460,11 +459,13 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def customFrame(self):
 
-        self.shape = self.roi.size()
-        start = self.roi.pos()
+        ROISize = self.ROI.size()
+        self.shape = (int(ROISize[0]), int(ROISize[1]))
+        startROI = self.ROI.pos()
+        startROI = (int(startROI[0]), int(startROI[1]))
 
-        self.changeParameter(lambda: self.adjustFrame(self.shape, start))
-        self.roi.hide()
+        self.changeParameter(lambda: self.adjustFrame(self.shape, startROI))
+        self.ROI.hide()
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
