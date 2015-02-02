@@ -24,8 +24,6 @@ from focus import FocusWidget
 
 
 # TODO: Implement cropped sensor mode in case we want higher framerates
-# TODO: limits in histogram
-# TODO: log en histograma para single molecule
 class CamParamTree(ParameterTree):
     """ Making the ParameterTree for configuration of the camera during imaging
     """
@@ -41,7 +39,8 @@ class CamParamTree(ParameterTree):
                   {'name': 'Image frame', 'type': 'group', 'children': [
                       {'name': 'Size', 'type': 'list',
                        'values': ['Full chip', '256x256', '128x128', '64x64',
-                                  'Custom']}]},
+                                  'Custom']},
+                      {'name': 'Apply', 'type': 'action'}]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
                        'value': False},
@@ -81,20 +80,11 @@ class CamParamTree(ParameterTree):
                       {'name': 'Status', 'type': 'str', 'readonly': True,
                        'value': andor.temperature_status}]}]
 
-        self.customParam = {'name': 'Custom', 'type': 'group', 'children': [
-                            {'name': 'x_start', 'type': 'int', 'suffix': 'px',
-                             'value': 1},
-                            {'name': 'y_start', 'type': 'int', 'suffix': 'px',
-                             'value': 1},
-                            {'name': 'x_size', 'type': 'int', 'suffix': 'px',
-                             'value': andor.detector_shape[0]},
-                            {'name': 'y_size', 'type': 'int', 'suffix': 'px',
-                             'value': andor.detector_shape[1]},
-                            {'name': 'Apply', 'type': 'action'}]}
-
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
         self._editable = True
+
+        self.p.param('Image frame').param('Size')
 
     @property
     def editable(self):
@@ -295,8 +285,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.p1.addItem(self.img)
         self.p1.getViewBox().setAspectLocked(True)
         self.hist = pg.HistogramLUTItem()
+        self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
         self.hist.autoHistogramRange = False
+        self.hist.plot.setLogMode(False, True)
+        self.hist.vb.setLimits(yMin=0, yMax=20000)
         imagewidget.addItem(self.hist)
 
         # TODO: x, y profiles
@@ -312,7 +305,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('Liveview')
         self.liveviewButton.setCheckable(True)
-        self.liveviewButton.pressed.connect(self.liveview)
+        self.liveviewButton.clicked.connect(self.liveview)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
 
@@ -389,9 +382,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
-    # TODO: grid for ROIs
-    # TODO: create grid class
-
     """ Grid methods """
     def showGrid(self):
         self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
@@ -446,12 +436,15 @@ class TormentaGUI(QtGui.QMainWindow):
         frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
-            # Add new parameters for custom frame setting
-            frameParam.addChild(self.customParam)
-            customParam = frameParam.param('Custom')
+            self.roi = pg.ROI((0.5 * self.shape[0] - 64,
+                               0.5 * self.shape[1] - 64),
+                              size=(128, 128), scaleSnap=True,
+                              translateSnap=True, pen='y')
+            self.roi.addScaleHandle((1, 0), (0, 1), lockAspect=True)
+            self.p1.addItem(self.roi)
 
             # Signals
-            applyParam = customParam.param('Apply')
+            applyParam = frameParam.param('Apply')
             applyParam.sigStateChanged.connect(self.customFrame)
 
         elif frameParam.param('Size').value() == 'Full chip':
@@ -466,14 +459,12 @@ class TormentaGUI(QtGui.QMainWindow):
             self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
     def customFrame(self):
-        customParam = self.tree.p.param('Image frame').param('Custom')
 
-        self.shape = (customParam.param('x_size').value(),
-                      customParam.param('y_size').value())
-        start = (customParam.param('x_start').value(),
-                 customParam.param('y_start').value())
+        self.shape = self.roi.size()
+        start = self.roi.pos()
 
         self.changeParameter(lambda: self.adjustFrame(self.shape, start))
+        self.roi.hide()
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
@@ -514,12 +505,14 @@ class TormentaGUI(QtGui.QMainWindow):
             self.viewtimer.start(0)
 
         else:
-            andor.shutter(0, 2, 0, 0, 0)
             self.viewtimer.stop()
 
             # Turn off camera, close shutter
             if andor.status != 'Camera is idle, waiting for instructions.':
                 andor.abort_acquisition()
+
+            andor.shutter(0, 2, 0, 0, 0)
+            self.img.setImage(np.zeros(self.shape), autoLevels=False)
 
     def updateView(self):
         """ Image update while in Liveview mode
