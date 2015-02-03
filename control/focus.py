@@ -6,6 +6,7 @@ Created on Wed Oct  1 13:41:48 2014
 """
 
 import numpy as np
+import time
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
@@ -44,17 +45,19 @@ class FocusWidget(QtGui.QFrame):
         self.streamThread.started.connect(self.stream.start)
         self.streamThread.start()
 
-#        # Z moving widgets
-#        self.loadButton = QtGui.QPushButton('Bajar objetivo')
-#        self.loadButton.pressed.connect(lambda: self.moveZ(0 * self.um))
-#        self.liftButton = QtGui.QPushButton('Subir objetivo')
-#        self.liftButton.pressed.connect(lambda: self.moveZ(700 * self.um))
+        self.focusCalib = focusCalibration(self)
+        self.focusCalibThread = QtCore.QThread()
+        self.focusCalib.moveToThread(self.focusCalibThread)
+        self.focusCalibButton = QtGui.QPushButton('Calibrate')
+        self.focusCalibButton.clicked.connect(self.focusCalib.start)
+        self.focusCalibThread.start()
+        self.calibrationDisplay = QtGui.QLabel(str(self.calibrationResult[0]))
 
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit('25')
+        self.kpEdit = QtGui.QLineEdit('26')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('0.8')
+        self.kiEdit = QtGui.QLineEdit('1')
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')
@@ -69,10 +72,6 @@ class FocusWidget(QtGui.QFrame):
         self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
         self.focusAnalisisButton.clicked.connect(self.analizeFocus)
 
-        self.focusCalibrationButton = QtGui.QPushButton('Calibrate')
-        self.focusCalibrationButton.clicked.connect(self.calibrateFocus)
-        self.calibrationDisplay = QtGui.QLabel(str(self.calibrationResult[0]))
-
         self.graph = FocusLockGraph(self)
 
         # GUI layout
@@ -80,11 +79,9 @@ class FocusWidget(QtGui.QFrame):
         self.setLayout(grid)
         grid.addWidget(self.focusTitle, 0, 0)
         grid.addWidget(self.graph, 1, 0, 1, 6)
-        grid.addWidget(self.focusCalibrationButton, 2, 0)
+        grid.addWidget(self.focusCalibButton, 2, 0)
         grid.addWidget(self.calibrationDisplay, 3, 0)
         grid.addWidget(self.focusAnalisisButton, 4, 1)
-#        grid.addWidget(self.liftButton, 2, 0)
-#        grid.addWidget(self.loadButton, 3, 0)
         grid.addWidget(self.kpLabel, 2, 3)
         grid.addWidget(self.kpEdit, 2, 4)
         grid.addWidget(self.kiLabel, 3, 3)
@@ -127,7 +124,6 @@ class FocusWidget(QtGui.QFrame):
 
     def updatePI(self):
         self.distance = self.z.position - self.initialZ
-
         if abs(self.distance) > 10 * self.um:
             self.unlockFocus()
             e.msgbox("Maximum error allowed exceded, "
@@ -156,8 +152,6 @@ class FocusWidget(QtGui.QFrame):
 
     def exportData(self):
 
-    #the code fails to export into txt self.savedData, although it worked
-    #allright without self.setPoint
         self.sizeofData = np.size(self.graph.savedDataSignal)
         self.savedData = [np.ones(self.sizeofData)*self.setPoint,
                           self.graph.savedDataSignal, self.graph.savedDataTime]
@@ -166,24 +160,24 @@ class FocusWidget(QtGui.QFrame):
         self.graph.savedDataTime = []
 #        self.graph.savedDataPosition = []
 
-    def calibrateFocus(self):
-
-        signalData = []
-        positionData = []
-        step = 40*self.nm
-
-        for i in range(100):
-
-            signalData.append(self.stream.newData)
-            positionData.append(self.z.position.magnitude)
-            self.z.moveRelative(step)
-
-        print('hola')
-
-        self.calibrationResult = np.polyfit(np.array(signalData),
-                                 np.array(positionData), 1)
-
-        self.calibrationDisplay.setText(str(self.calibrationResult[0]))
+#    def calibrateFocus(self):
+#
+#        signalData = []
+#        positionData = []
+#        step = 40*self.nm
+#
+#        for i in range(100):
+#
+#            signalData.append(self.stream.newData)
+#            positionData.append(self.z.position.magnitude)
+#            self.z.moveRelative(step)
+#            time.sleep(0.5)
+#
+#
+#        self.calibrationResult = np.polyfit(np.array(signalData),
+#                                 np.array(positionData), 1)
+#
+#        self.calibrationDisplay.setText(str(self.calibrationResult[0]))
 
     def analizeFocus(self):
 
@@ -194,6 +188,7 @@ class FocusWidget(QtGui.QFrame):
         mean = np.mean(rawData[1])
         std_dev = np.std(rawData[1])
         max_dev = np.max(np.abs(np.array(rawData[1]) - setPoint))
+
 
 class FocusLockGraph(pg.GraphicsWindow):
 
@@ -244,6 +239,36 @@ class FocusLockGraph(pg.GraphicsWindow):
 #            self.savedDataPosition.append(self.DAQ.position)
 
 
+class focusCalibration(QtCore.QObject):
+
+    def __init__(self, main, *args, **kwargs):
+
+        super(focusCalibration, self).__init__(*args, **kwargs)
+        self.signalData = []
+        self.positionData = []
+        self.nm = Q_(1, 'nm')
+        self.step = 40*self.nm
+        self.stream = main.stream
+        self.z = main.z
+        self.main = main
+
+    def start(self):
+
+        print('hola')
+
+        for i in range(100):
+
+            self.signalData.append(self.stream.newData)
+            self.positionData.append(self.z.position.magnitude)
+            self.z.moveRelative(self.step)
+            time.sleep(0.5)
+
+        self.calibrationResult = np.polyfit(np.array(self.signalData),
+                                            np.array(self.positionData), 1)
+
+        self.main.calibrationDisplay.setText(str(self.calibrationResult[0]))
+
+
 class daqStream(QtCore.QObject):
     """This stream only takes care of getting data from the Labjack device."""
 
@@ -271,6 +296,10 @@ class daqStream(QtCore.QObject):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(1)
+
+    def stop(self):
+        pass
+        # TODO: stop
 
     def update(self):
         self.newData = np.mean(self.DAQ.streamRead()[0])
