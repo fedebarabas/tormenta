@@ -33,6 +33,7 @@ class PI(object):
         self._ki = ki
         self._setPoint = setPoint
 
+#        self._maxError = maxError
         self.error = 0.0
         self._started = False
 
@@ -56,6 +57,7 @@ class PI(object):
         self.lastError = self.error
 
         return self.out
+
 
     def restart(self):
         self.started = False
