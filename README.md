@@ -1,12 +1,13 @@
 Tormenta
 ========
 
-Super-simple transparent Python software for the analysis of stochastic (STORM - PALM - GSDIM) superresolution images 
+Measurement control and analysis for localization microscopy
 
 Requirements
 
 numpy
 h5py
 pyqtgraph
-cython
-scikit-image
+PyQt4
+tifffile (http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd)
+lantz

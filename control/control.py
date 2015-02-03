@@ -273,6 +273,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.snapButton.clicked.connect(self.snap)
 
         # Image Widget
+        # TODO: redefine axis ticks
         self.shape = andor.detector_shape
         imagewidget = pg.GraphicsLayoutWidget()
         self.p1 = imagewidget.addPlot()
@@ -284,7 +285,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist = pg.HistogramLUTItem()
         self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
-#        self.hist.plot.setLogMode(False, True)   # it breakes the LUT updating
+#        self.hist.plot.setLogMode(False, True)  # this breakes the LUT update
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imagewidget.addItem(self.hist)
 
@@ -589,13 +590,11 @@ class TormentaGUI(QtGui.QMainWindow):
             self.savename = os.path.join(self.recPath,
                                          self.recFilename) + '.' + self.format
 
-            self.savename = getUniqueName(self.savename)
-
             if self.format == 'hdf5':
                 """ Useful format for big data as it saves new frames in
                 chunks. Therefore, you don't have the whole stack in memory."""
 
-                self.store_file = hdf.File(self.savename, "w")
+                self.store_file = hdf.File(getUniqueName(self.savename), "w")
                 self.store_file.create_dataset(name=self.dataname,
                                                shape=(self.n,
                                                       self.shape[0],
@@ -607,13 +606,9 @@ class TormentaGUI(QtGui.QMainWindow):
                 """ This format has the problem of placing the whole stack in
                 memory before saving."""
 
-                np.save(self.savename,
-                        np.empty((self.n, self.shape[0], self.shape[1]),
-                                 dtype=np.uint16))
-                self.stack = np.memmap(self.savename + '.npy',
-                                       dtype=np.uint16, shape=(self.n,
-                                                               self.shape[0],
-                                                               self.shape[1]))
+                self.stack = np.empty((self.n, self.shape[0], self.shape[1]),
+                                      dtype=np.uint16)
+
             QtCore.QTimer.singleShot(1, self.updateWhileRec)
 
     def updateWhileRec(self):
@@ -677,11 +672,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         elif self.format == 'tiff':
 
-            tiff.imsave(self.savename, self.stack[0:self.j],
+            tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
                         description=self.dataname, software='Tormenta')
-
-            del self.stack
-            os.remove(self.savename + '.npy')
 
         self.j = 0                                  # Reset counter
         self.recWidget.recButton.setChecked(False)
