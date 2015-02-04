@@ -1,10 +1,13 @@
 # Tormenta
-Measurement control and analysis for localization microscopy
+Measurement control and analysis for optical microscopy
 
 ### Requirements
  - numpy
  - h5py
- - pyqtgraph
  - PyQt4
- - tifffile (http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd)
+ - pyqtgraph dev
+  - https://github.com/pyqtgraph/pyqtgraph
+ - tifffile
+  - http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
  - lantz
+  - https://github.com/hgrecco/lantz

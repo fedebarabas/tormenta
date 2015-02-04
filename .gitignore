@@ -3,6 +3,9 @@
 *~
 *.dax
 *.tif
+*.tiff
 *.pyc
 *.hdf5
 *.png
+*.npy
+/control/tifffile.py
