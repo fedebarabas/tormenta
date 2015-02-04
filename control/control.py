@@ -276,7 +276,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # TODO: redefine axis ticks
         self.shape = andor.detector_shape
         imagewidget = pg.GraphicsLayoutWidget()
-        self.p1 = imagewidget.addPlot()
+        self.p1 = imagewidget.addPlot(row=0, col=1)
         self.p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
         self.img.translate(-0.5, -0.5)
@@ -289,7 +289,21 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imagewidget.addItem(self.hist)
 
-        # TODO: x, y profiles
+        xPlot = imagewidget.addPlot(row=1, col=1)
+        xPlot.hideAxis('left')
+        xPlot.hideAxis('bottom')
+        self.xProfile = xPlot.plot()
+        imagewidget.ci.layout.setRowMaximumHeight(1, 60)
+        xPlot.setXLink(self.p1.getViewBox())
+
+        yPlot = imagewidget.addPlot(row=0, col=0)
+        yPlot.hideAxis('left')
+        yPlot.hideAxis('bottom')
+        self.yProfile = yPlot.plot()
+        self.yProfile.rotate(90)
+        imagewidget.ci.layout.setColumnMaximumWidth(0, 60)
+        yPlot.setYLink(self.p1.getViewBox())
+
         self.fpsBox = QtGui.QLabel()
         self.gridBox = QtGui.QCheckBox('Show grid')
         self.gridBox.stateChanged.connect(self.toggleGrid)
@@ -512,6 +526,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
             andor.shutter(0, 2, 0, 0, 0)
             self.img.setImage(np.zeros(self.shape), autoLevels=False)
+            self.xProfile.setData(np.zeros(self.shape[0]))
+            self.yProfile.setData(np.zeros(self.shape[1]))
 
     def updateView(self):
         """ Image update while in Liveview mode
@@ -519,6 +535,8 @@ class TormentaGUI(QtGui.QMainWindow):
         try:
             image = andor.most_recent_image16(self.shape)
             self.img.setImage(image, autoLevels=False)
+            self.xProfile.setData(np.sum(image, axis=0))
+            self.yProfile.setData(np.sum(image, axis=1))
             now = ptime.time()
             dt = now - self.lastTime
             self.lastTime = now
@@ -606,7 +624,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 """ This format has the problem of placing the whole stack in
                 memory before saving."""
 
-                self.stack = np.empty((self.n, self.shape[0], self.shape[1]),
+                self.stack = np.zeros((self.n, self.shape[0], self.shape[1]),
                                       dtype=np.uint16)
 
             QtCore.QTimer.singleShot(1, self.updateWhileRec)

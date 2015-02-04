@@ -15,7 +15,7 @@ from lantz import Q_
 
 from instruments import ScanZ, DAQ
 from pi import PI
-import easygui as e
+#import easygui as e
 
 
 class FocusWidget(QtGui.QFrame):
@@ -126,8 +126,8 @@ class FocusWidget(QtGui.QFrame):
         self.distance = self.z.position - self.initialZ
         if abs(self.distance) > 10 * self.um:
             self.unlockFocus()
-            e.msgbox("Maximum error allowed exceded, "
-                     "focus control has been turned off", "Error")
+#            e.msgbox("Maximum error allowed exceded, "
+#                     "focus control has been turned off", "Error")
         else:
             out = self.PI.update(self.stream.newData)
             self.z.moveRelative(out * self.um)
