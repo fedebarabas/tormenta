@@ -288,12 +288,14 @@ class TormentaGUI(QtGui.QMainWindow):
 #        self.hist.plot.setLogMode(False, True)  # this breakes the LUT update
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imagewidget.addItem(self.hist)
+        imagewidget.ci.layout.setColumnMaximumWidth(1, 800)
+        imagewidget.ci.layout.setRowMaximumHeight(0, 800)
 
         xPlot = imagewidget.addPlot(row=1, col=1)
         xPlot.hideAxis('left')
         xPlot.hideAxis('bottom')
         self.xProfile = xPlot.plot()
-        imagewidget.ci.layout.setRowMaximumHeight(1, 60)
+        imagewidget.ci.layout.setRowMaximumHeight(1, 40)
         xPlot.setXLink(self.p1.getViewBox())
 
         yPlot = imagewidget.addPlot(row=0, col=0)
@@ -301,7 +303,7 @@ class TormentaGUI(QtGui.QMainWindow):
         yPlot.hideAxis('bottom')
         self.yProfile = yPlot.plot()
         self.yProfile.rotate(90)
-        imagewidget.ci.layout.setColumnMaximumWidth(0, 60)
+        imagewidget.ci.layout.setColumnMaximumWidth(0, 40)
         yPlot.setYLink(self.p1.getViewBox())
 
         self.fpsBox = QtGui.QLabel()
