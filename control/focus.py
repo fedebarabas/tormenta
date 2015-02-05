@@ -7,6 +7,7 @@ Created on Wed Oct  1 13:41:48 2014
 
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg

@@ -225,6 +225,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def __init__(self, *args, **kwargs):
 
         global andor
+        self.shape = andor.detector_shape
 
         super(TormentaGUI, self).__init__(*args, **kwargs)
         self.setWindowTitle('Tormenta')
@@ -238,7 +239,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.tree = CamParamTree()
 
         # Frame signals
-        self.shape = andor.detector_shape
         frameParam = self.tree.p.param('Image frame')
         frameParam.param('Size').sigValueChanged.connect(self.updateFrame)
 
@@ -273,44 +273,50 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.snapButton.clicked.connect(self.snap)
 
         # Image Widget
-        # TODO: redefine axis ticks
-        self.shape = andor.detector_shape
-        imagewidget = pg.GraphicsLayoutWidget()
-        self.p1 = imagewidget.addPlot(row=0, col=1)
-        self.p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
+        self.fpsBox = QtGui.QLabel()
+        imageWidget = pg.GraphicsLayoutWidget()
+        imageWidget.ci.layout.setColumnMaximumWidth(1, 800)
+        imageWidget.ci.layout.setRowMaximumHeight(1, 800)
+        self.vb = imageWidget.addViewBox(row=1, col=1)
+        self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
         self.img.translate(-0.5, -0.5)
-        self.p1.addItem(self.img)
-        self.p1.getViewBox().setAspectLocked(True)
+        self.vb.addItem(self.img)
+        self.vb.setAspectLocked(True)
+
+        # HistogramLUT
         self.hist = pg.HistogramLUTItem()
         self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
 #        self.hist.plot.setLogMode(False, True)  # this breakes the LUT update
         self.hist.vb.setLimits(yMin=0, yMax=20000)
-        imagewidget.addItem(self.hist)
-        imagewidget.ci.layout.setColumnMaximumWidth(1, 800)
-        imagewidget.ci.layout.setRowMaximumHeight(0, 800)
+        imageWidget.addItem(self.hist, row=1, col=2)
 
-        xPlot = imagewidget.addPlot(row=1, col=1)
+        # x and y profiles
+        xPlot = imageWidget.addPlot(row=0, col=1)
         xPlot.hideAxis('left')
         xPlot.hideAxis('bottom')
         self.xProfile = xPlot.plot()
-        imagewidget.ci.layout.setRowMaximumHeight(1, 40)
-        xPlot.setXLink(self.p1.getViewBox())
-
-        yPlot = imagewidget.addPlot(row=0, col=0)
+        imageWidget.ci.layout.setRowMaximumHeight(0, 40)
+        xPlot.setXLink(self.vb)
+        yPlot = imageWidget.addPlot(row=1, col=0)
         yPlot.hideAxis('left')
         yPlot.hideAxis('bottom')
         self.yProfile = yPlot.plot()
         self.yProfile.rotate(90)
-        imagewidget.ci.layout.setColumnMaximumWidth(0, 40)
-        yPlot.setYLink(self.p1.getViewBox())
+        imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
+        yPlot.setYLink(self.vb)
 
-        self.fpsBox = QtGui.QLabel()
-        self.gridBox = QtGui.QCheckBox('Show grid')
-        self.gridBox.stateChanged.connect(self.toggleGrid)
+        # Image tools
+        self.gridButton = QtGui.QPushButton('Show grid')
+        self.gridButton.setCheckable(True)
+        self.gridButton.clicked.connect(self.toggleGrid)
+        self.xhairButton = QtGui.QPushButton('Crosshair')
+        self.xhairButton.setCheckable(True)
+        self.xhairButton.clicked.connect(self.toggleXhair)
 
         # Initial camera configuration taken from the parameter tree
+        self.shape = andor.detector_shape
         andor.set_exposure_time(self.ExpPar.value() * self.s)
         self.adjustFrame()
         self.updateTimings()
@@ -338,18 +344,19 @@ class TormentaGUI(QtGui.QMainWindow):
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
         layout.setColumnMinimumWidth(0, 400)
-        layout.setColumnMinimumWidth(1, 800)
+        layout.setColumnMinimumWidth(1, 600)
         layout.setColumnMinimumWidth(2, 200)
         layout.setRowMinimumHeight(0, 150)
         layout.setRowMinimumHeight(1, 320)
         layout.addWidget(self.tree, 0, 0, 2, 1)
         layout.addWidget(self.liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
-        layout.addWidget(imagewidget, 0, 1, 4, 3)
+        layout.addWidget(imageWidget, 0, 1, 4, 4)
         layout.addWidget(self.fpsBox, 4, 1)
-        layout.addWidget(self.gridBox, 4, 2)
-        layout.addWidget(self.laserWidgets, 0, 4)
-        layout.addWidget(self.focusWidget, 1, 4)
+        layout.addWidget(self.gridButton, 4, 3)
+        layout.addWidget(self.xhairButton, 4, 4)
+        layout.addWidget(self.laserWidgets, 0, 5)
+        layout.addWidget(self.focusWidget, 1, 5)
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -395,34 +402,59 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
-    """ Grid methods """
-    def showGrid(self):
-        self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
-        self.yline2 = pg.InfiniteLine(pos=0.50*self.shape[0], pen='y')
-        self.yline3 = pg.InfiniteLine(pos=0.75*self.shape[0], pen='y')
-        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], pen='y', angle=0)
-        self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1], pen='y', angle=0)
-        self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1], pen='y', angle=0)
-        self.p1.getViewBox().addItem(self.xline1)
-        self.p1.getViewBox().addItem(self.xline2)
-        self.p1.getViewBox().addItem(self.xline3)
-        self.p1.getViewBox().addItem(self.yline1)
-        self.p1.getViewBox().addItem(self.yline2)
-        self.p1.getViewBox().addItem(self.yline3)
+    def toggleXhair(self):
+        if self.xhairButton.isChecked():
+            self.vLine = pg.InfiniteLine(pos=0.50*self.shape[0], angle=90,
+                                         movable=False)
+            self.hLine = pg.InfiniteLine(pos=0.50*self.shape[1], angle=0,
+                                         movable=False)
+            self.vb.addItem(self.vLine, ignoreBounds=False)
+            self.vb.addItem(self.hLine, ignoreBounds=False)
 
-    def hideGrid(self):
-        self.p1.getViewBox().removeItem(self.xline1)
-        self.p1.getViewBox().removeItem(self.xline2)
-        self.p1.getViewBox().removeItem(self.xline3)
-        self.p1.getViewBox().removeItem(self.yline1)
-        self.p1.getViewBox().removeItem(self.yline2)
-        self.p1.getViewBox().removeItem(self.yline3)
+            def mouseMoved(evt):
+                pos = evt
+                if self.vb.sceneBoundingRect().contains(pos):
+                    mousePoint = self.vb.mapSceneToView(pos)
+                    self.vLine.setPos(mousePoint.x())
+                    self.hLine.setPos(mousePoint.y())
 
-    def toggleGrid(self, state):
-        if state == QtCore.Qt.Checked:
-            self.showGrid()
+            def mouseClicked():
+                self.vb.scene().sigMouseMoved.disconnect(mouseMoved)
+#                self.plot
+
+            self.vb.scene().sigMouseMoved.connect(mouseMoved)
+            self.vb.scene().sigMouseClicked.connect(mouseClicked)
         else:
-            self.hideGrid()
+            self.vb.removeItem(self.vLine)
+            self.vb.removeItem(self.hLine)
+            self.xProfile.setData(np.zeros(self.shape[0]))
+            self.yProfile.setData(np.zeros(self.shape[1]))
+
+    def toggleGrid(self):
+        if self.gridButton.isChecked():
+            self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
+            self.yline2 = pg.InfiniteLine(pos=0.50*self.shape[0], pen='y')
+            self.yline3 = pg.InfiniteLine(pos=0.75*self.shape[0], pen='y')
+            self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1],
+                                          pen='y', angle=0)
+            self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1],
+                                          pen='y', angle=0)
+            self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1],
+                                          pen='y', angle=0)
+            self.vb.addItem(self.xline1)
+            self.vb.addItem(self.xline2)
+            self.vb.addItem(self.xline3)
+            self.vb.addItem(self.yline1)
+            self.vb.addItem(self.yline2)
+            self.vb.addItem(self.yline3)
+
+        else:
+            self.vb.removeItem(self.xline1)
+            self.vb.removeItem(self.xline2)
+            self.vb.removeItem(self.xline3)
+            self.vb.removeItem(self.yline1)
+            self.vb.removeItem(self.yline2)
+            self.vb.removeItem(self.yline3)
 
     def adjustFrame(self, shape=None, start=(1, 1)):
         """ Method to change the area of the CCD to be used and adjust the
@@ -432,12 +464,10 @@ class TormentaGUI(QtGui.QMainWindow):
             shape = self.shape
 
         andor.set_image(shape=shape, p_0=start)
-        self.p1.setRange(xRange=(-0.5, shape[0] - 0.5),
-                         yRange=(-0.5, shape[1] - 0.5), padding=0)
-        self.p1.getViewBox().setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
-                                       yMin=-0.5, yMax=shape[1] - 0.5,
-                                       minXRange=4, minYRange=4)
-        if self.gridBox.isChecked():
+        self.vb.setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
+                          yMin=-0.5, yMax=shape[1] - 0.5,
+                          minXRange=4, minYRange=4)
+        if self.gridButton.isChecked():
             self.hideGrid()
             self.showGrid()
 
@@ -454,7 +484,7 @@ class TormentaGUI(QtGui.QMainWindow):
                               size=(128, 128), scaleSnap=True,
                               translateSnap=True, pen='y')
             self.ROI.addScaleHandle((1, 0), (0, 1), lockAspect=True)
-            self.p1.addItem(self.ROI)
+            self.vb.addItem(self.ROI)
 
             # Signals
             applyParam = frameParam.param('Apply')
@@ -528,8 +558,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
             andor.shutter(0, 2, 0, 0, 0)
             self.img.setImage(np.zeros(self.shape), autoLevels=False)
-            self.xProfile.setData(np.zeros(self.shape[0]))
-            self.yProfile.setData(np.zeros(self.shape[1]))
 
     def updateView(self):
         """ Image update while in Liveview mode
@@ -537,8 +565,11 @@ class TormentaGUI(QtGui.QMainWindow):
         try:
             image = andor.most_recent_image16(self.shape)
             self.img.setImage(image, autoLevels=False)
-            self.xProfile.setData(np.sum(image, axis=0))
-            self.yProfile.setData(np.sum(image, axis=1))
+
+            if self.plotProfiles:
+                self.xProfile.setData(image[self.hLine.pos()])
+                self.yProfile.setData(image[:, self.vLine.pos()])
+
             now = ptime.time()
             dt = now - self.lastTime
             self.lastTime = now
