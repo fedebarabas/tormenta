@@ -14,13 +14,17 @@ from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
 from pyqtgraph.parametertree import Parameter, ParameterTree
+from pyqtgraph.dockarea import Dock, DockArea
 
 import h5py as hdf
 import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
+
+# Tormenta imports
 from instruments import Laser, Camera, ScanZ, DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
+from viewboxtools import Grid, Crosshair
 
 
 class CamParamTree(ParameterTree):
@@ -306,15 +310,16 @@ class TormentaGUI(QtGui.QMainWindow):
         self.yProfile.rotate(90)
         imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
         yPlot.setYLink(self.vb)
-        self.plotProfiles = False
 
-        # Image tools
-        self.gridButton = QtGui.QPushButton('Show grid')
+        # viewBox tools
+        self.gridButton = QtGui.QPushButton('Grid')
         self.gridButton.setCheckable(True)
-        self.gridButton.clicked.connect(self.toggleGrid)
-        self.xhairButton = QtGui.QPushButton('Crosshair')
-        self.xhairButton.setCheckable(True)
-        self.xhairButton.clicked.connect(self.toggleXhair)
+        self.grid = Grid(self.vb, self.shape)
+        self.gridButton.clicked.connect(self.grid.toggle)
+        self.crosshairButton = QtGui.QPushButton('Crosshair')
+        self.crosshairButton.setCheckable(True)
+        self.crosshair = Crosshair(self.vb)
+        self.crosshairButton.clicked.connect(self.crosshair.toggle)
 
         # Initial camera configuration taken from the parameter tree
         self.shape = andor.detector_shape
@@ -337,9 +342,16 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizerThread.started.connect(self.stabilizer.start)
         self.stabilizerThread.start()
 
-        # Laser control widget
         self.laserWidgets = LaserWidget((redlaser, bluelaser, greenlaser))
         self.focusWidget = FocusWidget(DAQ, scanZ)
+
+        dockArea = DockArea()
+        laserDock = Dock("Laser Control", size=(1, 1))
+        laserDock.addWidget(self.laserWidgets)
+        focusDock = Dock("Focus Control", size=(1, 1))
+        focusDock.addWidget(self.focusWidget)
+        dockArea.addDock(focusDock, 'top')
+        dockArea.addDock(laserDock, 'above', focusDock)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
@@ -347,17 +359,18 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setColumnMinimumWidth(0, 400)
         layout.setColumnMinimumWidth(1, 600)
         layout.setColumnMinimumWidth(2, 200)
-        layout.setRowMinimumHeight(0, 150)
-        layout.setRowMinimumHeight(1, 320)
+        layout.setRowMinimumHeight(0, 250)
+        layout.setRowMinimumHeight(1, 220)
         layout.addWidget(self.tree, 0, 0, 2, 1)
         layout.addWidget(self.liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
         layout.addWidget(imageWidget, 0, 1, 4, 4)
         layout.addWidget(self.fpsBox, 4, 1)
         layout.addWidget(self.gridButton, 4, 3)
-        layout.addWidget(self.xhairButton, 4, 4)
-        layout.addWidget(self.laserWidgets, 0, 5)
-        layout.addWidget(self.focusWidget, 1, 5)
+        layout.addWidget(self.crosshairButton, 4, 4)
+#        layout.addWidget(self.laserWidgets, 0, 5)
+#        layout.addWidget(self.focusWidget, 1, 5)
+        layout.addWidget(dockArea, 0, 5)
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -403,62 +416,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
-    # TODO: take these out, make own class
-    def toggleXhair(self):
-        if self.xhairButton.isChecked():
-            self.vLine = pg.InfiniteLine(pos=0.50*self.shape[0], angle=90,
-                                         movable=False)
-            self.hLine = pg.InfiniteLine(pos=0.50*self.shape[1], angle=0,
-                                         movable=False)
-            self.vb.addItem(self.vLine, ignoreBounds=False)
-            self.vb.addItem(self.hLine, ignoreBounds=False)
-
-            def mouseMoved(evt):
-                pos = evt
-                if self.vb.sceneBoundingRect().contains(pos):
-                    mousePoint = self.vb.mapSceneToView(pos)
-                    self.vLine.setPos(mousePoint.x())
-                    self.hLine.setPos(mousePoint.y())
-
-            def mouseClicked():
-                self.vb.scene().sigMouseMoved.disconnect(mouseMoved)
-                self.plotProfiles = True
-
-            self.vb.scene().sigMouseMoved.connect(mouseMoved)
-            self.vb.scene().sigMouseClicked.connect(mouseClicked)
-        else:
-            self.vb.removeItem(self.vLine)
-            self.vb.removeItem(self.hLine)
-            self.plotProfiles = False
-            self.xProfile.setData(np.zeros(self.shape[0]))
-            self.yProfile.setData(np.zeros(self.shape[1]))
-
-    def toggleGrid(self):
-        if self.gridButton.isChecked():
-            self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
-            self.yline2 = pg.InfiniteLine(pos=0.50*self.shape[0], pen='y')
-            self.yline3 = pg.InfiniteLine(pos=0.75*self.shape[0], pen='y')
-            self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1],
-                                          pen='y', angle=0)
-            self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1],
-                                          pen='y', angle=0)
-            self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1],
-                                          pen='y', angle=0)
-            self.vb.addItem(self.xline1)
-            self.vb.addItem(self.xline2)
-            self.vb.addItem(self.xline3)
-            self.vb.addItem(self.yline1)
-            self.vb.addItem(self.yline2)
-            self.vb.addItem(self.yline3)
-
-        else:
-            self.vb.removeItem(self.xline1)
-            self.vb.removeItem(self.xline2)
-            self.vb.removeItem(self.xline3)
-            self.vb.removeItem(self.yline1)
-            self.vb.removeItem(self.yline2)
-            self.vb.removeItem(self.yline3)
-
     def adjustFrame(self, shape=None, start=(1, 1)):
         """ Method to change the area of the CCD to be used and adjust the
         image widget accordingly.
@@ -470,9 +427,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vb.setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
                           yMin=-0.5, yMax=shape[1] - 0.5,
                           minXRange=4, minYRange=4)
-        if self.gridButton.isChecked():
-            self.hideGrid()
-            self.showGrid()
 
         self.updateTimings()
 
@@ -504,6 +458,8 @@ class TormentaGUI(QtGui.QMainWindow):
             self.shape = (side, side)
             self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
+        self.grid.update(self.shape)
+
     def customFrame(self):
 
         ROISize = self.ROI.size()
@@ -513,6 +469,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.changeParameter(lambda: self.adjustFrame(self.shape, startROI))
         self.ROI.hide()
+        self.grid.update(self.shape)
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
@@ -569,9 +526,9 @@ class TormentaGUI(QtGui.QMainWindow):
             image = andor.most_recent_image16(self.shape)
             self.img.setImage(image, autoLevels=False)
 
-            if self.plotProfiles:
-                xcoord = int(np.round(self.hLine.pos()[1]))
-                ycoord = int(np.round(self.hLine.pos()[0]))
+            if self.crosshair.showed:
+                xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                ycoord = int(np.round(self.crosshair.hLine.pos()[0]))
                 self.xProfile.setData(image[xcoord])
                 self.yProfile.setData(image[:, ycoord])
 
@@ -677,6 +634,13 @@ class TormentaGUI(QtGui.QMainWindow):
             self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape,
                                                       1, self.n)
             self.img.setImage(self.stack[self.j - 1], autoLevels=False)
+
+            if self.crosshair.showed:
+                xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                ycoord = int(np.round(self.crosshair.hLine.pos()[0]))
+                self.xProfile.setData(self.stack[self.j - 1][xcoord])
+                self.yProfile.setData(self.stack[self.j - 1][:, ycoord])
+
             self.recWidget.currentFrame.setText(str(self.j) + ' /')
 
             now = ptime.time()

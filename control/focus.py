@@ -35,7 +35,6 @@ class FocusWidget(QtGui.QFrame):
         self.um = Q_(1, 'um')
         self.nm = Q_(1, 'nm')
 
-        self.focusTitle = QtGui.QLabel('<h2>Focus control</h2>')
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
 
         # Thread for getting data from DAQ
@@ -78,18 +77,17 @@ class FocusWidget(QtGui.QFrame):
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(self.focusTitle, 0, 0)
-        grid.addWidget(self.graph, 1, 0, 1, 6)
-        grid.addWidget(self.focusCalibButton, 2, 0)
-        grid.addWidget(self.calibrationDisplay, 3, 0)
-        grid.addWidget(self.focusAnalisisButton, 4, 1)
-        grid.addWidget(self.kpLabel, 2, 3)
-        grid.addWidget(self.kpEdit, 2, 4)
-        grid.addWidget(self.kiLabel, 3, 3)
-        grid.addWidget(self.kiEdit, 3, 4)
-        grid.addWidget(self.lockButton, 2, 5, 2, 1)
-        grid.addWidget(self.focusDataBox, 2, 1)
-        grid.addWidget(self.exportDataButton, 3, 1)
+        grid.addWidget(self.graph, 0, 0, 1, 6)
+        grid.addWidget(self.focusCalibButton, 1, 0)
+        grid.addWidget(self.calibrationDisplay, 2, 0)
+        grid.addWidget(self.focusAnalisisButton, 3, 1)
+        grid.addWidget(self.kpLabel, 1, 3)
+        grid.addWidget(self.kpEdit, 1, 4)
+        grid.addWidget(self.kiLabel, 2, 3)
+        grid.addWidget(self.kiEdit, 2, 4)
+        grid.addWidget(self.lockButton, 1, 5, 2, 1)
+        grid.addWidget(self.focusDataBox, 1, 1)
+        grid.addWidget(self.exportDataButton, 2, 1)
         grid.setColumnMinimumWidth(1, 100)
         grid.setColumnMinimumWidth(2, 70)
         # Labjack configuration

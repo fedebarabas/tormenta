@@ -37,9 +37,6 @@ class LaserWidget(QtGui.QFrame):
         self.redlaser, self.bluelaser, self.greenlaser = lasers
         self.mW = Q_(1, 'mW')
 
-        laserTitle = QtGui.QLabel('<h2>Laser control</h2>')
-        laserTitle.setTextFormat(QtCore.Qt.RichText)
-
         self.redControl = LaserControl(self.redlaser,
                                        '<h3>MPB 642nm</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
@@ -60,10 +57,9 @@ class LaserWidget(QtGui.QFrame):
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(laserTitle, 0, 0)
-        grid.addWidget(self.redControl, 1, 1)
-        grid.addWidget(self.blueControl, 1, 0)
-        grid.addWidget(self.greenControl, 1, 2)
+        grid.addWidget(self.redControl, 0, 1)
+        grid.addWidget(self.blueControl, 0, 0)
+        grid.addWidget(self.greenControl, 0, 2)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
