@@ -279,8 +279,6 @@ class TormentaGUI(QtGui.QMainWindow):
         # Image Widget
         self.fpsBox = QtGui.QLabel()
         imageWidget = pg.GraphicsLayoutWidget()
-        imageWidget.ci.layout.setColumnMaximumWidth(1, 800)
-        imageWidget.ci.layout.setRowMaximumHeight(1, 800)
         self.vb = imageWidget.addViewBox(row=1, col=1)
         self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
@@ -330,6 +328,8 @@ class TormentaGUI(QtGui.QMainWindow):
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('Liveview')
         self.liveviewButton.setCheckable(True)
+        self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                          QtGui.QSizePolicy.Expanding)
         self.liveviewButton.clicked.connect(self.liveview)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
@@ -359,8 +359,11 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setColumnMinimumWidth(0, 400)
         layout.setColumnMinimumWidth(1, 600)
         layout.setColumnMinimumWidth(2, 200)
-        layout.setRowMinimumHeight(0, 250)
-        layout.setRowMinimumHeight(1, 220)
+        layout.setRowMinimumHeight(0, 260)
+        layout.setRowMinimumHeight(1, 280)
+        layout.setRowMinimumHeight(2, 50)
+        layout.setRowMinimumHeight(3, 180)
+        layout.setRowMinimumHeight(4, 30)
         layout.addWidget(self.tree, 0, 0, 2, 1)
         layout.addWidget(self.liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
@@ -368,8 +371,6 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.fpsBox, 4, 1)
         layout.addWidget(self.gridButton, 4, 3)
         layout.addWidget(self.crosshairButton, 4, 4)
-#        layout.addWidget(self.laserWidgets, 0, 5)
-#        layout.addWidget(self.focusWidget, 1, 5)
         layout.addWidget(dockArea, 0, 5)
 
     def changeParameter(self, function):
