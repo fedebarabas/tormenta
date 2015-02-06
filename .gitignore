@@ -9,3 +9,4 @@
 *.png
 *.npy
 /control/tifffile.py
+/control/focus_data

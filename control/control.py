@@ -306,6 +306,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.yProfile.rotate(90)
         imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
         yPlot.setYLink(self.vb)
+        self.plotProfiles = False
 
         # Image tools
         self.gridButton = QtGui.QPushButton('Show grid')
@@ -402,6 +403,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
+    # TODO: take these out, make own class
     def toggleXhair(self):
         if self.xhairButton.isChecked():
             self.vLine = pg.InfiniteLine(pos=0.50*self.shape[0], angle=90,
@@ -420,13 +422,14 @@ class TormentaGUI(QtGui.QMainWindow):
 
             def mouseClicked():
                 self.vb.scene().sigMouseMoved.disconnect(mouseMoved)
-#                self.plot
+                self.plotProfiles = True
 
             self.vb.scene().sigMouseMoved.connect(mouseMoved)
             self.vb.scene().sigMouseClicked.connect(mouseClicked)
         else:
             self.vb.removeItem(self.vLine)
             self.vb.removeItem(self.hLine)
+            self.plotProfiles = False
             self.xProfile.setData(np.zeros(self.shape[0]))
             self.yProfile.setData(np.zeros(self.shape[1]))
 
@@ -567,8 +570,10 @@ class TormentaGUI(QtGui.QMainWindow):
             self.img.setImage(image, autoLevels=False)
 
             if self.plotProfiles:
-                self.xProfile.setData(image[self.hLine.pos()])
-                self.yProfile.setData(image[:, self.vLine.pos()])
+                xcoord = int(np.round(self.hLine.pos()[1]))
+                ycoord = int(np.round(self.hLine.pos()[0]))
+                self.xProfile.setData(image[xcoord])
+                self.yProfile.setData(image[:, ycoord])
 
             now = ptime.time()
             dt = now - self.lastTime
