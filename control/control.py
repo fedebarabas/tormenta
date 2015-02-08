@@ -343,22 +343,15 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizerThread.started.connect(self.stabilizer.start)
         self.stabilizerThread.start()
 
-        namespace = {'pg': pg, 'np': np}
-        console = ConsoleWidget(namespace=namespace)
-
         dockArea = DockArea()
 
-        laserDock = Dock("Laser Control", size=(1, 1))
-        self.laserWidgets = LaserWidget((redlaser, bluelaser, greenlaser))
-        laserDock.addWidget(self.laserWidgets)
-        dockArea.addDock(laserDock, 'top')
+        consoleDock = Dock("Console", size=(600, 200))
+        namespace = {'pg': pg, 'np': np}
+        console = ConsoleWidget(namespace=namespace)
+        consoleDock.addWidget(console)
+        dockArea.addDock(consoleDock)
 
-        focusDock = Dock("Focus Control", size=(1, 1))
-        self.focusWidget = FocusWidget(DAQ, scanZ)
-        focusDock.addWidget(self.focusWidget)
-        dockArea.addDock(focusDock, 'below', laserDock)
-
-        wheelDock = Dock("Emission filters", size=(1, 1))
+        wheelDock = Dock("Emission filters", size=(20, 20))
         tableWidget = pg.TableWidget()
         data = np.array([(1,   1.6,   'x'),
                          (3,   5.4,   'y'),
@@ -369,28 +362,37 @@ class TormentaGUI(QtGui.QMainWindow):
                                ('Column 3', object)])
         tableWidget.setData(data)
         wheelDock.addWidget(tableWidget)
-        dockArea.addDock(wheelDock, 'below', focusDock)
+        dockArea.addDock(wheelDock, 'top', consoleDock)
+
+        focusDock = Dock("Focus Control", size=(1, 1))
+        self.focusWidget = FocusWidget(DAQ, scanZ)
+        focusDock.addWidget(self.focusWidget)
+        dockArea.addDock(focusDock, 'above', wheelDock)
+
+        laserDock = Dock("Laser Control", size=(1, 1))
+        self.laserWidgets = LaserWidget((redlaser, bluelaser, greenlaser))
+        laserDock.addWidget(self.laserWidgets)
+        dockArea.addDock(laserDock, 'above', focusDock)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
-        layout.setColumnMinimumWidth(0, 400)
+        layout.setColumnMinimumWidth(0, 380)
         layout.setColumnMinimumWidth(1, 600)
         layout.setColumnMinimumWidth(2, 200)
         layout.setRowMinimumHeight(0, 220)
-        layout.setRowMinimumHeight(1, 140)
-        layout.setRowMinimumHeight(2, 50)
+        layout.setRowMinimumHeight(1, 550)
+        layout.setRowMinimumHeight(2, 20)
         layout.setRowMinimumHeight(3, 180)
-        layout.setRowMinimumHeight(4, 30)
+        layout.setRowMinimumHeight(4, 20)
         layout.addWidget(self.tree, 0, 0, 2, 1)
         layout.addWidget(self.liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
-        layout.addWidget(console, 5, 0)
         layout.addWidget(imageWidget, 0, 1, 4, 4)
         layout.addWidget(self.fpsBox, 4, 1)
         layout.addWidget(self.gridButton, 4, 3)
         layout.addWidget(self.crosshairButton, 4, 4)
-        layout.addWidget(dockArea, 0, 5)
+        layout.addWidget(dockArea, 0, 5, 5, 1)
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
