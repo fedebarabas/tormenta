@@ -120,8 +120,8 @@ class LaserControl(QtGui.QFrame):
         grid.addWidget(self.slider, 2, 1, 5, 1)
         grid.addWidget(self.minpower, 7, 1)
 
-        grid.setRowMinimumHeight(2, 40)
-        grid.setRowMinimumHeight(6, 40)
+        grid.setRowMinimumHeight(2, 60)
+        grid.setRowMinimumHeight(6, 60)
 
         # Connections
         self.enableButton.toggled.connect(self.toggleLaser)
