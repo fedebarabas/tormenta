@@ -332,7 +332,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.recButton.clicked.connect(self.record)
         self.recWidget.snapButton.clicked.connect(self.snap)
         rSecs = self.t_acc_real.magnitude * self.recWidget.nExpositions()
-        rTime = datetime.timedelta(seconds=rSecs)
+        rTime = datetime.timedelta(seconds=np.round(rSecs))
         self.recWidget.tRemaining.setText('Remaining: {}'.format(rTime))
 
         # Liveview functionality
@@ -557,7 +557,7 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         try:
             image = andor.most_recent_image16(self.shape)
-            self.img.setImage(image, autoLevels=False)
+            self.img.setImage(np.transpose(image), autoLevels=False)
 
             if self.crosshair.showed:
                 xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
@@ -643,8 +643,8 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.store_file = hdf.File(getUniqueName(self.savename), "w")
                 self.store_file.create_dataset(name=self.dataname,
                                                shape=(self.n,
-                                                      self.shape[0],
-                                                      self.shape[1]),
+                                                      self.shape[1],
+                                                      self.shape[0]),
                                                fillvalue=0, dtype=np.uint16)
                 self.stack = self.store_file[self.dataname]
 
@@ -667,7 +667,8 @@ class TormentaGUI(QtGui.QMainWindow):
             i, self.j = andor.new_images_index
             self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape,
                                                       1, self.n)
-            self.img.setImage(self.stack[self.j - 1], autoLevels=False)
+            self.img.setImage(np.transpose(self.stack[self.j - 1]),
+                              autoLevels=False)
 
             if self.crosshair.showed:
                 xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
@@ -708,29 +709,35 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def endRecording(self):
 
+        attrs = []
+        attrs.extend([('Date', time.strftime("%Y-%m-%d")),
+                      ('Time', time.strftime("%H:%M:%S")),
+                      ('element_size_um', (1, 0.133, 0.133))])
+
+        for ParName in self.tree.p.getValues():
+            Par = self.tree.p.param(str(ParName))
+            if not(Par.hasChildren()):
+                attrs.append((str(ParName), Par.value()))
+            else:
+                for sParName in Par.getValues():
+                    sPar = Par.param(str(sParName))
+                    if sPar.type() != 'action':
+                        if not(sPar.hasChildren()):
+                            attrs.append((str(sParName), sPar.value()))
+                        else:
+                            for ssParName in sPar.getValues():
+                                ssPar = sPar.param(str(ssParName))
+                                attrs.append((str(ssParName), ssPar.value()))
+
+            # TODO:
+#            for laser in laserlist:
+#                attrs[laser.wv + 'power'] = laser.power
+
         if self.format == 'hdf5':
             # TODO: Crop results to self.j frames
 
-            # Saving parameters as data attributes in the HDF5 file
+            # Saving parameters
             dset = self.store_file[self.dataname]
-            dset.attrs['Date'] = time.strftime("%Y-%m-%d")
-            dset.attrs['Time'] = time.strftime("%H:%M:%S")
-            attrs = []
-            for ParName in self.tree.p.getValues():
-                Par = self.tree.p.param(str(ParName))
-                if not(Par.hasChildren()):
-                    attrs.append((str(ParName), Par.value()))
-                else:
-                    for sParName in Par.getValues():
-                        sPar = Par.param(str(sParName))
-                        if sPar.type() != 'action':
-                            if not(sPar.hasChildren()):
-                                attrs.append((str(sParName), sPar.value()))
-                            else:
-                                for ssParName in sPar.getValues():
-                                    ssPar = sPar.param(str(ssParName))
-                                    attrs.append((str(ssParName),
-                                                  ssPar.value()))
 
             for item in attrs:
                 dset.attrs[item[0]] = item[1]
