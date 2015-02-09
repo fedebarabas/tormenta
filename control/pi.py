@@ -58,7 +58,6 @@ class PI(object):
 
         return self.out
 
-
     def restart(self):
         self.started = False
 

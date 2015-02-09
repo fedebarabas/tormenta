@@ -130,12 +130,10 @@ class FocusWidget(QtGui.QFrame):
 
     def updatePI(self):
         self.distance = self.z.position - self.initialZ
-        if abs(self.distance) > 10 * self.um:
+        out = self.PI.update(self.stream.newData)
+        if abs(self.distance) > 10 * self.um or abs(out) > 0.5:
             self.unlockFocus()
-#            e.msgbox("Maximum error allowed exceded, "
-#                     "focus control has been turned off", "Error")
         else:
-            out = self.PI.update(self.stream.newData)
             self.z.moveRelative(out * self.um)
 
     def moveZ(self, value):
@@ -230,8 +228,8 @@ class FocusLockGraph(pg.GraphicsWindow):
 
     def update(self):
         """ Gives an update of the data displayed in the graphs
-        """    
-        
+        """
+
         if self.ptr < 200:
             self.data[self.ptr] = self.stream.newData
             self.focusCurve.setData(self.xData[1:self.ptr + 1],
@@ -250,11 +248,11 @@ class FocusLockGraph(pg.GraphicsWindow):
             self.savedDataSignal.append(self.stream.newData)
             self.savedDataTime.append(self.ptr/self.scansPerS)
 #            self.savedDataPosition.append(self.DAQ.position)
-            
-        if self.recButton.isChecked():
-                self.analize()
-                
-            
+
+#        if self.recButton.isChecked():
+#                self.analize()
+
+
 
 
 class focusCalibration(QtCore.QObject):

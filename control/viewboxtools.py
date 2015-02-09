@@ -66,10 +66,7 @@ class Crosshair():
 
         self.vLine = pg.InfiniteLine(pos=0, angle=90, movable=False)
         self.hLine = pg.InfiniteLine(pos=0, angle=0,  movable=False)
-
         self.vb = viewBox
-        self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
-        self.vb.scene().sigMouseClicked.connect(self.mouseClicked)
 
     def mouseMoved(self, evt):
         pos = evt
@@ -93,6 +90,8 @@ class Crosshair():
             self.show()
 
     def show(self):
+        self.vb.scene().sigMouseClicked.connect(self.mouseClicked)
+        self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
         self.vb.addItem(self.vLine, ignoreBounds=False)
         self.vb.addItem(self.hLine, ignoreBounds=False)
         self.showed = True

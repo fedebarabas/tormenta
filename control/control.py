@@ -7,6 +7,7 @@ Created on Mon Jun 16 18:19:24 2014
 
 import numpy as np
 import os
+import datetime
 import time
 
 from PyQt4 import QtGui, QtCore
@@ -26,6 +27,126 @@ from instruments import Laser, Camera, ScanZ, DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
 from viewboxtools import Grid, Crosshair
+
+
+# Check for same name conflict
+def getUniqueName(name):
+
+    n = 1
+    while os.path.exists(name):
+        if n > 1:
+            name = name.replace('_{}.'.format(n - 1), '_{}.'.format(n))
+        else:
+            names = os.path.splitext(name)
+            name = names[0] + '_{}'.format(n) + names[1]
+        n += 1
+
+    return name
+
+
+class RecordingWidget(QtGui.QFrame):
+
+    def __init__(self, *args, **kwargs):
+        super(RecordingWidget, self).__init__(*args, **kwargs)
+
+        recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
+        recTitle.setTextFormat(QtCore.Qt.RichText)
+        self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+
+        self.currentFrame = QtGui.QLabel('0 /')
+        self.numExpositionsEdit = QtGui.QLineEdit('100')
+        self.folderEdit = QtGui.QLineEdit(os.getcwd())
+        self.filenameEdit = QtGui.QLineEdit('filename')
+        self.formatBox = QtGui.QComboBox()
+        self.formatBox.addItems(['tiff', 'hdf5'])
+
+        self.snapButton = QtGui.QPushButton('Snap')
+        self.snapButton.setEnabled(False)
+        self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                      QtGui.QSizePolicy.Expanding)
+        self.recButton = QtGui.QPushButton('REC')
+        self.recButton.setCheckable(True)
+        self.recButton.setEnabled(False)
+        self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                     QtGui.QSizePolicy.Expanding)
+
+        zeroTime = datetime.timedelta(seconds=0)
+        self.tElapsed = QtGui.QLabel('Elapsed: {}'.format(zeroTime))
+        self.tRemaining = QtGui.QLabel()
+
+        recGrid = QtGui.QGridLayout()
+        self.setLayout(recGrid)
+        recGrid.addWidget(recTitle, 0, 0, 1, 3)
+        recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
+        recGrid.addWidget(self.currentFrame, 5, 1)
+        recGrid.addWidget(self.numExpositionsEdit, 5, 2)
+        recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0, 1, 2)
+        recGrid.addWidget(self.folderEdit, 2, 0, 1, 3)
+        recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
+        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 2)
+        recGrid.addWidget(self.formatBox, 4, 2)
+        recGrid.addWidget(self.snapButton, 1, 3, 2, 1)
+        recGrid.addWidget(self.recButton, 3, 3, 4, 1)
+        recGrid.addWidget(self.tElapsed, 6, 0)
+        recGrid.addWidget(self.tRemaining, 6, 1, 1, 2)
+
+        recGrid.setColumnMinimumWidth(0, 200)
+
+        self._editable = True
+
+    def nExpositions(self):
+        return int(self.numExpositionsEdit.text())
+
+    def folder(self):
+        return self.folderEdit.text()
+
+    def filename(self):
+        return self.filenameEdit.text()
+
+    @property
+    def editable(self):
+        return self._editable
+
+    @editable.setter
+    def editable(self, value):
+        self.snapButton.setEnabled(value)
+        self.folderEdit.setEnabled(value)
+        self.filenameEdit.setEnabled(value)
+        self.numExpositionsEdit.setEnabled(value)
+        self.formatBox.setEnabled(value)
+        self._editable = value
+
+
+class TemperatureStabilizer(QtCore.QObject):
+
+    def __init__(self, parameter, *args, **kwargs):
+
+        global andor
+
+        super(TemperatureStabilizer, self).__init__(*args, **kwargs)
+        self.parameter = parameter
+        self.setPointPar = self.parameter.param('Set point')
+        self.setPointPar.sigValueChanged.connect(self.updateTemp)
+
+    def updateTemp(self):
+        andor.temperature_setpoint = Q_(self.setPointPar.value(), 'degC')
+
+    def start(self):
+        self.updateTemp()
+        andor.cooler_on = True
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update)
+        self.timer.start(1)
+
+    def update(self):
+        stable = 'Temperature has stabilized at set point.'
+        if andor.temperature_status != stable:
+            CurrTempPar = self.parameter.param('Current temperature')
+            CurrTempPar.setValue(np.round(andor.temperature.magnitude, 1))
+            self.parameter.param('Status').setValue(andor.temperature_status)
+            time.sleep(10)
+        else:
+            self.timer.stop()
 
 
 class CamParamTree(ParameterTree):
@@ -111,120 +232,6 @@ class CamParamTree(ParameterTree):
         gainParams.param('EM gain').setReadonly(value)
 
 
-class RecordingWidget(QtGui.QFrame):
-
-    def __init__(self, *args, **kwargs):
-        super(RecordingWidget, self).__init__(*args, **kwargs)
-
-        recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
-        recTitle.setTextFormat(QtCore.Qt.RichText)
-        self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
-
-        self.currentFrame = QtGui.QLabel('0 /')
-        self.numExpositionsEdit = QtGui.QLineEdit('100')
-        self.folderEdit = QtGui.QLineEdit(os.getcwd())
-        self.filenameEdit = QtGui.QLineEdit('filename')
-        self.formatBox = QtGui.QComboBox()
-        self.formatBox.addItems(['tiff', 'hdf5'])
-
-        self.snapButton = QtGui.QPushButton('Snap')
-        self.snapButton.setEnabled(False)
-        self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
-                                      QtGui.QSizePolicy.Expanding)
-        self.recButton = QtGui.QPushButton('REC')
-        self.recButton.setCheckable(True)
-        self.recButton.setEnabled(False)
-        self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
-                                     QtGui.QSizePolicy.Expanding)
-
-        recGrid = QtGui.QGridLayout()
-        self.setLayout(recGrid)
-        recGrid.addWidget(recTitle, 0, 0, 1, 3)
-        recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
-        recGrid.addWidget(self.currentFrame, 5, 1)
-        recGrid.addWidget(self.numExpositionsEdit, 5, 2)
-        recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0, 1, 2)
-        recGrid.addWidget(self.folderEdit, 2, 0, 1, 3)
-        recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
-        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 2)
-        recGrid.addWidget(self.formatBox, 4, 2)
-        recGrid.addWidget(self.snapButton, 1, 3, 2, 1)
-        recGrid.addWidget(self.recButton, 3, 3, 3, 1)
-
-        recGrid.setColumnMinimumWidth(0, 200)
-
-        self._editable = True
-
-    def nExpositions(self):
-        return int(self.numExpositionsEdit.text())
-
-    def folder(self):
-        return self.folderEdit.text()
-
-    def filename(self):
-        return self.filenameEdit.text()
-
-    @property
-    def editable(self):
-        return self._editable
-
-    @editable.setter
-    def editable(self, value):
-        self.snapButton.setEnabled(value)
-        self.folderEdit.setEnabled(value)
-        self.filenameEdit.setEnabled(value)
-        self.numExpositionsEdit.setEnabled(value)
-        self.formatBox.setEnabled(value)
-        self._editable = value
-
-
-class TemperatureStabilizer(QtCore.QObject):
-
-    def __init__(self, parameter, *args, **kwargs):
-
-        global andor
-
-        super(TemperatureStabilizer, self).__init__(*args, **kwargs)
-        self.parameter = parameter
-        self.setPointPar = self.parameter.param('Set point')
-        self.setPointPar.sigValueChanged.connect(self.updateTemp)
-
-    def updateTemp(self):
-        andor.temperature_setpoint = Q_(self.setPointPar.value(), 'degC')
-
-    def start(self):
-        self.updateTemp()
-        andor.cooler_on = True
-        self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.update)
-        self.timer.start(1)
-
-    def update(self):
-        stable = 'Temperature has stabilized at set point.'
-        if andor.temperature_status != stable:
-            CurrTempPar = self.parameter.param('Current temperature')
-            CurrTempPar.setValue(np.round(andor.temperature.magnitude, 1))
-            self.parameter.param('Status').setValue(andor.temperature_status)
-            time.sleep(10)
-        else:
-            self.timer.stop()
-
-
-# Check for same name conflict
-def getUniqueName(name):
-
-    n = 1
-    while os.path.exists(name):
-        if n > 1:
-            name = name.replace('_{}.'.format(n - 1), '_{}.'.format(n))
-        else:
-            names = os.path.splitext(name)
-            name = names[0] + '_{}'.format(n) + names[1]
-        n += 1
-
-    return name
-
-
 class TormentaGUI(QtGui.QMainWindow):
 
     def __init__(self, *args, **kwargs):
@@ -270,12 +277,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.GainPar = self.tree.p.param('Gain').param('EM gain')
         self.GainPar.sigValueChanged.connect(updateGain)
         updateGain()        # Set default values
-
-        # Recording signals
-        self.dataname = 'data'      # In case I need a QLineEdit for this
-        self.recWidget = RecordingWidget()
-        self.recWidget.recButton.clicked.connect(self.record)
-        self.recWidget.snapButton.clicked.connect(self.snap)
 
         # Image Widget
         self.fpsBox = QtGui.QLabel()
@@ -324,7 +325,15 @@ class TormentaGUI(QtGui.QMainWindow):
         self.shape = andor.detector_shape
         andor.set_exposure_time(self.ExpPar.value() * self.s)
         self.adjustFrame()
-        self.updateTimings()
+
+        # Recording widget
+        self.dataname = 'data'      # In case I need a QLineEdit for this
+        self.recWidget = RecordingWidget()
+        self.recWidget.recButton.clicked.connect(self.record)
+        self.recWidget.snapButton.clicked.connect(self.snap)
+        rSecs = self.t_acc_real.magnitude * self.recWidget.nExpositions()
+        rTime = datetime.timedelta(seconds=rSecs)
+        self.recWidget.tRemaining.setText('Remaining: {}'.format(rTime))
 
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('Liveview')
@@ -346,20 +355,22 @@ class TormentaGUI(QtGui.QMainWindow):
         dockArea = DockArea()
 
         consoleDock = Dock("Console", size=(600, 200))
-        namespace = {'pg': pg, 'np': np}
-        console = ConsoleWidget(namespace=namespace)
+        console = ConsoleWidget(namespace={'pg': pg, 'np': np})
         consoleDock.addWidget(console)
         dockArea.addDock(consoleDock)
 
         wheelDock = Dock("Emission filters", size=(20, 20))
-        tableWidget = pg.TableWidget()
-        data = np.array([(1,   1.6,   'x'),
-                         (3,   5.4,   'y'),
-                         (8,   12.5,  'z'),
-                         (443, 1e-12, 'w')],
-                        dtype=[('Column 1', int),
-                               ('Column 2', float),
-                               ('Column 3', object)])
+        tableWidget = pg.TableWidget(sortable=False)
+        data = np.array([('ZET642NF',    'Notch 642nm',     4, ''),
+                         ('ET700/75m',   'Bandpass 700/75', 5, 'Alexa647, '
+                                                               'Atto655'),
+                         ('FF01-593/40', 'Bandpass 593/40', 6, 'Atto565'),
+                         ('ET575/50',    'Bandpass 575/50', 1, 'Atto550'),
+                         ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
+                         ('',            '',                3, '')],
+                        dtype=[('Filtro', object), ('Descripción', object),
+                               ('Antiposición', int),
+                               ('Fluorósforos', object)])
         tableWidget.setData(data)
         wheelDock.addWidget(tableWidget)
         dockArea.addDock(wheelDock, 'top', consoleDock)
@@ -644,6 +655,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.stack = np.zeros((self.n, self.shape[0], self.shape[1]),
                                       dtype=np.uint16)
 
+            self.startTime = ptime.time()
             QtCore.QTimer.singleShot(1, self.updateWhileRec)
 
     def updateWhileRec(self):
@@ -663,8 +675,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.xProfile.setData(self.stack[self.j - 1][xcoord])
                 self.yProfile.setData(self.stack[self.j - 1][:, ycoord])
 
-            self.recWidget.currentFrame.setText(str(self.j) + ' /')
-
+            # fps calculation
             now = ptime.time()
             dt = now - self.lastTime
             self.lastTime = now
@@ -675,6 +686,15 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.fps = self.fps * (1-s) + (1.0/dt) * s
             self.fpsBox.setText('%0.2f fps' % self.fps)
 
+            # Elapsed and remaining times and frames
+            self.recWidget.currentFrame.setText(str(self.j) + ' /')
+            eSecs = np.round(now - self.startTime)
+            eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
+            self.recWidget.tElapsed.setText(eText)
+            rSecs = np.round(self.t_acc_real.magnitude * (self.n - self.j))
+            rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
+            self.recWidget.tRemaining.setText(rText)
+
         if self.j < self.n and self.recWidget.recButton.isChecked():
             QtCore.QTimer.singleShot(0, self.updateWhileRec)
 
@@ -682,7 +702,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.endRecording()
             if self.focusWidget.focusDataBox.isChecked():
                 self.focusWidget.exportData()
-                
+
             else:
                 self.focusWidget.graph.savedDataSignal = []
 
