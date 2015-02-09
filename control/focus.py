@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
-import matplotlib.pyplot as plt
+
 
 from lantz import Q_
 
@@ -23,9 +23,10 @@ from pi import PI
 
 class FocusWidget(QtGui.QFrame):
 
-    def __init__(self, DAQ, scanZ, main, *args, **kwargs):
+    def __init__(self, DAQ, scanZ, main=None, *args, **kwargs):
         super(FocusWidget, self).__init__(*args, **kwargs)
 
+        self.main = main
         self.DAQ = DAQ
         self.z = scanZ
         self.setPoint = 0
@@ -53,8 +54,8 @@ class FocusWidget(QtGui.QFrame):
         self.focusCalibButton = QtGui.QPushButton('Calibrate')
         self.focusCalibButton.clicked.connect(self.focusCalib.start)
         self.focusCalibThread.start()
-        self.calibrationDisplay = QtGui.QLabel(str(self.calibrationResult[0]))
-
+        self.calibrationDisplay = QtGui.QLineEdit('0 mV --> 0 nm')
+        self.calibrationDisplay.setReadOnly(False)
         # Focus lock widgets
         self.kpEdit = QtGui.QLineEdit('26')
         self.kpEdit.textChanged.connect(self.unlockFocus)
@@ -73,8 +74,8 @@ class FocusWidget(QtGui.QFrame):
 #        self.exportDataButton.clicked.connect(self.exportData)
 #        self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
 #        self.focusAnalisisButton.clicked.connect(self.analizeFocus)
-        self.focusPropertiesDisplay = QtGui.QLineEdit('mean = 0, st_dev = 0, max_dev = 0')
-        self.focusPropertiesDisplay.setReadOnly(True)
+        self.focusPropertiesDisplay = QtGui.QLabel('  st_dev = 0    max_dev = 0')
+#        self.focusPropertiesDisplay.setReadOnly(True)
 #        self.focusPropertiesDisplay.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         self.graph = FocusLockGraph(self, main)
 
@@ -85,17 +86,17 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
 #        grid.addWidget(self.focusAnalisisButton, 3, 0)
-        grid.addWidget(self.focusPropertiesDisplay, 4, 0)
+        grid.addWidget(self.focusPropertiesDisplay, 3, 0)
         grid.addWidget(self.kpLabel, 1, 3)
         grid.addWidget(self.kpEdit, 1, 4)
         grid.addWidget(self.kiLabel, 2, 3)
         grid.addWidget(self.kiEdit, 2, 4)
         grid.addWidget(self.lockButton, 1, 5, 2, 1)
-        grid.addWidget(self.focusDataBox, 1, 1)
+        grid.addWidget(self.focusDataBox, 1, 2)
 #        grid.addWidget(self.exportDataButton, 3, 1)
 
-        grid.setColumnMinimumWidth(1, 100)
-        grid.setColumnMinimumWidth(2, 40)
+#        grid.setColumnMinimumWidth(1, 100)
+#        grid.setColumnMinimumWidth(2, 40)
         grid.setColumnMinimumWidth(0, 245)
         # Labjack configuration
         self.graphTimer = QtCore.QTimer()
@@ -161,50 +162,37 @@ class FocusWidget(QtGui.QFrame):
         self.sizeofData = np.size(self.graph.savedDataSignal)
         self.savedData = [np.ones(self.sizeofData)*self.setPoint,
                           self.graph.savedDataSignal, self.graph.savedDataTime]
-        np.savetxt('focus_data', self.savedData)
+        np.savetxt('{}_focusdata'.format(self.main.filename()), self.savedData)
         self.graph.savedDataSignal = []
         self.graph.savedDataTime = []
+        
+        self.plot = plt.plot(self.graph.savedDataTime, self.graph.savedDataSignal, 'b-',
+                             self.graph.savedDataTime, 
+                             np.ones(self.sizeofData)*self.setPoint, 'r-')        
+        
 #        self.graph.savedDataPosition = []
 
-#    def calibrateFocus(self):
-#
-#        signalData = []
-#        positionData = []
-#        step = 40*self.nm
-#
-#        for i in range(100):
-#
-#            signalData.append(self.stream.newData)
-#            positionData.append(self.z.position.magnitude)
-#            self.z.moveRelative(step)
-#            time.sleep(0.5)
-#
-#
-#        self.calibrationResult = np.polyfit(np.array(signalData),
-#                                 np.array(positionData), 1)
-#
-#        self.calibrationDisplay.setText(str(self.calibrationResult[0]))
 
     def analizeFocus(self):
 
-        self.rawData = np.loadtxt('focus_data')
-        self.analisisSetPoint = self.rawData[0]
-        self.plot = plt.plot(self.rawData[2], self.rawData[1], 'b-',
-                             self.rawData[2], self.analisisSetPoint, 'r-')
+#        self.rawData = np.loadtxt('focus_data')
+#        self.analisisSetPoint = self.rawData[0]
+#        self.plot = plt.plot(self.rawData[2], self.graph.savedDataSignal, 'b-',
+#                             self.rawData[2], self.analisisSetPoint, 'r-')
 
-        self.mean = np.around(np.mean(self.rawData[1]), 3)
-        self.std_dev = np.around(np.std(self.rawData[1]), 5)
-        self.max_dev = np.around(np.max(np.abs(np.array(self.rawData[1])
-                                     - self.analisisSetPoint)), 5)
+        self.mean = np.around(np.mean(self.graph.savedDataSignal), 3)
+        self.std_dev = np.around(np.std(self.graph.savedDataSignal), 5)
+        self.max_dev = np.around(np.max(np.abs(np.array(self.graph.savedDataSignal)
+                                     - self.setPoint)), 5)
 
-        self.focusPropertiesDisplay.setText('mean={}, st_dev={}, max_dev={}'.format(self.mean, self.std_dev, self.max_dev))
+        self.focusPropertiesDisplay.setText('  st_dev = {}    max_dev = {}'.format(self.std_dev, self.max_dev))
 
 
 class FocusLockGraph(pg.GraphicsWindow):
 
-    def __init__(self, mainwidget, main, *args, **kwargs):
+    def __init__(self, mainwidget, main=None, *args, **kwargs):
 
-        self.recButton = main.recButton
+        self.main = main
         self.stream = mainwidget.stream
         self.analize = mainwidget.analizeFocus
         self.focusDataBox = mainwidget.focusDataBox
@@ -245,13 +233,17 @@ class FocusLockGraph(pg.GraphicsWindow):
             self.focusCurve.setPos(self.ptr/self.scansPerS - 50, 0)
 
         self.ptr += 1
+        
+        if self.main is not None:
+        
+            self.recButton = self.main.recButton
 
-        if self.recButton.isChecked():
-            self.savedDataSignal.append(self.stream.newData)
-            self.savedDataTime.append(self.ptr/self.scansPerS)
-#            self.savedDataPosition.append(self.DAQ.position)
+            if self.recButton.isChecked():
+                self.savedDataSignal.append(self.stream.newData)
+                self.savedDataTime.append(self.ptr/self.scansPerS)
+#               self.savedDataPosition.append(self.DAQ.position)
             
-        if self.recButton.isChecked():
+            if self.recButton.isChecked():
                 self.analize()
                 
             
@@ -259,16 +251,16 @@ class FocusLockGraph(pg.GraphicsWindow):
 
 class focusCalibration(QtCore.QObject):
 
-    def __init__(self, main, *args, **kwargs):
+    def __init__(self, mainwidget, *args, **kwargs):
 
         super(focusCalibration, self).__init__(*args, **kwargs)
         self.signalData = []
         self.positionData = []
         self.nm = Q_(1, 'nm')
         self.step = 40*self.nm
-        self.stream = main.stream
-        self.z = main.z
-        self.main = main
+        self.stream = mainwidget.stream
+        self.z = mainwidget.z
+        self.mainwidget = mainwidget
 
     def start(self):
 
@@ -282,7 +274,7 @@ class focusCalibration(QtCore.QObject):
         self.calibrationResult = np.polyfit(np.array(self.signalData),
                                             np.array(self.positionData), 1)
 
-        self.main.calibrationDisplay.setText('0,1 mV --> {} nm'.format(self.calibrationResult[0]))
+        self.mainwidget.calibrationDisplay.setText('0,1 mV --> {} nm'.format(self.calibrationResult[0]))
 
 
 class daqStream(QtCore.QObject):
