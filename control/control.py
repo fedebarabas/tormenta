@@ -365,7 +365,7 @@ class TormentaGUI(QtGui.QMainWindow):
         dockArea.addDock(wheelDock, 'top', consoleDock)
 
         focusDock = Dock("Focus Control", size=(1, 1))
-        self.focusWidget = FocusWidget(DAQ, scanZ)
+        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
         focusDock.addWidget(self.focusWidget)
         dockArea.addDock(focusDock, 'above', wheelDock)
 
@@ -680,6 +680,11 @@ class TormentaGUI(QtGui.QMainWindow):
 
         else:
             self.endRecording()
+            if self.focusWidget.focusDataBox.isChecked():
+                self.focusWidget.exportData()
+                
+            else:
+                self.focusWidget.graph.savedDataSignal = []
 
     def endRecording(self):
 
