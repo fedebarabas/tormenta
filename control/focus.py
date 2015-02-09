@@ -8,6 +8,7 @@ Created on Wed Oct  1 13:41:48 2014
 import numpy as np
 import time
 
+
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import matplotlib.pyplot as plt
@@ -16,12 +17,12 @@ from lantz import Q_
 
 from instruments import ScanZ, DAQ
 from pi import PI
-import easygui as e
+#import easygui as e
 
 
 class FocusWidget(QtGui.QFrame):
 
-    def __init__(self, DAQ, scanZ, *args, **kwargs):
+    def __init__(self, DAQ, scanZ, main, *args, **kwargs):
         super(FocusWidget, self).__init__(*args, **kwargs)
 
         self.DAQ = DAQ
@@ -68,13 +69,14 @@ class FocusWidget(QtGui.QFrame):
                                       QtGui.QSizePolicy.Expanding)
 
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
-        self.exportDataButton = QtGui.QPushButton('Export data')
-        self.exportDataButton.clicked.connect(self.exportData)
-        self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
-        self.focusAnalisisButton.clicked.connect(self.analizeFocus)
-        self.focusPropertiesDisplay = QtGui.QLabel('mean = 0, st_dev = 0, max_dev = 0')
-
-        self.graph = FocusLockGraph(self)
+#        self.exportDataButton = QtGui.QPushButton('Export data')
+#        self.exportDataButton.clicked.connect(self.exportData)
+#        self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
+#        self.focusAnalisisButton.clicked.connect(self.analizeFocus)
+        self.focusPropertiesDisplay = QtGui.QLineEdit('mean = 0, st_dev = 0, max_dev = 0')
+        self.focusPropertiesDisplay.setReadOnly(True)
+#        self.focusPropertiesDisplay.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+        self.graph = FocusLockGraph(self, main)
 
         # GUI layout
         grid = QtGui.QGridLayout()
@@ -83,7 +85,7 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.graph, 1, 0, 1, 6)
         grid.addWidget(self.focusCalibButton, 2, 0)
         grid.addWidget(self.calibrationDisplay, 3, 0)
-        grid.addWidget(self.focusAnalisisButton, 4, 0)
+#        grid.addWidget(self.focusAnalisisButton, 4, 0)
         grid.addWidget(self.focusPropertiesDisplay, 5, 0)
         grid.addWidget(self.kpLabel, 2, 3)
         grid.addWidget(self.kpEdit, 2, 4)
@@ -91,7 +93,7 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.kiEdit, 3, 4)
         grid.addWidget(self.lockButton, 2, 5, 2, 1)
         grid.addWidget(self.focusDataBox, 2, 1)
-        grid.addWidget(self.exportDataButton, 3, 1)
+#        grid.addWidget(self.exportDataButton, 3, 1)
         grid.setColumnMinimumWidth(1, 100)
         grid.setColumnMinimumWidth(2, 40)
         grid.setColumnMinimumWidth(0, 245)
@@ -130,8 +132,8 @@ class FocusWidget(QtGui.QFrame):
         self.distance = self.z.position - self.initialZ
         if abs(self.distance) > 10 * self.um:
             self.unlockFocus()
-            e.msgbox("Maximum error allowed exceded, "
-                     "focus control has been turned off", "Error")
+#            e.msgbox("Maximum error allowed exceded, "
+#                     "focus control has been turned off", "Error")
         else:
             out = self.PI.update(self.stream.newData)
             self.z.moveRelative(out * self.um)
@@ -200,10 +202,12 @@ class FocusWidget(QtGui.QFrame):
 
 class FocusLockGraph(pg.GraphicsWindow):
 
-    def __init__(self, main, *args, **kwargs):
+    def __init__(self, mainwidget, main, *args, **kwargs):
 
-        self.stream = main.stream
-        self.focusDataBox = main.focusDataBox
+        self.recButton = main.recButton
+        self.stream = mainwidget.stream
+        self.analize = mainwidget.analizeFocus
+        self.focusDataBox = mainwidget.focusDataBox
         self.savedDataSignal = []
         self.savedDataTime = []
         self.savedDataPosition = []
@@ -226,7 +230,8 @@ class FocusLockGraph(pg.GraphicsWindow):
 
     def update(self):
         """ Gives an update of the data displayed in the graphs
-        """
+        """    
+        
         if self.ptr < 200:
             self.data[self.ptr] = self.stream.newData
             self.focusCurve.setData(self.xData[1:self.ptr + 1],
@@ -241,10 +246,15 @@ class FocusLockGraph(pg.GraphicsWindow):
 
         self.ptr += 1
 
-        if self.focusDataBox.isChecked():
+        if self.recButton.isChecked():
             self.savedDataSignal.append(self.stream.newData)
             self.savedDataTime.append(self.ptr/self.scansPerS)
 #            self.savedDataPosition.append(self.DAQ.position)
+            
+        if self.recButton.isChecked():
+                self.analize()
+                
+            
 
 
 class focusCalibration(QtCore.QObject):

@@ -2,7 +2,7 @@
 """
 Created on Mon Jun 16 18:19:24 2014
 
-@author: Federico Barabas
+@authors: Federico Barabas, Luciano Masullo
 """
 
 import numpy as np
@@ -14,16 +14,20 @@ from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
 from pyqtgraph.parametertree import Parameter, ParameterTree
+from pyqtgraph.dockarea import Dock, DockArea
+from pyqtgraph.console import ConsoleWidget
 
 import h5py as hdf
 import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
+
+# Tormenta imports
 from instruments import Laser, Camera, ScanZ, DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
+from viewboxtools import Grid, Crosshair
 
 
-# TODO: Implement cropped sensor mode in case we want higher framerates
 class CamParamTree(ParameterTree):
     """ Making the ParameterTree for configuration of the camera during imaging
     """
@@ -107,7 +111,6 @@ class CamParamTree(ParameterTree):
         gainParams.param('EM gain').setReadonly(value)
 
 
-# TODO: get record methods as RecordingWidget methods
 class RecordingWidget(QtGui.QFrame):
 
     def __init__(self, *args, **kwargs):
@@ -227,6 +230,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def __init__(self, *args, **kwargs):
 
         global andor
+        self.shape = andor.detector_shape
 
         super(TormentaGUI, self).__init__(*args, **kwargs)
         self.setWindowTitle('Tormenta')
@@ -240,7 +244,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.tree = CamParamTree()
 
         # Frame signals
-        self.shape = andor.detector_shape
         frameParam = self.tree.p.param('Image frame')
         frameParam.param('Size').sigValueChanged.connect(self.updateFrame)
 
@@ -275,29 +278,50 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.snapButton.clicked.connect(self.snap)
 
         # Image Widget
-        # TODO: redefine axis ticks
-        self.shape = andor.detector_shape
-        imagewidget = pg.GraphicsLayoutWidget()
-        self.p1 = imagewidget.addPlot()
-        self.p1.getViewBox().setMouseMode(pg.ViewBox.RectMode)
+        self.fpsBox = QtGui.QLabel()
+        imageWidget = pg.GraphicsLayoutWidget()
+        self.vb = imageWidget.addViewBox(row=1, col=1)
+        self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
         self.img.translate(-0.5, -0.5)
-        self.p1.addItem(self.img)
-        self.p1.getViewBox().setAspectLocked(True)
+        self.vb.addItem(self.img)
+        self.vb.setAspectLocked(True)
+
+        # HistogramLUT
         self.hist = pg.HistogramLUTItem()
         self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
-        self.hist.autoHistogramRange = False
-        self.hist.plot.setLogMode(False, True)
+#        self.hist.plot.setLogMode(False, True)  # this breakes the LUT update
         self.hist.vb.setLimits(yMin=0, yMax=20000)
-        imagewidget.addItem(self.hist)
+        imageWidget.addItem(self.hist, row=1, col=2)
 
-        # TODO: x, y profiles
-        self.fpsBox = QtGui.QLabel()
-        self.gridBox = QtGui.QCheckBox('Show grid')
-        self.gridBox.stateChanged.connect(self.toggleGrid)
+        # x and y profiles
+        xPlot = imageWidget.addPlot(row=0, col=1)
+        xPlot.hideAxis('left')
+        xPlot.hideAxis('bottom')
+        self.xProfile = xPlot.plot()
+        imageWidget.ci.layout.setRowMaximumHeight(0, 40)
+        xPlot.setXLink(self.vb)
+        yPlot = imageWidget.addPlot(row=1, col=0)
+        yPlot.hideAxis('left')
+        yPlot.hideAxis('bottom')
+        self.yProfile = yPlot.plot()
+        self.yProfile.rotate(90)
+        imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
+        yPlot.setYLink(self.vb)
+
+        # viewBox tools
+        self.gridButton = QtGui.QPushButton('Grid')
+        self.gridButton.setCheckable(True)
+        self.grid = Grid(self.vb, self.shape)
+        self.gridButton.clicked.connect(self.grid.toggle)
+        self.crosshairButton = QtGui.QPushButton('Crosshair')
+        self.crosshairButton.setCheckable(True)
+        self.crosshair = Crosshair(self.vb)
+        self.crosshairButton.clicked.connect(self.crosshair.toggle)
 
         # Initial camera configuration taken from the parameter tree
+        self.shape = andor.detector_shape
         andor.set_exposure_time(self.ExpPar.value() * self.s)
         self.adjustFrame()
         self.updateTimings()
@@ -305,6 +329,8 @@ class TormentaGUI(QtGui.QMainWindow):
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('Liveview')
         self.liveviewButton.setCheckable(True)
+        self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                          QtGui.QSizePolicy.Expanding)
         self.liveviewButton.clicked.connect(self.liveview)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
@@ -317,26 +343,56 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizerThread.started.connect(self.stabilizer.start)
         self.stabilizerThread.start()
 
-        # Laser control widget
+        dockArea = DockArea()
+
+        consoleDock = Dock("Console", size=(600, 200))
+        namespace = {'pg': pg, 'np': np}
+        console = ConsoleWidget(namespace=namespace)
+        consoleDock.addWidget(console)
+        dockArea.addDock(consoleDock)
+
+        wheelDock = Dock("Emission filters", size=(20, 20))
+        tableWidget = pg.TableWidget()
+        data = np.array([(1,   1.6,   'x'),
+                         (3,   5.4,   'y'),
+                         (8,   12.5,  'z'),
+                         (443, 1e-12, 'w')],
+                        dtype=[('Column 1', int),
+                               ('Column 2', float),
+                               ('Column 3', object)])
+        tableWidget.setData(data)
+        wheelDock.addWidget(tableWidget)
+        dockArea.addDock(wheelDock, 'top', consoleDock)
+
+        focusDock = Dock("Focus Control", size=(1, 1))
+        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
+        focusDock.addWidget(self.focusWidget)
+        dockArea.addDock(focusDock, 'above', wheelDock)
+
+        laserDock = Dock("Laser Control", size=(1, 1))
         self.laserWidgets = LaserWidget((redlaser, bluelaser, greenlaser))
-        self.focusWidget = FocusWidget(DAQ, scanZ)
+        laserDock.addWidget(self.laserWidgets)
+        dockArea.addDock(laserDock, 'above', focusDock)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
-        layout.setColumnMinimumWidth(0, 400)
-        layout.setColumnMinimumWidth(1, 800)
+        layout.setColumnMinimumWidth(0, 380)
+        layout.setColumnMinimumWidth(1, 600)
         layout.setColumnMinimumWidth(2, 200)
-        layout.setRowMinimumHeight(0, 150)
-        layout.setRowMinimumHeight(1, 320)
+        layout.setRowMinimumHeight(0, 220)
+        layout.setRowMinimumHeight(1, 550)
+        layout.setRowMinimumHeight(2, 20)
+        layout.setRowMinimumHeight(3, 180)
+        layout.setRowMinimumHeight(4, 20)
         layout.addWidget(self.tree, 0, 0, 2, 1)
         layout.addWidget(self.liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
-        layout.addWidget(imagewidget, 0, 1, 4, 3)
+        layout.addWidget(imageWidget, 0, 1, 4, 4)
         layout.addWidget(self.fpsBox, 4, 1)
-        layout.addWidget(self.gridBox, 4, 2)
-        layout.addWidget(self.laserWidgets, 0, 4)
-        layout.addWidget(self.focusWidget, 1, 4)
+        layout.addWidget(self.gridButton, 4, 3)
+        layout.addWidget(self.crosshairButton, 4, 4)
+        layout.addWidget(dockArea, 0, 5, 5, 1)
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -382,35 +438,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
-    """ Grid methods """
-    def showGrid(self):
-        self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
-        self.yline2 = pg.InfiniteLine(pos=0.50*self.shape[0], pen='y')
-        self.yline3 = pg.InfiniteLine(pos=0.75*self.shape[0], pen='y')
-        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], pen='y', angle=0)
-        self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1], pen='y', angle=0)
-        self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1], pen='y', angle=0)
-        self.p1.getViewBox().addItem(self.xline1)
-        self.p1.getViewBox().addItem(self.xline2)
-        self.p1.getViewBox().addItem(self.xline3)
-        self.p1.getViewBox().addItem(self.yline1)
-        self.p1.getViewBox().addItem(self.yline2)
-        self.p1.getViewBox().addItem(self.yline3)
-
-    def hideGrid(self):
-        self.p1.getViewBox().removeItem(self.xline1)
-        self.p1.getViewBox().removeItem(self.xline2)
-        self.p1.getViewBox().removeItem(self.xline3)
-        self.p1.getViewBox().removeItem(self.yline1)
-        self.p1.getViewBox().removeItem(self.yline2)
-        self.p1.getViewBox().removeItem(self.yline3)
-
-    def toggleGrid(self, state):
-        if state == QtCore.Qt.Checked:
-            self.showGrid()
-        else:
-            self.hideGrid()
-
     def adjustFrame(self, shape=None, start=(1, 1)):
         """ Method to change the area of the CCD to be used and adjust the
         image widget accordingly.
@@ -419,14 +446,9 @@ class TormentaGUI(QtGui.QMainWindow):
             shape = self.shape
 
         andor.set_image(shape=shape, p_0=start)
-        self.p1.setRange(xRange=(-0.5, shape[0] - 0.5),
-                         yRange=(-0.5, shape[1] - 0.5), padding=0)
-        self.p1.getViewBox().setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
-                                       yMin=-0.5, yMax=shape[1] - 0.5,
-                                       minXRange=4, minYRange=4)
-        if self.gridBox.isChecked():
-            self.hideGrid()
-            self.showGrid()
+        self.vb.setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
+                          yMin=-0.5, yMax=shape[1] - 0.5,
+                          minXRange=4, minYRange=4)
 
         self.updateTimings()
 
@@ -436,12 +458,12 @@ class TormentaGUI(QtGui.QMainWindow):
         frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
-            self.roi = pg.ROI((0.5 * self.shape[0] - 64,
+            self.ROI = pg.ROI((0.5 * self.shape[0] - 64,
                                0.5 * self.shape[1] - 64),
                               size=(128, 128), scaleSnap=True,
                               translateSnap=True, pen='y')
-            self.roi.addScaleHandle((1, 0), (0, 1), lockAspect=True)
-            self.p1.addItem(self.roi)
+            self.ROI.addScaleHandle((1, 0), (0, 1), lockAspect=True)
+            self.vb.addItem(self.ROI)
 
             # Signals
             applyParam = frameParam.param('Apply')
@@ -458,13 +480,18 @@ class TormentaGUI(QtGui.QMainWindow):
             self.shape = (side, side)
             self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
+        self.grid.update(self.shape)
+
     def customFrame(self):
 
-        self.shape = self.roi.size()
-        start = self.roi.pos()
+        ROISize = self.ROI.size()
+        self.shape = (int(ROISize[0]), int(ROISize[1]))
+        startROI = self.ROI.pos()
+        startROI = (int(startROI[0]), int(startROI[1]))
 
-        self.changeParameter(lambda: self.adjustFrame(self.shape, start))
-        self.roi.hide()
+        self.changeParameter(lambda: self.adjustFrame(self.shape, startROI))
+        self.ROI.hide()
+        self.grid.update(self.shape)
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
@@ -520,6 +547,13 @@ class TormentaGUI(QtGui.QMainWindow):
         try:
             image = andor.most_recent_image16(self.shape)
             self.img.setImage(image, autoLevels=False)
+
+            if self.crosshair.showed:
+                xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                ycoord = int(np.round(self.crosshair.hLine.pos()[0]))
+                self.xProfile.setData(image[xcoord])
+                self.yProfile.setData(image[:, ycoord])
+
             now = ptime.time()
             dt = now - self.lastTime
             self.lastTime = now
@@ -607,8 +641,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 """ This format has the problem of placing the whole stack in
                 memory before saving."""
 
-                # TODO: Work with memmap
-                self.stack = np.empty((self.n, self.shape[0], self.shape[1]),
+                self.stack = np.zeros((self.n, self.shape[0], self.shape[1]),
                                       dtype=np.uint16)
 
             QtCore.QTimer.singleShot(1, self.updateWhileRec)
@@ -623,6 +656,13 @@ class TormentaGUI(QtGui.QMainWindow):
             self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape,
                                                       1, self.n)
             self.img.setImage(self.stack[self.j - 1], autoLevels=False)
+
+            if self.crosshair.showed:
+                xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                ycoord = int(np.round(self.crosshair.hLine.pos()[0]))
+                self.xProfile.setData(self.stack[self.j - 1][xcoord])
+                self.yProfile.setData(self.stack[self.j - 1][:, ycoord])
+
             self.recWidget.currentFrame.setText(str(self.j) + ' /')
 
             now = ptime.time()
@@ -640,6 +680,11 @@ class TormentaGUI(QtGui.QMainWindow):
 
         else:
             self.endRecording()
+            if self.focusWidget.focusDataBox.isChecked():
+                self.focusWidget.exportData()
+                
+            else:
+                self.focusWidget.graph.savedDataSignal = []
 
     def endRecording(self):
 
