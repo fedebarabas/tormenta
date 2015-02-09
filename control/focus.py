@@ -10,6 +10,7 @@ import time
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
+import matplotlib.pyplot as plt
 
 from lantz import Q_
 
@@ -71,6 +72,7 @@ class FocusWidget(QtGui.QFrame):
         self.exportDataButton.clicked.connect(self.exportData)
         self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
         self.focusAnalisisButton.clicked.connect(self.analizeFocus)
+        self.focusPropertiesDisplay = QtGui.QLabel('mean = 0, st_dev = 0, max_dev = 0')
 
         self.graph = FocusLockGraph(self)
 
@@ -81,7 +83,8 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.graph, 1, 0, 1, 6)
         grid.addWidget(self.focusCalibButton, 2, 0)
         grid.addWidget(self.calibrationDisplay, 3, 0)
-        grid.addWidget(self.focusAnalisisButton, 4, 1)
+        grid.addWidget(self.focusAnalisisButton, 4, 0)
+        grid.addWidget(self.focusPropertiesDisplay, 5, 0)
         grid.addWidget(self.kpLabel, 2, 3)
         grid.addWidget(self.kpEdit, 2, 4)
         grid.addWidget(self.kiLabel, 3, 3)
@@ -90,7 +93,8 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.focusDataBox, 2, 1)
         grid.addWidget(self.exportDataButton, 3, 1)
         grid.setColumnMinimumWidth(1, 100)
-        grid.setColumnMinimumWidth(2, 70)
+        grid.setColumnMinimumWidth(2, 40)
+        grid.setColumnMinimumWidth(0, 245)
         # Labjack configuration
         self.graphTimer = QtCore.QTimer()
         self.graphTimer.timeout.connect(self.graph.update)
@@ -181,13 +185,17 @@ class FocusWidget(QtGui.QFrame):
 
     def analizeFocus(self):
 
-        rawData = np.loadtxt('focus_data')
-        setPoint = rawData[0]
-        plt.plot(rawData[2], rawData[1], 'b-', rawData[2], setPoint, 'r-')
+        self.rawData = np.loadtxt('focus_data')
+        self.analisisSetPoint = self.rawData[0]
+        self.plot = plt.plot(self.rawData[2], self.rawData[1], 'b-',
+                             self.rawData[2], self.analisisSetPoint, 'r-')
 
-        mean = np.mean(rawData[1])
-        std_dev = np.std(rawData[1])
-        max_dev = np.max(np.abs(np.array(rawData[1]) - setPoint))
+        self.mean = np.around(np.mean(self.rawData[1]), 3)
+        self.std_dev = np.around(np.std(self.rawData[1]), 5)
+        self.max_dev = np.around(np.max(np.abs(np.array(self.rawData[1])
+                                     - self.analisisSetPoint)), 5)
+
+        self.focusPropertiesDisplay.setText('mean={}, st_dev={}, max_dev={}'.format(self.mean, self.std_dev, self.max_dev))
 
 
 class FocusLockGraph(pg.GraphicsWindow):
@@ -254,8 +262,6 @@ class focusCalibration(QtCore.QObject):
 
     def start(self):
 
-        print('hola')
-
         for i in range(100):
 
             self.signalData.append(self.stream.newData)
@@ -266,7 +272,7 @@ class focusCalibration(QtCore.QObject):
         self.calibrationResult = np.polyfit(np.array(self.signalData),
                                             np.array(self.positionData), 1)
 
-        self.main.calibrationDisplay.setText(str(self.calibrationResult[0]))
+        self.main.calibrationDisplay.setText('0,1 mV --> {} nm'.format(self.calibrationResult[0]))
 
 
 class daqStream(QtCore.QObject):
