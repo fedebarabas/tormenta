@@ -3,6 +3,11 @@
 *~
 *.dax
 *.tif
+*.tiff
 *.pyc
 *.hdf5
 *.png
+*.npy
+/control/tifffile.py
+/control/tifffile.c
+/control/focus_data
