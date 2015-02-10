@@ -46,8 +46,10 @@ def getUniqueName(name):
 
 class RecordingWidget(QtGui.QFrame):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, main, *args, **kwargs):
         super(RecordingWidget, self).__init__(*args, **kwargs)
+
+        self.main = main
 
         recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
         recTitle.setTextFormat(QtCore.Qt.RichText)
@@ -73,6 +75,8 @@ class RecordingWidget(QtGui.QFrame):
         zeroTime = datetime.timedelta(seconds=0)
         self.tElapsed = QtGui.QLabel('Elapsed: {}'.format(zeroTime))
         self.tRemaining = QtGui.QLabel()
+        self.numExpositionsEdit.sigValueChanged.connect(self.updateRemaining)
+        self.updateRemaining()
 
         recGrid = QtGui.QGridLayout()
         self.setLayout(recGrid)
@@ -93,6 +97,11 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.setColumnMinimumWidth(0, 200)
 
         self._editable = True
+
+    def updateRemaining(self):
+        rSecs = self.main.t_acc_real.magnitude * self.nExpositions()
+        rTime = datetime.timedelta(seconds=np.round(rSecs))
+        self.tRemaining.setText('Remaining: {}'.format(rTime))
 
     def nExpositions(self):
         return int(self.numExpositionsEdit.text())
@@ -327,13 +336,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.adjustFrame()
 
         # Recording widget
+        # TODO: take this to recordingwidget
         self.dataname = 'data'      # In case I need a QLineEdit for this
-        self.recWidget = RecordingWidget()
+        self.recWidget = RecordingWidget(self)
         self.recWidget.recButton.clicked.connect(self.record)
         self.recWidget.snapButton.clicked.connect(self.snap)
-        rSecs = self.t_acc_real.magnitude * self.recWidget.nExpositions()
-        rTime = datetime.timedelta(seconds=np.round(rSecs))
-        self.recWidget.tRemaining.setText('Remaining: {}'.format(rTime))
 
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('Liveview')
