@@ -37,11 +37,15 @@ def getUniqueName(name):
         if n > 1:
             name = name.replace('_{}.'.format(n - 1), '_{}.'.format(n))
         else:
-            names = os.path.splitext(name)
-            name = names[0] + '_{}'.format(n) + names[1]
+            name = insertSuffix(name, '_{}'.format(n))
         n += 1
 
     return name
+
+
+def insertSuffix(filename, suffix):
+    names = os.path.splitext(filename)
+    return names[0] + suffix + names[1]
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -50,6 +54,8 @@ class RecordingWidget(QtGui.QFrame):
         super(RecordingWidget, self).__init__(*args, **kwargs)
 
         self.main = main
+        self.dataname = 'data'      # In case I need a QLineEdit for this
+        self.shape = self.main.shape
 
         recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
         recTitle.setTextFormat(QtCore.Qt.RichText)
@@ -60,22 +66,24 @@ class RecordingWidget(QtGui.QFrame):
         self.folderEdit = QtGui.QLineEdit(os.getcwd())
         self.filenameEdit = QtGui.QLineEdit('filename')
         self.formatBox = QtGui.QComboBox()
-        self.formatBox.addItems(['tiff', 'hdf5'])
+        self.formatBox.addItems(['hdf5', 'tiff'])
 
         self.snapButton = QtGui.QPushButton('Snap')
         self.snapButton.setEnabled(False)
         self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
+        self.snapButton.clicked.connect(self.snap)
         self.recButton = QtGui.QPushButton('REC')
         self.recButton.setCheckable(True)
         self.recButton.setEnabled(False)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
+        self.recButton.clicked.connect(self.record)
 
         zeroTime = datetime.timedelta(seconds=0)
         self.tElapsed = QtGui.QLabel('Elapsed: {}'.format(zeroTime))
         self.tRemaining = QtGui.QLabel()
-        self.numExpositionsEdit.sigValueChanged.connect(self.updateRemaining)
+        self.numExpositionsEdit.textChanged.connect(self.nChanged)
         self.updateRemaining()
 
         recGrid = QtGui.QGridLayout()
@@ -98,20 +106,6 @@ class RecordingWidget(QtGui.QFrame):
 
         self._editable = True
 
-    def updateRemaining(self):
-        rSecs = self.main.t_acc_real.magnitude * self.nExpositions()
-        rTime = datetime.timedelta(seconds=np.round(rSecs))
-        self.tRemaining.setText('Remaining: {}'.format(rTime))
-
-    def nExpositions(self):
-        return int(self.numExpositionsEdit.text())
-
-    def folder(self):
-        return self.folderEdit.text()
-
-    def filename(self):
-        return self.filenameEdit.text()
-
     @property
     def editable(self):
         return self._editable
@@ -124,6 +118,251 @@ class RecordingWidget(QtGui.QFrame):
         self.numExpositionsEdit.setEnabled(value)
         self.formatBox.setEnabled(value)
         self._editable = value
+
+    def nChanged(self):
+        self.updateRemaining()
+
+        if self.formatBox.currentText() == 'tiff':
+            self.limitExpositions(2)
+        elif self.formatBox.currentText() == 'hdf5':
+            self.limitExpositions(9)
+
+    def updateRemaining(self):
+        rSecs = self.main.t_acc_real.magnitude * self.n()
+        rTime = datetime.timedelta(seconds=np.round(rSecs))
+        self.tRemaining.setText('Remaining: {}'.format(rTime))
+
+    def nPixels(self):
+        return self.shape[0] * self.shape[1]
+
+    def fileSizeGB(self):
+        # self.nPixels() * self.nExpositions * 16 / (8 * 1024**3)
+        return self.nPixels() * self.n() / 2**29
+
+    # Setting a xGB limit on file sizes to be able to open them in Fiji
+    def limitExpositions(self, xGB):
+        # nMax = xGB * 8 * 1024**3 / (pixels * 16)
+        nMax = xGB * 2**29 / self.nPixels()
+        if self.n() > nMax:
+            self.numExpositionsEdit.setText(str(np.round(nMax).astype(int)))
+
+    def n(self):
+        return int(self.numExpositionsEdit.text())
+
+    def folder(self):
+        return self.folderEdit.text()
+
+    def filename(self):
+        return self.filenameEdit.text()
+
+    def saveFormat(self):
+        return self.formatBox.currentText()
+
+    def snap(self):
+
+        image = andor.most_recent_image16(self.shape)
+
+        # Data storing
+        self.savename = (os.path.join(self.folder(), self.filename()) + '.' +
+                         self.format)
+
+        if self.saveFormat() == 'hdf5':
+            self.store_file = hdf.File(getUniqueName(self.savename))
+            self.store_file.create_dataset(name=self.dataname + '_snap',
+                                           data=image)
+            self.store_file.close()
+
+        elif self.saveFormat() == 'tiff':
+            splitted = os.path.splitext(self.savename)
+            snapname = splitted[0] + '_snap' + splitted[1]
+            tiff.imsave(getUniqueName(snapname), image,
+                        description=self.dataname, software='Tormenta')
+
+    def startRecording(self):
+
+        if self.recButton.isChecked():
+
+            self.editable = False
+            self.main.tree.editable = False
+            self.main.liveviewButton.setEnabled(False)
+
+            # Frame counter
+            self.j = 0
+
+            # Acquisition preparation
+            if andor.status != 'Camera is idle, waiting for instructions.':
+                andor.abort_acquisition()
+            else:
+                andor.shutter(0, 1, 0, 0, 0)
+
+            andor.free_int_mem()
+            andor.acquisition_mode = 'Kinetics'
+            andor.set_n_kinetics(self.n())
+            andor.start_acquisition()
+            time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
+
+            # Stop the QTimer that updates the image with incoming data from
+            # the 'Run till abort' acquisition mode.
+            self.main.viewtimer.stop()
+
+            self.savename = (os.path.join(self.folder(), self.filename()) +
+                             '.' + self.saveFormat())
+            self.savename = getUniqueName(self.savename)
+
+            if self.saveFormat() == 'hdf5' and self.fileSizeGB() > 2:
+                self.recordChunks()
+
+            else:
+                self.recordSingle()
+
+    def recordSingle(self):
+
+            if self.saveFormat() == 'hdf5':
+                """ Useful format for big data as it saves new frames in
+                chunks. Therefore, you don't have the whole stack in memory."""
+
+                self.store_file = hdf.File(self.savename, "w")
+                self.store_file.create_dataset(name=self.dataname,
+                                               shape=(self.n(),
+                                                      self.shape[1],
+                                                      self.shape[0]),
+                                               fillvalue=0,
+                                               dtype=np.uint16)
+                self.stack = self.store_file[self.dataname]
+                self.startTime = ptime.time()
+                QtCore.QTimer.singleShot(1, self.updateWhileRec(self.n()))
+
+            else:
+                """ This format has the problem of placing the whole stack in
+                memory before saving."""
+
+                self.stack = np.zeros((self.n(), self.shape[0],
+                                       self.shape[1]), dtype=np.uint16)
+                self.startTime = ptime.time()
+                QtCore.QTimer.singleShot(1, self.updateWhileRec)
+
+    def recordChunks(self):
+        self.nChunks = np.ceil(self.fileSizeGB() / 2)
+        chunkSize = np.round(self.n() / self.nChunks)
+        self.cuts = np.cumsum(chunkSize * np.ones(self.nChunks))
+        self.cuts[-1] = self.n()
+
+        self.savename = insertSuffix(self.savename, '_part1')
+
+        self.store_file = hdf.File(self.savename, "w")
+        self.store_file.create_dataset(name=self.dataname,
+                                       shape=(self.n(),
+                                              self.shape[1],
+                                              self.shape[0]),
+                                       fillvalue=0,
+                                       dtype=np.uint16)
+        self.stack = self.store_file[self.dataname]
+        self.startTime = ptime.time()
+
+        self.updateWhileRec(self.cuts)
+
+    def updateWhileRec(self, endFrames):
+
+        time.sleep(self.main.t_exp_real.magnitude)
+
+        if andor.n_images_acquired > self.j:
+            i, self.j = andor.new_images_index
+            self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape,
+                                                      1, self.n())
+            self.main.img.setImage(np.transpose(self.stack[self.j - 1]),
+                                   autoLevels=False)
+
+            if self.main.crosshair.showed:
+                xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
+                ycoord = int(np.round(self.main.crosshair.hLine.pos()[0]))
+                self.main.xProfile.setData(self.stack[self.j - 1][xcoord])
+                self.main.yProfile.setData(self.stack[self.j - 1][:, ycoord])
+
+            # fps calculation
+            now = ptime.time()
+            dt = now - self.main.lastTime
+            self.main.lastTime = now
+            if self.main.fps is None:
+                self.main.fps = 1.0/dt
+            else:
+                s = np.clip(dt*3., 0, 1)
+                self.main.fps = self.main.fps * (1-s) + (1.0/dt) * s
+            self.main.fpsBox.setText('%0.2f fps' % self.main.fps)
+
+            # Elapsed and remaining times and frames
+            self.currentFrame.setText(str(self.j) + ' /')
+            eSecs = np.round(now - self.startTime)
+            eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
+            self.tElapsed.setText(eText)
+            rFrames = self.n() - self.j
+            rSecs = np.round(self.main.t_acc_real.magnitude * rFrames)
+            rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
+            self.tRemaining.setText(rText)
+
+        if self.j < endFrames[0] and self.recButton.isChecked():
+            QtCore.QTimer.singleShot(0, self.updateWhileRec(endFrames))
+
+        elif endFrames[0] < self.n():
+
+            endFrames = endFrames[1:]
+            QtCore.QTimer.singleShot(0, self.updateWhileRec(endFrames))
+        else:
+            self.endRecording()
+
+    def endRecording(self):
+
+        if self.main.focusWidget.focusDataBox.isChecked():
+            self.main.focusWidget.exportData()
+
+        else:
+            self.main.focusWidget.graph.savedDataSignal = []
+
+        attrs = []
+        attrs.extend([('Date', time.strftime("%Y-%m-%d")),
+                      ('Time', time.strftime("%H:%M:%S")),
+                      ('element_size_um', (1, 0.133, 0.133))])
+
+        for ParName in self.main.tree.p.getValues():
+            Par = self.main.tree.p.param(str(ParName))
+            if not(Par.hasChildren()):
+                attrs.append((str(ParName), Par.value()))
+            else:
+                for sParName in Par.getValues():
+                    sPar = Par.param(str(sParName))
+                    if sPar.type() != 'action':
+                        if not(sPar.hasChildren()):
+                            attrs.append((str(sParName), sPar.value()))
+                        else:
+                            for ssParName in sPar.getValues():
+                                ssPar = sPar.param(str(ssParName))
+                                attrs.append((str(ssParName), ssPar.value()))
+
+            # TODO:
+#            for laser in laserlist:
+#                attrs[laser.wv + 'power'] = laser.power
+
+        if self.saveFormat() == 'hdf5':
+            # TODO: Crop results to self.j frames
+
+            # Saving parameters
+            dset = self.store_file[self.dataname]
+
+            for item in attrs:
+                dset.attrs[item[0]] = item[1]
+
+            self.store_file.close()
+
+        elif self.saveFormat() == 'tiff':
+
+            tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
+                        description=self.dataname, software='Tormenta')
+
+        self.j = 0                                  # Reset counter
+        self.recButton.setChecked(False)
+        self.editable = True
+        self.main.tree.editable = True
+        self.main.liveviewButton.setEnabled(True)
+        self.main.liveview(update=False)
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -335,13 +574,6 @@ class TormentaGUI(QtGui.QMainWindow):
         andor.set_exposure_time(self.ExpPar.value() * self.s)
         self.adjustFrame()
 
-        # Recording widget
-        # TODO: take this to recordingwidget
-        self.dataname = 'data'      # In case I need a QLineEdit for this
-        self.recWidget = RecordingWidget(self)
-        self.recWidget.recButton.clicked.connect(self.record)
-        self.recWidget.snapButton.clicked.connect(self.snap)
-
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('Liveview')
         self.liveviewButton.setCheckable(True)
@@ -358,6 +590,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizer.moveToThread(self.stabilizerThread)
         self.stabilizerThread.started.connect(self.stabilizer.start)
         self.stabilizerThread.start()
+
+        self.recWidget = RecordingWidget(self)
 
         dockArea = DockArea()
 
@@ -583,185 +817,6 @@ class TormentaGUI(QtGui.QMainWindow):
             self.fpsBox.setText('%0.2f fps' % self.fps)
         except:
             pass
-
-    def snap(self):
-
-        image = andor.most_recent_image16(self.shape)
-
-        # Data storing
-        self.folder = self.recWidget.folder()
-        self.filename = self.recWidget.filename()
-        self.format = self.recWidget.formatBox.currentText()
-        self.savename = (os.path.join(self.folder, self.filename) + '.' +
-                         self.format)
-
-        if self.format == 'hdf5':
-            self.store_file = hdf.File(getUniqueName(self.savename))
-            self.store_file.create_dataset(name=self.dataname + '_snap',
-                                           data=image)
-            self.store_file.close()
-
-        elif self.format == 'tiff':
-            splitted = os.path.splitext(self.savename)
-            snapname = splitted[0] + '_snap' + splitted[1]
-            tiff.imsave(getUniqueName(snapname), image,
-                        description=self.dataname, software='Tormenta')
-
-    def record(self):
-
-        if self.recWidget.recButton.isChecked():
-
-            self.recWidget.editable = False
-            self.tree.editable = False
-            self.liveviewButton.setEnabled(False)
-
-            # Frame counter
-            self.j = 0
-
-            # Data storing
-            self.recPath = self.recWidget.folder()
-            self.recFilename = self.recWidget.filename()
-            self.n = self.recWidget.nExpositions()
-            self.format = self.recWidget.formatBox.currentText()
-
-            # Acquisition preparation
-            if andor.status != 'Camera is idle, waiting for instructions.':
-                andor.abort_acquisition()
-            else:
-                andor.shutter(0, 1, 0, 0, 0)
-
-            andor.free_int_mem()
-            andor.acquisition_mode = 'Kinetics'
-            andor.set_n_kinetics(self.n)
-            andor.start_acquisition()
-            time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
-
-            # Stop the QTimer that updates the image with incoming data from
-            # the 'Run till abort' acquisition mode.
-            self.viewtimer.stop()
-
-            self.savename = os.path.join(self.recPath,
-                                         self.recFilename) + '.' + self.format
-
-            if self.format == 'hdf5':
-                """ Useful format for big data as it saves new frames in
-                chunks. Therefore, you don't have the whole stack in memory."""
-
-                self.store_file = hdf.File(getUniqueName(self.savename), "w")
-                self.store_file.create_dataset(name=self.dataname,
-                                               shape=(self.n,
-                                                      self.shape[1],
-                                                      self.shape[0]),
-                                               fillvalue=0, dtype=np.uint16)
-                self.stack = self.store_file[self.dataname]
-
-            elif self.format == 'tiff':
-                """ This format has the problem of placing the whole stack in
-                memory before saving."""
-
-                self.stack = np.zeros((self.n, self.shape[0], self.shape[1]),
-                                      dtype=np.uint16)
-
-            self.startTime = ptime.time()
-            QtCore.QTimer.singleShot(1, self.updateWhileRec)
-
-    def updateWhileRec(self):
-        global lastTime, fps
-
-        time.sleep(self.t_exp_real.magnitude)
-
-        if andor.n_images_acquired > self.j:
-            i, self.j = andor.new_images_index
-            self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape,
-                                                      1, self.n)
-            self.img.setImage(np.transpose(self.stack[self.j - 1]),
-                              autoLevels=False)
-
-            if self.crosshair.showed:
-                xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
-                ycoord = int(np.round(self.crosshair.hLine.pos()[0]))
-                self.xProfile.setData(self.stack[self.j - 1][xcoord])
-                self.yProfile.setData(self.stack[self.j - 1][:, ycoord])
-
-            # fps calculation
-            now = ptime.time()
-            dt = now - self.lastTime
-            self.lastTime = now
-            if self.fps is None:
-                self.fps = 1.0/dt
-            else:
-                s = np.clip(dt*3., 0, 1)
-                self.fps = self.fps * (1-s) + (1.0/dt) * s
-            self.fpsBox.setText('%0.2f fps' % self.fps)
-
-            # Elapsed and remaining times and frames
-            self.recWidget.currentFrame.setText(str(self.j) + ' /')
-            eSecs = np.round(now - self.startTime)
-            eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
-            self.recWidget.tElapsed.setText(eText)
-            rSecs = np.round(self.t_acc_real.magnitude * (self.n - self.j))
-            rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
-            self.recWidget.tRemaining.setText(rText)
-
-        if self.j < self.n and self.recWidget.recButton.isChecked():
-            QtCore.QTimer.singleShot(0, self.updateWhileRec)
-
-        else:
-            self.endRecording()
-            if self.focusWidget.focusDataBox.isChecked():
-                self.focusWidget.exportData()
-
-            else:
-                self.focusWidget.graph.savedDataSignal = []
-
-    def endRecording(self):
-
-        attrs = []
-        attrs.extend([('Date', time.strftime("%Y-%m-%d")),
-                      ('Time', time.strftime("%H:%M:%S")),
-                      ('element_size_um', (1, 0.133, 0.133))])
-
-        for ParName in self.tree.p.getValues():
-            Par = self.tree.p.param(str(ParName))
-            if not(Par.hasChildren()):
-                attrs.append((str(ParName), Par.value()))
-            else:
-                for sParName in Par.getValues():
-                    sPar = Par.param(str(sParName))
-                    if sPar.type() != 'action':
-                        if not(sPar.hasChildren()):
-                            attrs.append((str(sParName), sPar.value()))
-                        else:
-                            for ssParName in sPar.getValues():
-                                ssPar = sPar.param(str(ssParName))
-                                attrs.append((str(ssParName), ssPar.value()))
-
-            # TODO:
-#            for laser in laserlist:
-#                attrs[laser.wv + 'power'] = laser.power
-
-        if self.format == 'hdf5':
-            # TODO: Crop results to self.j frames
-
-            # Saving parameters
-            dset = self.store_file[self.dataname]
-
-            for item in attrs:
-                dset.attrs[item[0]] = item[1]
-
-            self.store_file.close()
-
-        elif self.format == 'tiff':
-
-            tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
-                        description=self.dataname, software='Tormenta')
-
-        self.j = 0                                  # Reset counter
-        self.recWidget.recButton.setChecked(False)
-        self.recWidget.editable = True
-        self.tree.editable = True
-        self.liveviewButton.setEnabled(True)
-        self.liveview(update=False)
 
     def closeEvent(self, *args, **kwargs):
 
