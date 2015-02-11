@@ -186,29 +186,11 @@ class RecordingWidget(QtGui.QFrame):
             self.main.tree.editable = False
             self.main.liveviewButton.setEnabled(False)
 
-            # Frame counter
-            self.j = 0
-
-            # Acquisition preparation
-            if andor.status != 'Camera is idle, waiting for instructions.':
-                andor.abort_acquisition()
-            else:
-                andor.shutter(0, 1, 0, 0, 0)
-
-            andor.free_int_mem()
-            andor.acquisition_mode = 'Kinetics'
-            andor.set_n_kinetics(self.n())
-            andor.start_acquisition()
-            time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
-
-            # Stop the QTimer that updates the image with incoming data from
-            # the 'Run till abort' acquisition mode.
-            self.main.viewtimer.stop()
-
             self.savename = (os.path.join(self.folder(), self.filename()) +
                              '.' + self.saveFormat())
             self.savename = getUniqueName(self.savename)
 
+            # Attributes saving
             self.attrs = []
             self.attrs.extend([('Date', time.strftime("%Y-%m-%d")),
                                ('Start time', time.strftime("%H:%M:%S")),
@@ -231,71 +213,76 @@ class RecordingWidget(QtGui.QFrame):
                                     self.attrs.append((str(ssParName),
                                                        ssPar.value()))
 
-            if self.saveFormat() == 'hdf5' and self.fileSizeGB() > 2:
-                self.recordChunks()
+            # Stop the QTimer that updates the image with incoming data from
+            # the 'Run till abort' acquisition mode.
+            self.main.viewtimer.stop()
+
+            # Acquisition preparation
+            if andor.status != 'Camera is idle, waiting for instructions.':
+                andor.abort_acquisition()
+            else:
+                andor.shutter(0, 1, 0, 0, 0)
+
+            if self.fileSizeGB() < 2:
+                self.chunkMode = False
+                self.recordSingle(self.n(), self.savename)
 
             else:
-                self.recordSingle()
+                self.chunkMode = True
 
-    def recordSingle(self):
+                nn = np.zeros(np.ceil(self.fileSizeGB / 2))
+                nn[:np.floor(self.fileSizeGB / 2)] = 2
+                if nn[-1] == 0:
+                    nn[-1] = self.fileSizeGB - np.sum(nn)
 
-            if self.saveFormat() == 'hdf5':
-                """ Useful format for big data as it saves new frames in
-                chunks. Therefore, you don't have the whole stack in memory."""
+                self.nn = (self.n() * nn / self.fileSizeGB).astype(int)
+                self.iPart = 0
+                suffix = '_part{}'.format(self.iPart)
+                partName = insertSuffix(self.savename, suffix)
 
-                self.store_file = hdf.File(self.savename, "w")
-                self.store_file.create_dataset(name=self.dataname,
-                                               shape=(self.n(),
-                                                      self.shape[1],
-                                                      self.shape[0]),
-                                               fillvalue=0,
-                                               dtype=np.uint16)
-                self.stack = self.store_file[self.dataname]
+                self.recordSingle(self.nn[self.iPart], partName)
 
-            else:
-                """ This format has the problem of placing the whole stack in
-                memory before saving."""
+    def recordSingle(self, n, name):
 
-                self.stack = np.zeros((self.n(), self.shape[0],
-                                       self.shape[1]), dtype=np.uint16)
+        # Frame counter
+        self.j = 0
 
-            self.startTime = ptime.time()
-            QtCore.QTimer.singleShot(1, self.updateWhileRec)
+        andor.free_int_mem()
+        andor.acquisition_mode = 'Kinetics'
+        andor.set_n_kinetics(n)
+        andor.start_acquisition()
+        time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
 
-    def recordChunks(self):
-        self.nChunks = np.ceil(self.fileSizeGB() / 2)
-        chunkFrames = np.round(self.n() / self.nChunks)
-        self.chunkSize = chunkFrames * np.ones(self.nChunks)
-        self.chunkSize[-1] = self.n() - np.sum(self.chunkSize[:-1])
-        self.cuts = np.zeros(self.nChunks + 1, dtype=np.int)
-        self.cuts[1:] = np.cumsum(self.chunkSize)
-        self.cuts[-1] = self.n()
+        if self.saveFormat() == 'hdf5':
+            """ Useful format for big data as it saves new frames in
+            chunks. Therefore, you don't have the whole stack in memory."""
 
-        # Chunk nº0
-        self.iCuts = 0
-        self.chunkname = insertSuffix(self.savename,
-                                      '_part{}'.format(self.iCuts))
+            self.store_file = hdf.File(name, "w")
+            self.store_file.create_dataset(name=self.dataname,
+                                           shape=(n,
+                                                  self.shape[1],
+                                                  self.shape[0]),
+                                           fillvalue=0, dtype=np.uint16)
+            self.stack = self.store_file[self.dataname]
 
-        self.store_file = hdf.File(self.chunkname, "w")
-        self.store_file.create_dataset(name=self.dataname,
-                                       shape=(self.chunkSize[self.iCuts],
-                                              self.shape[1],
-                                              self.shape[0]),
-                                       fillvalue=0,
-                                       dtype=np.uint16)
-        self.stack = self.store_file[self.dataname]
+        else:
+            """ This format has the problem of placing the whole stack in
+            memory before saving."""
+
+            self.stack = np.zeros((n, self.shape[0], self.shape[1]),
+                                  dtype=np.uint16)
+
         self.startTime = ptime.time()
+        QtCore.QTimer.singleShot(1, lambda: self.updateWhileRec(n))
 
-        QtCore.QTimer.singleShot(1, self.updateWhileRecChunks)
-
-    def updateWhileRec(self):
+    def updateWhileRec(self, n):
 
         time.sleep(self.main.t_exp_real.magnitude)
 
         if andor.n_images_acquired > self.j:
             i, self.j = andor.new_images_index
-            self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape,
-                                                      1, self.n())
+            self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape, 1,
+                                                      n)
             self.main.img.setImage(np.transpose(self.stack[self.j - 1]),
                                    autoLevels=False)
 
@@ -326,92 +313,16 @@ class RecordingWidget(QtGui.QFrame):
             rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
             self.tRemaining.setText(rText)
 
-        if self.j < self.n() and self.recButton.isChecked():
-            QtCore.QTimer.singleShot(0, self.updateWhileRec)
+        if self.j < n and self.recButton.isChecked():
+            QtCore.QTimer.singleShot(0, lambda: self.updateWhileRec(n))
 
-        else:
-            self.endSingle()
-
-    def updateWhileRecChunks(self):
-
-        time.sleep(self.main.t_exp_real.magnitude)
-
-        if andor.n_images_acquired > self.j:
-            i, self.j = andor.new_images_index
-            imgOut = andor.images16(i, self.j, self.shape, 1, self.n())
-            offset = self.cuts[self.iCuts]
-            self.stack[i - 1 - offset:self.j - offset] = imgOut
-            stackIndex = self.j - 1 - offset
-            self.main.img.setImage(np.transpose(self.stack[stackIndex]),
-                                   autoLevels=False)
-
-            if self.main.crosshair.showed:
-                xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
-                ycoord = int(np.round(self.main.crosshair.hLine.pos()[0]))
-                self.main.xProfile.setData(self.stack[self.j - 1][xcoord])
-                self.main.yProfile.setData(self.stack[self.j - 1][:, ycoord])
-
-            # fps calculation
-            now = ptime.time()
-            dt = now - self.main.lastTime
-            self.main.lastTime = now
-            if self.main.fps is None:
-                self.main.fps = 1.0/dt
-            else:
-                s = np.clip(dt*3., 0, 1)
-                self.main.fps = self.main.fps * (1-s) + (1.0/dt) * s
-            self.main.fpsBox.setText('%0.2f fps' % self.main.fps)
-
-            # Elapsed and remaining times and frames
-            self.currentFrame.setText(str(self.j) + ' /')
-            eSecs = np.round(now - self.startTime)
-            eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
-            self.tElapsed.setText(eText)
-            rFrames = self.n() - self.j
-            rSecs = np.round(self.main.t_acc_real.magnitude * rFrames)
-            rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
-            self.tRemaining.setText(rText)
-
-        if self.j < self.cuts[self.iCuts + 1] and self.recButton.isChecked():
-            QtCore.QTimer.singleShot(0, self.updateWhileRecChunks)
-
-        else:
-            self.endChunk()
-
-    def endChunk(self):
-
-        dset = self.store_file[self.dataname]
-        for item in self.attrs:
-                dset.attrs[item[0]] = item[1]
-
-        self.store_file.close()
-
-        print(self.iCuts, len(self.cuts), self.cuts[self.iCuts])
-        self.iCuts += 1
-        if self.iCuts + 1 < len(self.cuts):
-
-            self.chunkname = insertSuffix(self.savename,
-                                          '_part{}'.format(self.iCuts))
-
-            self.store_file = hdf.File(self.chunkname, "w")
-            self.store_file.create_dataset(name=self.dataname,
-                                           shape=(self.chunkSize[self.iCuts],
-                                                  self.shape[1],
-                                                  self.shape[0]),
-                                           fillvalue=0,
-                                           dtype=np.uint16)
-            self.stack = self.store_file[self.dataname]
-            self.startTime = ptime.time()
-
-            QtCore.QTimer.singleShot(0, self.updateWhileRecChunks)
         else:
             self.endRecording()
 
-    def endSingle(self):
-
-            # TODO:
-#            for laser in laserlist:
-#                attrs[laser.wv + 'power'] = laser.power
+    def endRecording(self):
+#             TODO:
+#        for laser in laserlist:
+#            attrs[laser.wv + 'power'] = laser.power
 
         if self.saveFormat() == 'hdf5':
             # TODO: Crop results to self.j frames
@@ -429,22 +340,25 @@ class RecordingWidget(QtGui.QFrame):
             tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
                         description=self.dataname, software='Tormenta')
 
-        self.endRecording()
-
-    def endRecording(self):
-
         if self.main.focusWidget.focusDataBox.isChecked():
             self.main.focusWidget.exportData()
 
         else:
             self.main.focusWidget.graph.savedDataSignal = []
 
-        self.j = 0                                  # Reset counter
-        self.recButton.setChecked(False)
-        self.editable = True
-        self.main.tree.editable = True
-        self.main.liveviewButton.setEnabled(True)
-        self.main.liveview(update=False)
+        if self.chunkMode and self.iPart < len(self.nn):
+            self.iPart += 1
+            suffix = '_part{}'.format(self.iPart)
+            partName = insertSuffix(self.savename, suffix)
+
+            self.recordSingle(self.nn[self.iPart], partName)
+
+        else:
+            self.recButton.setChecked(False)
+            self.editable = True
+            self.main.tree.editable = True
+            self.main.liveviewButton.setEnabled(True)
+            self.main.liveview(update=False)
 
 
 class TemperatureStabilizer(QtCore.QObject):
