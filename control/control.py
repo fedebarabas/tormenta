@@ -78,7 +78,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setEnabled(False)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
-        self.recButton.clicked.connect(self.record)
+        self.recButton.clicked.connect(self.startRecording)
 
         zeroTime = datetime.timedelta(seconds=0)
         self.tElapsed = QtGui.QLabel('Elapsed: {}'.format(zeroTime))
@@ -209,6 +209,28 @@ class RecordingWidget(QtGui.QFrame):
                              '.' + self.saveFormat())
             self.savename = getUniqueName(self.savename)
 
+            self.attrs = []
+            self.attrs.extend([('Date', time.strftime("%Y-%m-%d")),
+                               ('Start time', time.strftime("%H:%M:%S")),
+                              ('element_size_um', (1, 0.133, 0.133))])
+
+            for ParName in self.main.tree.p.getValues():
+                Par = self.main.tree.p.param(str(ParName))
+                if not(Par.hasChildren()):
+                    self.attrs.append((str(ParName), Par.value()))
+                else:
+                    for sParName in Par.getValues():
+                        sPar = Par.param(str(sParName))
+                        if sPar.type() != 'action':
+                            if not(sPar.hasChildren()):
+                                self.attrs.append((str(sParName),
+                                                   sPar.value()))
+                            else:
+                                for ssParName in sPar.getValues():
+                                    ssPar = sPar.param(str(ssParName))
+                                    self.attrs.append((str(ssParName),
+                                                       ssPar.value()))
+
             if self.saveFormat() == 'hdf5' and self.fileSizeGB() > 2:
                 self.recordChunks()
 
@@ -229,8 +251,6 @@ class RecordingWidget(QtGui.QFrame):
                                                fillvalue=0,
                                                dtype=np.uint16)
                 self.stack = self.store_file[self.dataname]
-                self.startTime = ptime.time()
-                QtCore.QTimer.singleShot(1, self.updateWhileRec(self.n()))
 
             else:
                 """ This format has the problem of placing the whole stack in
@@ -238,20 +258,27 @@ class RecordingWidget(QtGui.QFrame):
 
                 self.stack = np.zeros((self.n(), self.shape[0],
                                        self.shape[1]), dtype=np.uint16)
-                self.startTime = ptime.time()
-                QtCore.QTimer.singleShot(1, self.updateWhileRec)
+
+            self.startTime = ptime.time()
+            QtCore.QTimer.singleShot(1, self.updateWhileRec)
 
     def recordChunks(self):
         self.nChunks = np.ceil(self.fileSizeGB() / 2)
-        chunkSize = np.round(self.n() / self.nChunks)
-        self.cuts = np.cumsum(chunkSize * np.ones(self.nChunks))
+        chunkFrames = np.round(self.n() / self.nChunks)
+        self.chunkSize = chunkFrames * np.ones(self.nChunks)
+        self.chunkSize[-1] = self.n() - np.sum(self.chunkSize[:-1])
+        self.cuts = np.zeros(self.nChunks + 1, dtype=np.int)
+        self.cuts[1:] = np.cumsum(self.chunkSize)
         self.cuts[-1] = self.n()
 
-        self.savename = insertSuffix(self.savename, '_part1')
+        # Chunk nº0
+        self.iCuts = 0
+        self.chunkname = insertSuffix(self.savename,
+                                      '_part{}'.format(self.iCuts))
 
-        self.store_file = hdf.File(self.savename, "w")
+        self.store_file = hdf.File(self.chunkname, "w")
         self.store_file.create_dataset(name=self.dataname,
-                                       shape=(self.n(),
+                                       shape=(self.chunkSize[self.iCuts],
                                               self.shape[1],
                                               self.shape[0]),
                                        fillvalue=0,
@@ -259,9 +286,9 @@ class RecordingWidget(QtGui.QFrame):
         self.stack = self.store_file[self.dataname]
         self.startTime = ptime.time()
 
-        self.updateWhileRec(self.cuts)
+        QtCore.QTimer.singleShot(1, self.updateWhileRecChunks)
 
-    def updateWhileRec(self, endFrames):
+    def updateWhileRec(self):
 
         time.sleep(self.main.t_exp_real.magnitude)
 
@@ -299,43 +326,88 @@ class RecordingWidget(QtGui.QFrame):
             rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
             self.tRemaining.setText(rText)
 
-        if self.j < endFrames[0] and self.recButton.isChecked():
-            QtCore.QTimer.singleShot(0, self.updateWhileRec(endFrames))
+        if self.j < self.n() and self.recButton.isChecked():
+            QtCore.QTimer.singleShot(0, self.updateWhileRec)
 
-        elif endFrames[0] < self.n():
+        else:
+            self.endSingle()
 
-            endFrames = endFrames[1:]
-            QtCore.QTimer.singleShot(0, self.updateWhileRec(endFrames))
+    def updateWhileRecChunks(self):
+
+        time.sleep(self.main.t_exp_real.magnitude)
+
+        if andor.n_images_acquired > self.j:
+            i, self.j = andor.new_images_index
+            imgOut = andor.images16(i, self.j, self.shape, 1, self.n())
+            offset = self.cuts[self.iCuts]
+            self.stack[i - 1 - offset:self.j - offset] = imgOut
+            stackIndex = self.j - 1 - offset
+            self.main.img.setImage(np.transpose(self.stack[stackIndex]),
+                                   autoLevels=False)
+
+            if self.main.crosshair.showed:
+                xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
+                ycoord = int(np.round(self.main.crosshair.hLine.pos()[0]))
+                self.main.xProfile.setData(self.stack[self.j - 1][xcoord])
+                self.main.yProfile.setData(self.stack[self.j - 1][:, ycoord])
+
+            # fps calculation
+            now = ptime.time()
+            dt = now - self.main.lastTime
+            self.main.lastTime = now
+            if self.main.fps is None:
+                self.main.fps = 1.0/dt
+            else:
+                s = np.clip(dt*3., 0, 1)
+                self.main.fps = self.main.fps * (1-s) + (1.0/dt) * s
+            self.main.fpsBox.setText('%0.2f fps' % self.main.fps)
+
+            # Elapsed and remaining times and frames
+            self.currentFrame.setText(str(self.j) + ' /')
+            eSecs = np.round(now - self.startTime)
+            eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
+            self.tElapsed.setText(eText)
+            rFrames = self.n() - self.j
+            rSecs = np.round(self.main.t_acc_real.magnitude * rFrames)
+            rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
+            self.tRemaining.setText(rText)
+
+        if self.j < self.cuts[self.iCuts + 1] and self.recButton.isChecked():
+            QtCore.QTimer.singleShot(0, self.updateWhileRecChunks)
+
+        else:
+            self.endChunk()
+
+    def endChunk(self):
+
+        dset = self.store_file[self.dataname]
+        for item in self.attrs:
+                dset.attrs[item[0]] = item[1]
+
+        self.store_file.close()
+
+        print(self.iCuts, len(self.cuts), self.cuts[self.iCuts])
+        self.iCuts += 1
+        if self.iCuts + 1 < len(self.cuts):
+
+            self.chunkname = insertSuffix(self.savename,
+                                          '_part{}'.format(self.iCuts))
+
+            self.store_file = hdf.File(self.chunkname, "w")
+            self.store_file.create_dataset(name=self.dataname,
+                                           shape=(self.chunkSize[self.iCuts],
+                                                  self.shape[1],
+                                                  self.shape[0]),
+                                           fillvalue=0,
+                                           dtype=np.uint16)
+            self.stack = self.store_file[self.dataname]
+            self.startTime = ptime.time()
+
+            QtCore.QTimer.singleShot(0, self.updateWhileRecChunks)
         else:
             self.endRecording()
 
-    def endRecording(self):
-
-        if self.main.focusWidget.focusDataBox.isChecked():
-            self.main.focusWidget.exportData()
-
-        else:
-            self.main.focusWidget.graph.savedDataSignal = []
-
-        attrs = []
-        attrs.extend([('Date', time.strftime("%Y-%m-%d")),
-                      ('Time', time.strftime("%H:%M:%S")),
-                      ('element_size_um', (1, 0.133, 0.133))])
-
-        for ParName in self.main.tree.p.getValues():
-            Par = self.main.tree.p.param(str(ParName))
-            if not(Par.hasChildren()):
-                attrs.append((str(ParName), Par.value()))
-            else:
-                for sParName in Par.getValues():
-                    sPar = Par.param(str(sParName))
-                    if sPar.type() != 'action':
-                        if not(sPar.hasChildren()):
-                            attrs.append((str(sParName), sPar.value()))
-                        else:
-                            for ssParName in sPar.getValues():
-                                ssPar = sPar.param(str(ssParName))
-                                attrs.append((str(ssParName), ssPar.value()))
+    def endSingle(self):
 
             # TODO:
 #            for laser in laserlist:
@@ -347,7 +419,7 @@ class RecordingWidget(QtGui.QFrame):
             # Saving parameters
             dset = self.store_file[self.dataname]
 
-            for item in attrs:
+            for item in self.attrs:
                 dset.attrs[item[0]] = item[1]
 
             self.store_file.close()
@@ -356,6 +428,16 @@ class RecordingWidget(QtGui.QFrame):
 
             tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
                         description=self.dataname, software='Tormenta')
+
+        self.endRecording()
+
+    def endRecording(self):
+
+        if self.main.focusWidget.focusDataBox.isChecked():
+            self.main.focusWidget.exportData()
+
+        else:
+            self.main.focusWidget.graph.savedDataSignal = []
 
         self.j = 0                                  # Reset counter
         self.recButton.setChecked(False)
