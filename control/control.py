@@ -289,14 +289,8 @@ class RecordingWidget(QtGui.QFrame):
             self.store_file.close()
 
         elif self.saveFormat() == 'tiff':
-            tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
-                        description=self.dataname, software='Tormenta')
-
-        if self.main.focusWidget.focusDataBox.isChecked():
-            self.main.focusWidget.exportData()
-
-        else:
-            self.main.focusWidget.graph.savedDataSignal = []
+            tiff.imsave(name, self.stack[0:self.j], description=self.dataname,
+                        software='Tormenta')
 
         if self.chunkMode and self.iPart + 1 < len(self.nn):
             self.iPart += 1
@@ -306,6 +300,13 @@ class RecordingWidget(QtGui.QFrame):
             self.recordSingle(self.nn[self.iPart], partName)
 
         else:
+
+            if self.main.focusWidget.focusDataBox.isChecked():
+                self.main.focusWidget.exportData()
+
+            else:
+                self.main.focusWidget.graph.savedDataSignal = []
+
             self.recButton.setChecked(False)
             self.editable = True
             self.main.tree.editable = True
