@@ -100,3 +100,28 @@ class Crosshair():
         self.vb.removeItem(self.vLine)
         self.vb.removeItem(self.hLine)
         self.showed = False
+
+
+class ROI(pg.ROI):
+
+    def __init__(self, shape, vb, *args, **kwargs):
+
+        self.mainShape = shape
+
+        pg.ROI.__init__(self, pos=(0.5 * shape[0] - 64, 0.5 * shape[1] - 64),
+                        size=(128, 128), scaleSnap=True, translateSnap=True,
+                        pen='y', *args, **kwargs)
+        self.addScaleHandle((1, 0), (0, 1), lockAspect=True)
+        vb.addItem(self)
+
+        self.label = pg.TextItem()
+        self.label.setPos(0.5 * shape[0] - 64, 0.5 * shape[1] - 64)
+        self.label.setText('128x128')
+
+        self.sigRegionChanged.connect(self.updateText)
+
+        vb.addItem(self.label)
+
+    def updateText(self):
+        self.label.setPos((0.5 * self.mainShape[0] - 64,
+                           0.5 * self.mainShape[1] - 64))

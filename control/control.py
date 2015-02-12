@@ -5,6 +5,8 @@ Created on Mon Jun 16 18:19:24 2014
 @authors: Federico Barabas, Luciano Masullo
 """
 
+import subprocess
+import sys
 import numpy as np
 import os
 import datetime
@@ -26,7 +28,7 @@ from lantz import Q_
 from instruments import Laser, Camera, ScanZ, DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
-from viewboxtools import Grid, Crosshair
+from viewboxtools import Grid, Crosshair, ROI
 
 
 # Check for same name conflict
@@ -64,8 +66,8 @@ class RecordingWidget(QtGui.QFrame):
         self.currentFrame = QtGui.QLabel('0 /')
         self.numExpositionsEdit = QtGui.QLineEdit('100')
         self.folderEdit = QtGui.QLineEdit(os.getcwd())
-        openFolder = QtGui.QPushButton('Open Folder')
-#        openFolder.clicked.connect()
+        openFolderButton = QtGui.QPushButton('Open Folder')
+        openFolderButton.clicked.connect(self.openFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
         self.formatBox = QtGui.QComboBox()
         self.formatBox.addItems(['hdf5', 'tiff'])
@@ -95,7 +97,7 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(self.currentFrame, 5, 1)
         recGrid.addWidget(self.numExpositionsEdit, 5, 2)
         recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0)
-        recGrid.addWidget(openFolder, 1, 1, 1, 2)
+        recGrid.addWidget(openFolderButton, 1, 1, 1, 2)
         recGrid.addWidget(self.folderEdit, 2, 0, 1, 3)
         recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
         recGrid.addWidget(self.filenameEdit, 4, 0, 1, 2)
@@ -122,6 +124,22 @@ class RecordingWidget(QtGui.QFrame):
         self.formatBox.setEnabled(value)
         self._editable = value
 
+    def n(self):
+        text = self.numExpositionsEdit.text()
+        if text == '':
+            return 0
+        else:
+            return int(text)
+
+    def folder(self):
+        return self.folderEdit.text()
+
+    def filename(self):
+        return self.filenameEdit.text()
+
+    def saveFormat(self):
+        return self.formatBox.currentText()
+
     def nChanged(self):
         self.updateRemaining()
         self.limitExpositions(9)
@@ -145,21 +163,15 @@ class RecordingWidget(QtGui.QFrame):
         if self.n() > nMax:
             self.numExpositionsEdit.setText(str(np.round(nMax).astype(int)))
 
-    def n(self):
-        text = self.numExpositionsEdit.text()
-        if text == '':
-            return 0
-        else:
-            return int(text)
-
-    def folder(self):
-        return self.folderEdit.text()
-
-    def filename(self):
-        return self.filenameEdit.text()
-
-    def saveFormat(self):
-        return self.formatBox.currentText()
+    if sys.platform == 'darwin':
+        def openFolder(self, path):
+            subprocess.check_call(['open', '', self.folder()])
+    elif sys.platform == 'linux':
+        def openFolder(self, path):
+            subprocess.check_call(['gnome-open', '', self.folder()])
+    elif sys.platform == 'win32':
+        def openFolder(self, path):
+            subprocess.check_call(['explorer', self.folder()])
 
     def snap(self):
 
@@ -680,12 +692,8 @@ class TormentaGUI(QtGui.QMainWindow):
         frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
-            self.ROI = pg.ROI((0.5 * self.shape[0] - 64,
-                               0.5 * self.shape[1] - 64),
-                              size=(128, 128), scaleSnap=True,
-                              translateSnap=True, pen='y')
-            self.ROI.addScaleHandle((1, 0), (0, 1), lockAspect=True)
-            self.vb.addItem(self.ROI)
+            self.ROI = ROI(self.shape, self.vb)
+#            label = pg.LabelItem(justify='right')
 
             # Signals
             applyParam = frameParam.param('Apply')
@@ -734,6 +742,8 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Image live view when not recording
         """
         if self.liveviewButton.isChecked():
+
+            self.stabilizer.timer.stop()
             if andor.status != 'Camera is idle, waiting for instructions.':
                 andor.abort_acquisition()
 
@@ -763,6 +773,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
             andor.shutter(0, 2, 0, 0, 0)
             self.img.setImage(np.zeros(self.shape), autoLevels=False)
+            self.stabilizer.timer.start()
 
     def updateView(self):
         """ Image update while in Liveview mode
