@@ -121,11 +121,7 @@ class RecordingWidget(QtGui.QFrame):
 
     def nChanged(self):
         self.updateRemaining()
-
-        if self.formatBox.currentText() == 'tiff':
-            self.limitExpositions(2)
-        elif self.formatBox.currentText() == 'hdf5':
-            self.limitExpositions(9)
+        self.limitExpositions(9)
 
     def updateRemaining(self):
         rSecs = self.main.t_acc_real.magnitude * self.n()
@@ -147,7 +143,11 @@ class RecordingWidget(QtGui.QFrame):
             self.numExpositionsEdit.setText(str(np.round(nMax).astype(int)))
 
     def n(self):
-        return int(self.numExpositionsEdit.text())
+        text = self.numExpositionsEdit.text()
+        if text == '':
+            return 0
+        else:
+            return int(text)
 
     def folder(self):
         return self.folderEdit.text()
@@ -191,52 +191,34 @@ class RecordingWidget(QtGui.QFrame):
             self.savename = getUniqueName(self.savename)
 
             # Attributes saving
-            self.attrs = []
+            self.attrs = self.main.tree.attrs()
             self.attrs.extend([('Date', time.strftime("%Y-%m-%d")),
                                ('Start time', time.strftime("%H:%M:%S")),
                               ('element_size_um', (1, 0.133, 0.133))])
-
-            for ParName in self.main.tree.p.getValues():
-                Par = self.main.tree.p.param(str(ParName))
-                if not(Par.hasChildren()):
-                    self.attrs.append((str(ParName), Par.value()))
-                else:
-                    for sParName in Par.getValues():
-                        sPar = Par.param(str(sParName))
-                        if sPar.type() != 'action':
-                            if not(sPar.hasChildren()):
-                                self.attrs.append((str(sParName),
-                                                   sPar.value()))
-                            else:
-                                for ssParName in sPar.getValues():
-                                    ssPar = sPar.param(str(ssParName))
-                                    self.attrs.append((str(ssParName),
-                                                       ssPar.value()))
-
-            # Stop the QTimer that updates the image with incoming data from
-            # the 'Run till abort' acquisition mode.
-            self.main.viewtimer.stop()
+#            TODO:
+#            self.attrs.append(self.main.lasersWidgets.attrs())
 
             # Acquisition preparation
+            self.main.viewtimer.stop()
             if andor.status != 'Camera is idle, waiting for instructions.':
                 andor.abort_acquisition()
             else:
                 andor.shutter(0, 1, 0, 0, 0)
 
+            self.iPart = 0
             if self.fileSizeGB() < 2:
                 self.chunkMode = False
                 self.recordSingle(self.n(), self.savename)
+                self.nn = np.zeros(1)
 
             else:
                 self.chunkMode = True
 
-                nn = np.zeros(np.ceil(self.fileSizeGB / 2))
-                nn[:np.floor(self.fileSizeGB / 2)] = 2
+                nn = np.zeros(np.ceil(self.fileSizeGB() / 2))
+                nn[:np.floor(self.fileSizeGB() / 2)] = 2
                 if nn[-1] == 0:
-                    nn[-1] = self.fileSizeGB - np.sum(nn)
-
-                self.nn = (self.n() * nn / self.fileSizeGB).astype(int)
-                self.iPart = 0
+                    nn[-1] = self.fileSizeGB() - np.sum(nn)
+                self.nn = (self.n() * nn / self.fileSizeGB()).astype(int)
                 suffix = '_part{}'.format(self.iPart)
                 partName = insertSuffix(self.savename, suffix)
 
@@ -253,39 +235,21 @@ class RecordingWidget(QtGui.QFrame):
         andor.start_acquisition()
         time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
 
-        if self.saveFormat() == 'hdf5':
-            """ Useful format for big data as it saves new frames in
-            chunks. Therefore, you don't have the whole stack in memory."""
-
-            self.store_file = hdf.File(name, "w")
-            self.store_file.create_dataset(name=self.dataname,
-                                           shape=(n,
-                                                  self.shape[1],
-                                                  self.shape[0]),
-                                           fillvalue=0, dtype=np.uint16)
-            self.stack = self.store_file[self.dataname]
-
-        else:
-            """ This format has the problem of placing the whole stack in
-            memory before saving."""
-
-            self.stack = np.zeros((n, self.shape[0], self.shape[1]),
-                                  dtype=np.uint16)
+        self.stack = np.zeros((n, self.shape[0], self.shape[1]),
+                              dtype=np.uint16)
 
         self.startTime = ptime.time()
-        QtCore.QTimer.singleShot(1, lambda: self.updateWhileRec(n))
+        QtCore.QTimer.singleShot(1, lambda: self.updateWhileRec(n, name))
 
-    def updateWhileRec(self, n):
+    def updateWhileRec(self, n, name):
 
         time.sleep(self.main.t_exp_real.magnitude)
-
         if andor.n_images_acquired > self.j:
             i, self.j = andor.new_images_index
             self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape, 1,
                                                       n)
             self.main.img.setImage(np.transpose(self.stack[self.j - 1]),
                                    autoLevels=False)
-
             if self.main.crosshair.showed:
                 xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
                 ycoord = int(np.round(self.main.crosshair.hLine.pos()[0]))
@@ -293,50 +257,38 @@ class RecordingWidget(QtGui.QFrame):
                 self.main.yProfile.setData(self.stack[self.j - 1][:, ycoord])
 
             # fps calculation
-            now = ptime.time()
-            dt = now - self.main.lastTime
-            self.main.lastTime = now
-            if self.main.fps is None:
-                self.main.fps = 1.0/dt
-            else:
-                s = np.clip(dt*3., 0, 1)
-                self.main.fps = self.main.fps * (1-s) + (1.0/dt) * s
-            self.main.fpsBox.setText('%0.2f fps' % self.main.fps)
+            self.main.fpsMath()
 
             # Elapsed and remaining times and frames
-            self.currentFrame.setText(str(self.j) + ' /')
-            eSecs = np.round(now - self.startTime)
+            eSecs = np.round(ptime.time() - self.startTime)
             eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
             self.tElapsed.setText(eText)
-            rFrames = self.n() - self.j
+            nframe = int(self.j + np.sum(self.nn[:self.iPart]))
+            rFrames = self.n() - nframe
             rSecs = np.round(self.main.t_acc_real.magnitude * rFrames)
             rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
             self.tRemaining.setText(rText)
+            self.currentFrame.setText(str(nframe) + ' /')
 
         if self.j < n and self.recButton.isChecked():
-            QtCore.QTimer.singleShot(0, lambda: self.updateWhileRec(n))
+            QtCore.QTimer.singleShot(0, lambda: self.updateWhileRec(n, name))
 
         else:
-            self.endRecording()
+            self.endRecording(name)
 
-    def endRecording(self):
-#             TODO:
-#        for laser in laserlist:
-#            attrs[laser.wv + 'power'] = laser.power
+    def endRecording(self, name):
 
         if self.saveFormat() == 'hdf5':
-            # TODO: Crop results to self.j frames
-
+            self.store_file = hdf.File(name, "w")
+            self.store_file.create_dataset(name=self.dataname,
+                                           data=self.stack[0:self.j])
             # Saving parameters
-            dset = self.store_file[self.dataname]
-
             for item in self.attrs:
-                dset.attrs[item[0]] = item[1]
+                self.store_file[self.dataname].attrs[item[0]] = item[1]
 
             self.store_file.close()
 
         elif self.saveFormat() == 'tiff':
-
             tiff.imsave(getUniqueName(self.savename), self.stack[0:self.j],
                         description=self.dataname, software='Tormenta')
 
@@ -346,7 +298,7 @@ class RecordingWidget(QtGui.QFrame):
         else:
             self.main.focusWidget.graph.savedDataSignal = []
 
-        if self.chunkMode and self.iPart < len(self.nn):
+        if self.chunkMode and self.iPart + 1 < len(self.nn):
             self.iPart += 1
             suffix = '_part{}'.format(self.iPart)
             partName = insertSuffix(self.savename, suffix)
@@ -474,6 +426,24 @@ class CamParamTree(ParameterTree):
         gainParams = self.p.param('Gain')
         gainParams.param('Pre-amp gain').setReadonly(value)
         gainParams.param('EM gain').setReadonly(value)
+
+    def attrs(self):
+        attrs = []
+        for ParName in self.p.getValues():
+            Par = self.p.param(str(ParName))
+            if not(Par.hasChildren()):
+                attrs.append((str(ParName), Par.value()))
+            else:
+                for sParName in Par.getValues():
+                    sPar = Par.param(str(sParName))
+                    if sPar.type() != 'action':
+                        if not(sPar.hasChildren()):
+                            attrs.append((str(sParName), sPar.value()))
+                        else:
+                            for ssParName in sPar.getValues():
+                                ssPar = sPar.param(str(ssParName))
+                                attrs.append((str(ssParName), ssPar.value()))
+        return attrs
 
 
 class TormentaGUI(QtGui.QMainWindow):
@@ -802,17 +772,21 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.xProfile.setData(image[xcoord])
                 self.yProfile.setData(image[:, ycoord])
 
-            now = ptime.time()
-            dt = now - self.lastTime
-            self.lastTime = now
-            if self.fps is None:
-                self.fps = 1.0/dt
-            else:
-                s = np.clip(dt*3., 0, 1)
-                self.fps = self.fps * (1-s) + (1.0/dt) * s
-            self.fpsBox.setText('%0.2f fps' % self.fps)
+            self.fpsMath()
+
         except:
             pass
+
+    def fpsMath(self):
+        now = ptime.time()
+        dt = now - self.lastTime
+        self.lastTime = now
+        if self.fps is None:
+            self.fps = 1.0/dt
+        else:
+            s = np.clip(dt * 3., 0, 1)
+            self.fps = self.fps * (1 - s) + (1.0/dt) * s
+        self.fpsBox.setText('%0.2f fps' % self.fps)
 
     def closeEvent(self, *args, **kwargs):
 
