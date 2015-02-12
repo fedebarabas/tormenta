@@ -65,6 +65,7 @@ class RecordingWidget(QtGui.QFrame):
         self.numExpositionsEdit = QtGui.QLineEdit('100')
         self.folderEdit = QtGui.QLineEdit(os.getcwd())
         openFolder = QtGui.QPushButton('Open Folder')
+#        openFolder.clicked.connect()
         self.filenameEdit = QtGui.QLineEdit('filename')
         self.formatBox = QtGui.QComboBox()
         self.formatBox.addItems(['hdf5', 'tiff'])
@@ -210,8 +211,8 @@ class RecordingWidget(QtGui.QFrame):
             self.iPart = 0
             if self.fileSizeGB() < 2:
                 self.chunkMode = False
-                self.recordSingle(self.n(), self.savename)
                 self.nn = np.zeros(1)
+                self.recordSingle(self.n(), self.savename)
 
             else:
                 self.chunkMode = True
@@ -702,6 +703,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.changeParameter(lambda: self.adjustFrame(self.shape, start))
 
         self.grid.update(self.shape)
+        self.recWidget.shape = self.shape
 
     def customFrame(self):
 
