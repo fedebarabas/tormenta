@@ -176,16 +176,16 @@ class FocusWidget(QtGui.QFrame):
         np.savetxt('{}_focusdata'.format(self.main.filename()), self.savedData)
         self.graph.savedDataSignal = []
         self.graph.savedDataTime = []
-        
-        self.plot = plt.plot(self.graph.savedDataTime, self.graph.savedDataSignal, 'b-',
-                             self.graph.savedDataTime, 
-                             np.ones(self.sizeofData)*self.setPoint, 'r-')        
-        
+
+        self.plot = plt.plot(self.graph.savedDataTime,
+                             self.graph.savedDataSignal, 'b-',
+                             self.graph.savedDataTime,
+                             np.ones(self.sizeofData)*self.setPoint, 'r-')
+
 #        self.graph.savedDataPosition = []
 
 
     def analizeFocus(self):
-
 #        self.rawData = np.loadtxt('focus_data')
 #        self.analisisSetPoint = self.rawData[0]
 #        self.plot = plt.plot(self.rawData[2], self.graph.savedDataSignal, 'b-',
@@ -233,8 +233,8 @@ class FocusLockGraph(pg.GraphicsWindow):
 
     def update(self):
         """ Gives an update of the data displayed in the graphs
-        """    
-        
+        """
+
         if self.ptr < 200:
             self.data[self.ptr] = self.stream.newData
             self.focusCurve.setData(self.xData[1:self.ptr + 1],
@@ -248,20 +248,18 @@ class FocusLockGraph(pg.GraphicsWindow):
             self.focusCurve.setPos(self.ptr/self.scansPerS - 50, 0)
 
         self.ptr += 1
-        
+
         if self.main is not None:
-        
+
             self.recButton = self.main.recButton
 
             if self.recButton.isChecked():
                 self.savedDataSignal.append(self.stream.newData)
                 self.savedDataTime.append(self.ptr/self.scansPerS)
 #               self.savedDataPosition.append(self.DAQ.position)
-            
+
             if self.recButton.isChecked():
                 self.analize()
-                
-            
 
 
 class focusCalibration(QtCore.QObject):
@@ -279,7 +277,9 @@ class focusCalibration(QtCore.QObject):
 
     def start(self):
 
+
         for i in range(200):
+
 
             self.signalData.append(self.stream.newData)
             self.positionData.append(self.z.position.magnitude)
@@ -291,16 +291,18 @@ class focusCalibration(QtCore.QObject):
         self.signalData = self.signalData[self.argmin:self.argmax]
         self.positionData = self.positionData[self.argmin:self.argmax]
 
-        self.calibrationResult = np.polyfit(np.array(self.signalData),
-                                            np.array(self.positionData), 1)
+        self.calibrationResult = np.around(np.polyfit(np.array(self.signalData),
+                                           np.array(self.positionData), 1), 2)
 
-        self.mainwidget.calibrationDisplay.setText('0,1 mV --> {} nm'.format(np.around(self.calibrationResult[0]/10), 2))
-        
+      
         self.export()
         
     def export(self):
         
         np.savetxt('calibration', self.calibrationResult)
+
+        self.mainwidget.calibrationDisplay.setText('0,1 mV --> {} nm'.format(np.around(np.abs(self.calibrationResult[0])*0.1), 1))
+
 
 
 class daqStream(QtCore.QObject):
