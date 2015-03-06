@@ -575,7 +575,8 @@ class TormentaGUI(QtGui.QMainWindow):
         data = np.array([('ZET642NF',    'Notch 642nm',     4, ''),
                          ('ET700/75m',   'Bandpass 700/75', 5, 'Alexa647, '
                                                                'Atto655'),
-                         ('FF01-593/40', 'Bandpass 593/40', 6, 'Atto565'),
+                         ('FF01-593/40', 'Bandpass 593/40', 6, 'Atto565, '
+                                                               'Nile Red'),
                          ('ET575/50',    'Bandpass 575/50', 1, 'Atto550'),
                          ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
                          ('',            '',                3, '')],

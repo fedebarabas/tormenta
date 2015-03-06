@@ -155,13 +155,10 @@ if __name__ == '__main__':
     app = QtGui.QApplication([])
 
     from instruments import Laser
-    from lantz.drivers.cobolt import Cobolt0601
-    from lantz.drivers.mpb import VFL
-    from lantz.drivers.laserquantum import Ventus
 
-    with Laser(VFL, 'COM11') as redlaser, \
-            Laser(Cobolt0601, 'COM4') as bluelaser, \
-            Laser(Ventus, 'COM10') as greenlaser:
+    with Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
+            Laser('cobolt.cobolt0601.Cobolt0601', 'COM4') as bluelaser, \
+            Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser:
 
         print(redlaser.idn, bluelaser.idn, greenlaser.idn)
         win = LaserWidget((redlaser, bluelaser, greenlaser))
