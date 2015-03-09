@@ -12,6 +12,9 @@ import matplotlib.pyplot as plt
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
+import pyqtgraph.ptime as ptime
+import pygame.camera as camera
+import pygame as pyg
 
 
 from lantz import Q_
@@ -25,11 +28,17 @@ class FocusWidget(QtGui.QFrame):
     def __init__(self, DAQ, scanZ, main=None, *args, **kwargs):
         super(FocusWidget, self).__init__(*args, **kwargs)
 
-        self.main = main
+        self.main = main #main va a ser RecordingWidget de control.py
         self.DAQ = DAQ
 
         try:
             self.DAQ.streamStop()
+        except:
+            pass
+
+
+        try:
+            camera.quit()
         except:
             pass
 
@@ -83,11 +92,25 @@ class FocusWidget(QtGui.QFrame):
 
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
 
+#        self.exportDataButton = QtGui.QPushButton('Export data')
+#        self.exportDataButton.clicked.connect(self.exportData)
+#        self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
+#        self.focusAnalisisButton.clicked.connect(self.analizeFocus)
+        self.focusPropertiesDisplay = QtGui.QLabel('  st_dev = 0    max_dev = 0')
+#        self.focusPropertiesDisplay.setReadOnly(True)
+#        self.focusPropertiesDisplay.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+
         self.graph = FocusLockGraph(self, main)
+
+        self.webcam = auxCam()
+        self.webcam.updateData()
+
+
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.graph, 0, 0, 1, 6)
+        grid.addWidget(self.webcam, 0, 1, 1, 6)
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
         grid.addWidget(self.kpLabel, 1, 3)
@@ -103,6 +126,7 @@ class FocusWidget(QtGui.QFrame):
         # Labjack configuration
         self.graphTimer = QtCore.QTimer()
         self.graphTimer.timeout.connect(self.graph.update)
+        self.graphTimer.timeout.connect(self.webcam.updateData)
         self.graphTime = 1000 / scansPerS
         self.graphTimer.start(self.graphTime)
 
@@ -179,6 +203,55 @@ class FocusWidget(QtGui.QFrame):
         self.graph.statistics.setText(statData)
 
 
+class auxCam(pg.GraphicsWindow):
+#
+    def __init__(self, *args, **kwargs):
+
+        self.fps = 0
+        self.focusSignal = 0
+        self.i = 0
+#
+        super(auxCam, self).__init__(*args, **kwargs)
+#
+        camera.init()
+        self.cam = camera.Camera(camera.list_cameras()[0])
+        self.cam.start()
+#        self.img = pg.ImageItem(border='w')
+#        self.addItem(self.img)
+#
+#
+
+        self.view = self.addViewBox()
+
+        ## lock the aspect ratio so pixels are always square
+        self.view.setAspectLocked(True)
+
+        ## Create image item
+        self.img = pg.ImageItem(border='w')
+        self.view.addItem(self.img)
+
+
+    def updateData(self):
+
+        self.pic = self.cam.get_image()
+        self.pic_matrix = pyg.surfarray.array2d(self.pic)
+        self.img.setImage(self.pic_matrix)
+
+        self.quadA = self.pic_matrix[0:240, 0:240]
+        self.quadC = self.pic_matrix[240:480, 0:240]
+        self.quadB = self.pic_matrix[0:240, 240:480]
+        self.quadD = self.pic_matrix[240:480, 240:480]
+
+        self.int_quadA = np.sum(self.quadA.astype(float))
+        self.int_quadB = np.sum(self.quadB.astype(float))
+        self.int_quadC = np.sum(self.quadC.astype(float))
+        self.int_quadD = np.sum(self.quadD.astype(float))
+
+        self.focusSignal = (self.int_quadA + self.int_quadD) - (self.int_quadB + self.int_quadC)
+
+
+
+
 class FocusLockGraph(pg.GraphicsWindow):
 
     def __init__(self, mainwidget, main=None, *args, **kwargs):
@@ -252,7 +325,7 @@ class focusCalibration(QtCore.QObject):
         self.step = 50*self.nm
         self.stream = mainwidget.stream
         self.z = mainwidget.z
-        self.mainwidget = mainwidget
+        self.mainwidget = mainwidget #mainwidget será FocusLockWidget
 
     def start(self):
 
@@ -271,12 +344,10 @@ class focusCalibration(QtCore.QObject):
         self.calibrationResult = np.polyfit(np.array(self.signalData),
                                             np.array(self.positionData), 1)
 
-         
-
         self.export()
 
     def export(self):
-
+        
         np.savetxt('calibration', self.calibrationResult)
 
         cal = np.around(np.abs(self.calibrationResult[0])*0.1, 1)
