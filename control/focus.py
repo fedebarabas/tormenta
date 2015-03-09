@@ -13,6 +13,8 @@ import matplotlib.pyplot as plt
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
+import pygame.camera as camera
+import pygame as pyg
 
 
 from lantz import Q_
@@ -27,13 +29,19 @@ class FocusWidget(QtGui.QFrame):
     def __init__(self, DAQ, scanZ, main=None, *args, **kwargs):
         super(FocusWidget, self).__init__(*args, **kwargs)
 
-        self.main = main
+        self.main = main #main va a ser RecordingWidget de control.py
         self.DAQ = DAQ
 
         try:
             self.DAQ.streamStop()
         except:
             pass
+
+        try:
+            camera.quit()
+        except:
+            pass
+
 
         self.z = scanZ
         self.setPoint = 0
@@ -92,14 +100,15 @@ class FocusWidget(QtGui.QFrame):
 
         self.graph = FocusLockGraph(self, main)
 
-        self.webcam = auxCam(self)
-#        self.webcam.updateData()
+        self.webcam = auxCam()
+        self.webcam.updateData()
+
 
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.graph, 0, 0, 1, 6)
-#        grid.addWidget(self.webcam, 0, 0, 2, 6)
+        grid.addWidget(self.webcam, 0, 1, 1, 6)
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
 #        grid.addWidget(self.focusAnalisisButton, 3, 0)
@@ -118,6 +127,7 @@ class FocusWidget(QtGui.QFrame):
         # Labjack configuration
         self.graphTimer = QtCore.QTimer()
         self.graphTimer.timeout.connect(self.graph.update)
+        self.graphTimer.timeout.connect(self.webcam.updateData)
         self.graphTime = 1000 / scansPerS
         self.graphTimer.start(self.graphTime)
 
@@ -206,42 +216,50 @@ class FocusWidget(QtGui.QFrame):
         self.graph.statistics.setText('  st_dev = {}    max_dev = {}'.format(self.std_dev, self.max_dev))
 
 class auxCam(pg.GraphicsWindow):
-
+#
     def __init__(self, *args, **kwargs):
 
-        self.updateTime = ptime.time()
         self.fps = 0
         self.focusSignal = 0
         self.i = 0
-
-#        super(auxCam, self).__init__(*args, **kwargs)
-
+#
+        super(auxCam, self).__init__(*args, **kwargs)
+#
+        camera.init()
+        self.cam = camera.Camera(camera.list_cameras()[0])
+        self.cam.start()
 #        self.img = pg.ImageItem(border='w')
 #        self.addItem(self.img)
+#
+#
 
-#        import pygame
-#        pygame.camera.init()
-#        self.cam = pygame.camera.Camera(pygame.camera.list_cameras()[0])
-#        self.cam.start()
-#        #img = cam.get_image()
+        self.view = self.addViewBox()
 
-#    def updateData():
-#
-#        self.pic = cam.get_image()
-#        self.pic_matrix = pygame.surfarray.array2d(self.pic)
-#        self.img.setImage(self.pic_matrix)
-#
-#        self.quadA = pic_matrix[0:240, 0:240]
-#        self.quadC = pic_matrix[240:480, 0:240]
-#        self.quadB = pic_matrix[0:240, 240:480]
-#        self.quadD = pic_matrix[240:480, 240:480]
-#
-#        self.int_quadA = np.sum(quadA.astype(float))
-#        self.int_quadB = np.sum(quadB.astype(float))
-#        self.int_quadC = np.sum(quadC.astype(float))
-#        self.int_quadD = np.sum(quadD.astype(float))
-#
-#        self.focusSignal = (self.int_quadA + self.int_quadD) - (self.int_quadB + self.int_quadC)
+        ## lock the aspect ratio so pixels are always square
+        self.view.setAspectLocked(True)
+
+        ## Create image item
+        self.img = pg.ImageItem(border='w')
+        self.view.addItem(self.img)
+
+
+    def updateData(self):
+
+        self.pic = self.cam.get_image()
+        self.pic_matrix = pyg.surfarray.array2d(self.pic)
+        self.img.setImage(self.pic_matrix)
+
+        self.quadA = self.pic_matrix[0:240, 0:240]
+        self.quadC = self.pic_matrix[240:480, 0:240]
+        self.quadB = self.pic_matrix[0:240, 240:480]
+        self.quadD = self.pic_matrix[240:480, 240:480]
+
+        self.int_quadA = np.sum(self.quadA.astype(float))
+        self.int_quadB = np.sum(self.quadB.astype(float))
+        self.int_quadC = np.sum(self.quadC.astype(float))
+        self.int_quadD = np.sum(self.quadD.astype(float))
+
+        self.focusSignal = (self.int_quadA + self.int_quadD) - (self.int_quadB + self.int_quadC)
 
 
 
@@ -320,7 +338,7 @@ class focusCalibration(QtCore.QObject):
         self.step = 50*self.nm
         self.stream = mainwidget.stream
         self.z = mainwidget.z
-        self.mainwidget = mainwidget
+        self.mainwidget = mainwidget #mainwidget será FocusLockWidget
 
     def start(self):
 
