@@ -29,6 +29,12 @@ class FocusWidget(QtGui.QFrame):
 
         self.main = main
         self.DAQ = DAQ
+
+        try:
+            self.DAQ.streamStop()
+        except:
+            pass
+
         self.z = scanZ
         self.setPoint = 0
         self.calibrationResult = [0, 0]
@@ -55,7 +61,12 @@ class FocusWidget(QtGui.QFrame):
         self.focusCalibButton = QtGui.QPushButton('Calibrate')
         self.focusCalibButton.clicked.connect(self.focusCalib.start)
         self.focusCalibThread.start()
-        self.calibrationDisplay = QtGui.QLineEdit('0 mV --> 0 nm')
+
+        try:
+            self.calibrationDisplay = QtGui.QLineEdit('0,1 mV --> {} nm'.format(np.around(np.loadtxt('calibration')[0]/10)))
+        except:
+            self.calibrationDisplay = QtGui.QLineEdit('0 mV --> 0 nm')
+
         self.calibrationDisplay.setReadOnly(False)
         # Focus lock widgets
         self.kpEdit = QtGui.QLineEdit('26')
@@ -78,6 +89,7 @@ class FocusWidget(QtGui.QFrame):
         self.focusPropertiesDisplay = QtGui.QLabel('  st_dev = 0    max_dev = 0')
 #        self.focusPropertiesDisplay.setReadOnly(True)
 #        self.focusPropertiesDisplay.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+
         self.graph = FocusLockGraph(self, main)
 
         self.webcam = auxCam(self)
@@ -191,7 +203,7 @@ class FocusWidget(QtGui.QFrame):
                                      - self.setPoint)), 5)
 
         self.focusPropertiesDisplay.setText('  st_dev = {}    max_dev = {}'.format(self.std_dev, self.max_dev))
-
+        self.graph.statistics.setText('  st_dev = {}    max_dev = {}'.format(self.std_dev, self.max_dev))
 
 class auxCam(pg.GraphicsWindow):
 
@@ -254,13 +266,17 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.ptr = 0
 
         # Graph without a fixed range
-        self.plot = self.addPlot()
+        self.statistics = pg.LabelItem(justify='right')
+        self.addItem(self.statistics)
+        self.statistics.setText('---')
+        self.plot = self.addPlot(row=1, col=0)
         self.plot.setLabels(bottom=('Tiempo', 's'),
                             left=('Señal de foco', 'V'))
         self.plot.showGrid(x=True, y=True)
         self.focusCurve = self.plot.plot(pen='y')
         self.scansPerS = self.stream.scansPerS
         self.xData = np.arange(0, 200/self.scansPerS, 1/self.scansPerS)
+
 
     def update(self):
         """ Gives an update of the data displayed in the graphs
@@ -301,24 +317,39 @@ class focusCalibration(QtCore.QObject):
         self.signalData = []
         self.positionData = []
         self.nm = Q_(1, 'nm')
-        self.step = 40*self.nm
+        self.step = 50*self.nm
         self.stream = mainwidget.stream
         self.z = mainwidget.z
         self.mainwidget = mainwidget
 
     def start(self):
 
-        for i in range(50):
+
+        for i in range(200):
+
 
             self.signalData.append(self.stream.newData)
             self.positionData.append(self.z.position.magnitude)
             self.z.moveRelative(self.step)
             time.sleep(0.5)
 
+        self.argmax = np.argmax(self.signalData)
+        self.argmin = np.argmin(self.signalData)
+        self.signalData = self.signalData[self.argmin:self.argmax]
+        self.positionData = self.positionData[self.argmin:self.argmax]
+
         self.calibrationResult = np.around(np.polyfit(np.array(self.signalData),
                                            np.array(self.positionData), 1), 2)
 
-        self.mainwidget.calibrationDisplay.setText('0,1 mV --> {} nm'.format(np.abs(self.calibrationResult[0])*0.1))
+
+        self.export()
+
+    def export(self):
+
+        np.savetxt('calibration', self.calibrationResult)
+
+        self.mainwidget.calibrationDisplay.setText('0,1 mV --> {} nm'.format(np.around(np.abs(self.calibrationResult[0])*0.1), 1))
+
 
 
 class daqStream(QtCore.QObject):
