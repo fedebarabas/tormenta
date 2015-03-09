@@ -268,10 +268,10 @@ class focusCalibration(QtCore.QObject):
         self.signalData = self.signalData[self.argmin:self.argmax]
         self.positionData = self.positionData[self.argmin:self.argmax]
 
-        poly = np.polyfit(np.array(self.signalData),
-                          np.array(self.positionData), 1)
+        self.calibrationResult = np.polyfit(np.array(self.signalData),
+                                            np.array(self.positionData), 1)
 
-        self.calibrationResult = np.around(poly, 2)
+         
 
         self.export()
 
