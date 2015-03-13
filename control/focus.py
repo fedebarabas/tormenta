@@ -8,11 +8,10 @@ Created on Wed Oct  1 13:41:48 2014
 import numpy as np
 import time
 import matplotlib.pyplot as plt
-
+import scipy.ndimage as ndi
 
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
-import pyqtgraph.ptime as ptime
 import pygame.camera as camera
 import pygame as pyg
 
@@ -21,15 +20,13 @@ from lantz import Q_
 
 from instruments import ScanZ, DAQ
 from pi import PI
-#import easygui as e
-
 
 class FocusWidget(QtGui.QFrame):
 
     def __init__(self, DAQ, scanZ, main=None, *args, **kwargs):
         super(FocusWidget, self).__init__(*args, **kwargs)
 
-        self.main = main #main va a ser RecordingWidget de control.py
+        self.main = main  #main va a ser RecordingWidget de control.py
         self.DAQ = DAQ
 
         try:
@@ -41,7 +38,6 @@ class FocusWidget(QtGui.QFrame):
             camera.quit()
         except:
             pass
-
 
         self.z = scanZ
         self.setPoint = 0
@@ -56,12 +52,12 @@ class FocusWidget(QtGui.QFrame):
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
 
         # Thread for getting data from DAQ
-        scansPerS = 5
-        self.stream = daqStream(DAQ, scansPerS)
-        self.streamThread = QtCore.QThread()
-        self.stream.moveToThread(self.streamThread)
-        self.streamThread.started.connect(self.stream.start)
-        self.streamThread.start()
+        self.scansPerS = 20
+#        self.stream = daqStream(DAQ, scansPerS)
+#        self.streamThread = QtCore.QThread()
+#        self.stream.moveToThread(self.streamThread)
+#        self.streamThread.started.connect(self.stream.start)
+#        self.streamThread.start()
 
         self.focusCalib = focusCalibration(self)
         self.focusCalibThread = QtCore.QThread()
@@ -77,10 +73,10 @@ class FocusWidget(QtGui.QFrame):
 
         self.calibrationDisplay.setReadOnly(False)
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit('26')
+        self.kpEdit = QtGui.QLineEdit('0.0001')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('1')
+        self.kiEdit = QtGui.QLineEdit('0.0001')
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')
@@ -94,21 +90,19 @@ class FocusWidget(QtGui.QFrame):
 #        self.exportDataButton.clicked.connect(self.exportData)
 #        self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
 #        self.focusAnalisisButton.clicked.connect(self.analizeFocus)
-        self.focusPropertiesDisplay = QtGui.QLabel('  st_dev = 0    max_dev = 0')
+        self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
 #        self.focusPropertiesDisplay.setReadOnly(True)
 #        self.focusPropertiesDisplay.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
 
-        self.graph = FocusLockGraph(self, main)
-
-        self.webcam = auxCam()
+        self.webcam = auxCam(self)
         self.webcam.updateData()
-
+        self.graph = FocusLockGraph(self, self.webcam, main)
 
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.graph, 0, 0, 1, 6)
-        grid.addWidget(self.webcam, 0, 1, 1, 6)
+        grid.addWidget(self.webcam, 0, 6, 1, 6)
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
 #        grid.addWidget(self.focusAnalisisButton, 3, 0)
@@ -121,14 +115,14 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.focusDataBox, 1, 2)
 #        grid.addWidget(self.exportDataButton, 3, 1)
 
-#        grid.setColumnMinimumWidth(1, 100)
+        grid.setColumnMinimumWidth(1, 100)
 #        grid.setColumnMinimumWidth(2, 40)
-        grid.setColumnMinimumWidth(0, 245)
+        grid.setColumnMinimumWidth(0, 100)
         # Labjack configuration
         self.graphTimer = QtCore.QTimer()
         self.graphTimer.timeout.connect(self.graph.update)
         self.graphTimer.timeout.connect(self.webcam.updateData)
-        self.graphTime = 1000 / scansPerS
+        self.graphTime = 1000 / self.scansPerS
         self.graphTimer.start(self.graphTime)
 
         self.lockTimer = QtCore.QTimer()
@@ -137,7 +131,7 @@ class FocusWidget(QtGui.QFrame):
 
     def toggleFocus(self):
         if self.lockButton.isChecked():
-            self.setPoint = self.stream.newData
+            self.setPoint = self.webcam.focusSignal
             self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
             self.PI = PI(self.setPoint,
                          np.float(self.kpEdit.text()),
@@ -163,8 +157,11 @@ class FocusWidget(QtGui.QFrame):
 #            e.msgbox("Maximum error allowed exceded, "
 #                     "focus control has been turned off", "Error")
         else:
-            out = self.PI.update(self.stream.newData)
-            self.z.moveRelative(out * self.um)
+            out = self.PI.update(self.webcam.focusSignal)
+            if abs(out) > 5:
+                self.unlockFocus()
+            else:
+                self.z.moveRelative(out * self.um)
 
     def moveZ(self, value):
         self.z.position = value
@@ -200,7 +197,6 @@ class FocusWidget(QtGui.QFrame):
 
 #        self.graph.savedDataPosition = []
 
-
     def analizeFocus(self):
 #        self.rawData = np.loadtxt('focus_data')
 #        self.analisisSetPoint = self.rawData[0]
@@ -215,10 +211,12 @@ class FocusWidget(QtGui.QFrame):
         self.focusPropertiesDisplay.setText('  st_dev = {}    max_dev = {}'.format(self.std_dev, self.max_dev))
         self.graph.statistics.setText('  st_dev = {}    max_dev = {}'.format(self.std_dev, self.max_dev))
 
-class auxCam(pg.GraphicsWindow):
-#
-    def __init__(self, *args, **kwargs):
 
+class auxCam(pg.GraphicsWindow):
+
+    def __init__(self, mainwidget, *args, **kwargs):
+
+        self.mainwidget = mainwidget
         self.fps = 0
         self.focusSignal = 0
         self.i = 0
@@ -235,41 +233,58 @@ class auxCam(pg.GraphicsWindow):
 
         self.view = self.addViewBox()
 
-        ## lock the aspect ratio so pixels are always square
+        # lock the aspect ratio so pixels are always square
         self.view.setAspectLocked(True)
 
-        ## Create image item
+        # Create image item
         self.img = pg.ImageItem(border='w')
         self.view.addItem(self.img)
-
 
     def updateData(self):
 
         self.pic = self.cam.get_image()
         self.pic_matrix = pyg.surfarray.array2d(self.pic)
+
         self.img.setImage(self.pic_matrix)
+        self.fSignalarray = []
 
-        self.quadA = self.pic_matrix[0:240, 0:240]
-        self.quadC = self.pic_matrix[240:480, 0:240]
-        self.quadB = self.pic_matrix[0:240, 240:480]
-        self.quadD = self.pic_matrix[240:480, 240:480]
+        for i in range(1):
 
-        self.int_quadA = np.sum(self.quadA.astype(float))
-        self.int_quadB = np.sum(self.quadB.astype(float))
-        self.int_quadC = np.sum(self.quadC.astype(float))
-        self.int_quadD = np.sum(self.quadD.astype(float))
+            self.pic = self.cam.get_image()
+            self.pic_matrix = pyg.surfarray.array2d(self.pic).astype(np.float)
+            self.massCenter = ndi.measurements.center_of_mass(self.pic_matrix)
+            self.fSignalarray.append(self.massCenter[0] - 320)
+            print(self.massCenter)
 
-        self.focusSignal = (self.int_quadA + self.int_quadD) - (self.int_quadB + self.int_quadC)
+        self.focusSignal = np.mean(self.fSignalarray)
 
+#        self.quadA = self.pic_matrix[0:240, 0:240]
+#        self.quadC = self.pic_matrix[240:480, 0:240]
+#        self.quadB = self.pic_matrix[0:240, 240:480]
+#        self.quadD = self.pic_matrix[240:480, 240:480]
+#
+#        self.int_quadA = np.sum(self.quadA.astype(float))
+#        self.int_quadB = np.sum(self.quadB.astype(float))
+#        self.int_quadC = np.sum(self.quadC.astype(float))
+#        self.int_quadD = np.sum(self.quadD.astype(float))
+#
+#        self.int_tot = np.sum(self.pic_matrix.astype(float))
+#
+#        self.focusSignal = ((self.int_quadA + self.int_quadD) - (self.int_quadB + self.int_quadC)) / self.int_tot
 
-
+#        updateTime = 1/(self.mainwidget.scansPerS)
+#        print(time.time() - starttime)
+#        time.sleep(updateTime - ((time.time() - starttime)) % updateTime)
+        #TO DO: set updateData rate
 
 class FocusLockGraph(pg.GraphicsWindow):
 
-    def __init__(self, mainwidget, main=None, *args, **kwargs):
+    def __init__(self, mainwidget, auxCam, main=None, *args, **kwargs):
 
+        self.auxCam = auxCam
         self.main = main
-        self.stream = mainwidget.stream
+        self.mainwidget = mainwidget
+        self.scansPerS = self.mainwidget.scansPerS
         self.analize = mainwidget.analizeFocus
         self.focusDataBox = mainwidget.focusDataBox
         self.savedDataSignal = []
@@ -280,7 +295,8 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.setWindowTitle('Focus')
         self.setAntialiasing(True)
 
-        self.data = np.zeros(200)
+        self.npoints = 200
+        self.data = np.zeros(self.npoints)
         self.ptr = 0
 
         # Graph without a fixed range
@@ -288,29 +304,30 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.addItem(self.statistics)
         self.statistics.setText('---')
         self.plot = self.addPlot(row=1, col=0)
-        self.plot.setLabels(bottom=('Tiempo', 's'),
-                            left=('Señal de foco', 'V'))
+#        self.plot.setLabels(bottom=('Tiempo', 's'),
+#                            left=('Señal de foco', 'V'))
         self.plot.showGrid(x=True, y=True)
         self.focusCurve = self.plot.plot(pen='y')
-        self.scansPerS = self.stream.scansPerS
-        self.xData = np.arange(0, 200/self.scansPerS, 1/self.scansPerS)
 
+        self.timeVector = np.arange(0, self.npoints/self.scansPerS,
+                                    1/self.scansPerS)
 
     def update(self):
         """ Gives an update of the data displayed in the graphs
         """
+        self.focusSignal = self.auxCam.focusSignal
 
-        if self.ptr < 200:
-            self.data[self.ptr] = self.stream.newData
-            self.focusCurve.setData(self.xData[1:self.ptr + 1],
+        if self.ptr < self.npoints:
+            self.data[self.ptr] = self.focusSignal
+            self.focusCurve.setData(self.timeVector[1:self.ptr + 1],
                                     self.data[1:self.ptr + 1])
 
         else:
             self.data[:-1] = self.data[1:]
-            self.data[-1] = self.stream.newData
+            self.data[-1] = self.focusSignal
 
-            self.focusCurve.setData(self.xData, self.data)
-            self.focusCurve.setPos(self.ptr/self.scansPerS - 50, 0)
+            self.focusCurve.setData(self.timeVector, self.data)
+            self.focusCurve.setPos((self.ptr - self.npoints)/self.scansPerS, 0)
 
         self.ptr += 1
 
@@ -319,7 +336,7 @@ class FocusLockGraph(pg.GraphicsWindow):
             self.recButton = self.main.recButton
 
             if self.recButton.isChecked():
-                self.savedDataSignal.append(self.stream.newData)
+                self.savedDataSignal.append(self.focusSignal)
                 self.savedDataTime.append(self.ptr/self.scansPerS)
 #               self.savedDataPosition.append(self.DAQ.position)
 
@@ -336,7 +353,7 @@ class focusCalibration(QtCore.QObject):
         self.positionData = []
         self.nm = Q_(1, 'nm')
         self.step = 50*self.nm
-        self.stream = mainwidget.stream
+#        self.stream = mainwidget.stream
         self.z = mainwidget.z
         self.mainwidget = mainwidget #mainwidget será FocusLockWidget
 
