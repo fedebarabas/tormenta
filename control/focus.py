@@ -201,7 +201,7 @@ class FocusWidget(QtGui.QFrame):
 
     def closeEvent(self, *args, **kwargs):
 
-#        self.focusTimer.stop()
+        self.focusTimer.stop()
 #        if self.lockButton.isChecked():
 #            self.lockTimer.stop()
 
