@@ -11,3 +11,4 @@ Measurement control and analysis for optical microscopy
   - http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
  - lantz
   - https://github.com/hgrecco/lantz
+ - pygame

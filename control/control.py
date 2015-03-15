@@ -25,7 +25,7 @@ import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
 
 # Tormenta imports
-from instruments import Laser, Camera, ScanZ, DAQ
+from instruments import Laser, Camera, ScanZ   # , DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
 from viewboxtools import Grid, Crosshair, ROI
@@ -600,7 +600,8 @@ class TormentaGUI(QtGui.QMainWindow):
         dockArea.addDock(wheelDock, 'top', consoleDock)
 
         focusDock = Dock("Focus Control", size=(1, 1))
-        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
+#        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
+        self.focusWidget = FocusWidget(scanZ, self.recWidget)
         focusDock.addWidget(self.focusWidget)
         dockArea.addDock(focusDock, 'above', wheelDock)
 
@@ -830,13 +831,14 @@ if __name__ == '__main__':
             Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
             Laser('cobolt.cobolt0601.Cobolt0601', 'COM4') as bluelaser, \
             Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser, \
-            DAQ() as DAQ, ScanZ(12) as scanZ:
+            ScanZ(12) as scanZ:
+#            DAQ() as DAQ, ScanZ(12) as scanZ:
 
         print(andor.idn)
         print(redlaser.idn)
         print(bluelaser.idn)
         print(greenlaser.idn)
-        print(DAQ.idn)
+#        print(DAQ.idn)
         print('Prior Z stage')
 
         win = TormentaGUI()
