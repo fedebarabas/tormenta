@@ -2,7 +2,7 @@
 """
 Created on Wed Oct  1 13:41:48 2014
 
-@author: luciano / federico
+@authors: Federico Barabas, Luciano Masullo
 """
 
 import numpy as np
@@ -14,7 +14,7 @@ from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
 import pygame.camera
-import pygame as pyg
+import pygame
 
 from lantz import Q_
 
@@ -214,32 +214,44 @@ class FocusWidget(QtGui.QFrame):
         super(FocusWidget, self).closeEvent(*args, **kwargs)
 
 
-class webcamView(pg.GraphicsWindow):
+class webcamView(pg.GraphicsLayoutWidget):
 
     def __init__(self, webcam, *args, **kwargs):
 
         super(webcamView, self).__init__(*args, **kwargs)
 
         self.webcam = webcam
-        self.sensorSize = self.webcam.get_size()
+        image = self.webcam.get_image()
+        self.sensorSize = pygame.surfarray.array2d(image).shape
 
         self.img = pg.ImageItem(border='w')
         self.view = self.addViewBox()
         self.view.setAspectLocked(True)  # square pixels
         self.view.addItem(self.img)
+#        hist = pg.HistogramLUTItem()
+#        hist.setImageItem(self.img)
+#        self.addItem(hist)
 
         # TODO: simplified view
+        # TODO: vale la pena promediar?
+        # TODO: potencia óptima del láser
+        # TODO: caja
+        # TODO: circuito
 
     def update(self):
 
-        imageArray = np.zeros(self.sensorSize, np.float)
+        runs = 10
+        imageArray = np.zeros((runs, self.sensorSize[0], self.sensorSize[1]),
+                              np.float)
 
-        for i in range(1):
-            image = pyg.surfarray.array2d(self.webcam.get_image())
-            imageArray += image / np.sum(image)
+        for i in range(runs):
+            image = self.webcam.get_image()
+            image = pygame.surfarray.array2d(image).astype(np.float)
+            imageArray[i] = image / np.sum(image)
 
-        self.img.setImage(imageArray)
-        self.focusSignal = (ndi.measurements.center_of_mass(imageArray)[0] -
+        finalImage = np.sum(imageArray, 0)
+        self.img.setImage(finalImage)
+        self.focusSignal = (ndi.measurements.center_of_mass(finalImage)[0] -
                             self.sensorSize[0] / 2)
 
 
@@ -396,8 +408,8 @@ if __name__ == '__main__':
 #    with DAQ() as DAQ, ScanZ(12) as z:
     with ScanZ(12) as z:
 
-#        win = FocusWidget(DAQ, z)
         win = FocusWidget(z)
+#        win = FocusWidget(DAQ, z)
         win.show()
 
         app.exec_()

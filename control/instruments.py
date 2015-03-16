@@ -63,7 +63,6 @@ class ScanZ(object):
             return MockScanZ()
 
 
-
 class Camera(object):
     """ Buffer class for testing whether the camera is connected. If it's not,
     it returns a dummy class for program testing. """
