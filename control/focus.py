@@ -240,10 +240,11 @@ class webcamView(pg.GraphicsLayoutWidget):
 
     def update(self):
 
-        runs = 10
+        runs = 1
         imageArray = np.zeros((runs, self.sensorSize[0], self.sensorSize[1]),
                               np.float)
 
+        # mucha CPU
         for i in range(runs):
             image = self.webcam.get_image()
             image = pygame.surfarray.array2d(image).astype(np.float)
