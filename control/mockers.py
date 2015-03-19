@@ -19,6 +19,7 @@ Created on Tue Aug 12 20:02:08 2014
 
 import logging
 import numpy as np
+import pygame
 
 from lantz import Driver
 from lantz import Q_
@@ -31,6 +32,18 @@ class constants:
 
     def __init__(self):
         self.GND = 0
+
+
+class MockWebcam(object):
+
+    def __init__(self):
+        super(MockWebcam).__init__()
+
+    def start(self):
+        pass
+
+    def get_image(self):
+        return (100 * np.random.rand(480, 640)).astype(np.float)
 
 
 class MockDAQ(Driver):

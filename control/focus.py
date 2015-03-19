@@ -13,12 +13,10 @@ import scipy.ndimage as ndi
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
-import pygame.camera
-import pygame
 
 from lantz import Q_
 
-from instruments import ScanZ   # , DAQ
+from instruments import ScanZ, Webcam   # , DAQ
 from pi import PI
 
 
@@ -36,9 +34,7 @@ class FocusWidget(QtGui.QFrame):
 #        except:
 #            pass
 
-        pygame.camera.init()
-        self.webcam = pygame.camera.Camera(pygame.camera.list_cameras()[0])
-        self.webcam.start()
+        self.webcam = Webcam()
 
         self.z = scanZ
         self.setPoint = 0
@@ -209,7 +205,6 @@ class FocusWidget(QtGui.QFrame):
 #        self.streamThread.terminate()
 
         self.webcam.stop()
-        pygame.camera.quit()
 
         super(FocusWidget, self).closeEvent(*args, **kwargs)
 
@@ -221,8 +216,7 @@ class webcamView(pg.GraphicsLayoutWidget):
         super(webcamView, self).__init__(*args, **kwargs)
 
         self.webcam = webcam
-        image = self.webcam.get_image()
-        self.sensorSize = pygame.surfarray.array2d(image).shape
+        self.sensorSize = self.webcam.get_image().shape
 
         self.img = pg.ImageItem(border='w')
         self.view = self.addViewBox()
@@ -232,7 +226,6 @@ class webcamView(pg.GraphicsLayoutWidget):
 #        hist.setImageItem(self.img)
 #        self.addItem(hist)
 
-        # TODO: simplified view
         # TODO: vale la pena promediar?
         # TODO: potencia óptima del láser
         # TODO: caja
@@ -247,7 +240,6 @@ class webcamView(pg.GraphicsLayoutWidget):
         # mucha CPU
         for i in range(runs):
             image = self.webcam.get_image()
-            image = pygame.surfarray.array2d(image).astype(np.float)
             imageArray[i] = image / np.sum(image)
 
         finalImage = np.sum(imageArray, 0)
@@ -260,6 +252,8 @@ class FocusLockGraph(pg.GraphicsWindow):
 
     def __init__(self, focusWidget, main=None, *args, **kwargs):
 
+        super(FocusLockGraph, self).__init__(*args, **kwargs)
+
         self.focusWidget = focusWidget
         self.main = main
         self.scansPerS = self.focusWidget.scansPerS
@@ -269,7 +263,6 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.savedDataTime = []
         self.savedDataPosition = []
 
-        super(FocusLockGraph, self).__init__(*args, **kwargs)
         self.setWindowTitle('Focus')
         self.setAntialiasing(True)
 

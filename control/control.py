@@ -860,7 +860,7 @@ if __name__ == '__main__':
 
     with Camera('andor.ccd.CCD') as andor, \
             Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
-            Laser('cobolt.cobolt0601.Cobolt0601', 'COM4') as bluelaser, \
+            Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM4') as bluelaser, \
             Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser, \
             ScanZ(12) as scanZ:
 #            DAQ() as DAQ, ScanZ(12) as scanZ:
