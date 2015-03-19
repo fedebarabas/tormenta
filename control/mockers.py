@@ -45,6 +45,9 @@ class MockWebcam(object):
     def get_image(self):
         return (100 * np.random.rand(480, 640)).astype(np.float)
 
+    def stop(self):
+        pass
+
 
 class MockDAQ(Driver):
 
