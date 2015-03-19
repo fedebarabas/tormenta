@@ -81,7 +81,7 @@ class RecordingWidget(QtGui.QFrame):
         openFolderButton = QtGui.QPushButton('Open Folder')
         openFolderButton.clicked.connect(self.openFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
-        self.convertButton = QtGui.QPushButton('Convert to TIFF')
+        self.convertButton = QtGui.QPushButton('Export to TIFF')
         self.convertButton.clicked.connect(self.convertToTiff)
         self.convertButton.setEnabled(False)
 
@@ -258,8 +258,7 @@ class RecordingWidget(QtGui.QFrame):
             time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
 
             self.store_file = hdf.File(self.savename, "w")
-            initShape = (0, self.shape[0], self.shape[1])
-            maxShape = (None, self.shape[0], self.shape[1])
+            initShape = (self.n(), self.shape[0], self.shape[1])
             self.store_file.create_dataset(name=self.dataname, shape=initShape,
                                            maxshape=maxShape, dtype=np.uint16)
             self.dataset = self.store_file[self.dataname]
@@ -272,7 +271,6 @@ class RecordingWidget(QtGui.QFrame):
         time.sleep(self.main.t_exp_real.magnitude)
         if andor.n_images_acquired > self.j:
             i, self.j = andor.new_images_index
-            self.dataset.resize((self.j, self.shape[0], self.shape[1]))
             self.dataset[i - 1:self.j] = andor.images16(i, self.j, self.shape,
                                                         1, self.n())
             self.updateGUI(self.dataset[self.j - 1])
@@ -281,6 +279,10 @@ class RecordingWidget(QtGui.QFrame):
             QtCore.QTimer.singleShot(0, self.whileRecording)
 
         else:
+            # Crop dataset if it's stopped before finishing
+            if self.j < self.n():
+                self.dataset.resize((self.j, self.shape[0], self.shape[1]))
+
             # Saving parameters
             for item in self.attrs:
                 self.dataset.attrs[item[0]] = item[1]
