@@ -78,7 +78,7 @@ class FocusWidget(QtGui.QFrame):
         self.calibrationDisplay.setReadOnly(False)
 
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit('0.0001')
+        self.kpEdit = QtGui.QLineEdit('0.005')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
         self.kiEdit = QtGui.QLineEdit('0.0001')
@@ -110,6 +110,8 @@ class FocusWidget(QtGui.QFrame):
         self.focusTimer.start(self.focusTime)
 
         self.locked = False
+        self.n = 1
+        self.max_dev = 0
 
         # GUI layout
         grid = QtGui.QGridLayout()
@@ -162,13 +164,10 @@ class FocusWidget(QtGui.QFrame):
         self.distance = self.z.position - self.initialZ
 #        out = self.PI.update(self.stream.newData)
         out = self.PI.update(self.webcamView.focusSignal)
-        if abs(self.distance) > 10 * self.um or abs(out) > 0.5:
+        if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
         else:
-            if abs(out) > 5:
-                self.unlockFocus()
-            else:
-                self.z.moveRelative(out * self.um)
+            self.z.moveRelative(out * self.um)
 
     def moveZ(self, value):
         self.z.position = value
@@ -190,14 +189,27 @@ class FocusWidget(QtGui.QFrame):
 #        self.graph.savedDataPosition = []
 
     def analizeFocus(self):
-        self.mean = np.around(np.mean(self.graph.savedDataSignal), 3)
-        self.std_dev = np.around(np.std(self.graph.savedDataSignal), 5)
-        dev = np.array(self.graph.savedDataSignal) - self.setPoint
-        self.max_dev = np.around(np.max(np.abs(dev)), 5)
 
-        statData = 'st_dev = {}    max_dev = {}'.format(self.std_dev,
-                                                        self.max_dev)
+        if self.n == 1:
+            self.mean = self.webcamView.focusSignal
+            self.mean2 = self.webcamView.focusSignal**2
+        else:
+            self.mean += (self.webcamView.focusSignal - self.mean)/self.n
+            self.mean2 += (self.webcamView.focusSignal**2 - self.mean2)/self.n
+#        self.mean = np.around(np.mean(self.graph.savedDataSignal), 3)
+#        self.std_dev = np.around(np.std(self.graph.savedDataSignal), 5)
+#        dev = np.array(self.graph.savedDataSignal) - self.setPoint
+#        self.max_dev = np.around(np.max(np.abs(dev)), 5)
+
+        self.std = np.sqrt(self.mean2 - self.mean**2)
+        self.max_dev = np.max(self.max_dev,
+                              self.webcamView.focusSignal - self.setPoint)
+
+        statData = 'std = {}    max_dev = {}'.format(np.round(self.std, 3),
+                                                     np.round(self.max_dev, 3))
         self.graph.statistics.setText(statData)
+
+        self.n += 1
 
     def closeEvent(self, *args, **kwargs):
 
@@ -219,7 +231,6 @@ class webcamView(pg.GraphicsLayoutWidget):
     def __init__(self, webcam, *args, **kwargs):
 
         super(webcamView, self).__init__(*args, **kwargs)
-
         self.webcam = webcam
         image = self.webcam.get_image()
         self.sensorSize = pygame.surfarray.array2d(image).shape
