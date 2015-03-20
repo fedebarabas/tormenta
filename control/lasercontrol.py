@@ -32,7 +32,7 @@ class LaserWidget(QtGui.QFrame):
 
     def __init__(self, lasers, *args, **kwargs):
 
-        super(LaserWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.redlaser, self.bluelaser, self.greenlaser = lasers
         self.mW = Q_(1, 'mW')
@@ -54,6 +54,8 @@ class LaserWidget(QtGui.QFrame):
                                          prange=(0, 1500),
                                          tickInterval=10, singleStep=1)
 
+        self.controls = (self.redControl, self.blueControl, self.greenControl)
+
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
@@ -69,7 +71,7 @@ class LaserWidget(QtGui.QFrame):
         self.updateThread.started.connect(self.updatePowers.update)
 
     def closeEvent(self, *args, **kwargs):
-        super(LaserWidget, self).closeEvent(*args, **kwargs)
+        super().closeEvent(*args, **kwargs)
         self.updateThread.terminate()
 
 
@@ -147,7 +149,7 @@ class LaserControl(QtGui.QFrame):
         self.slider.setValue(self.laser.power_sp.magnitude)
 
     def closeEvent(self, *args, **kwargs):
-        super(LaserControl, self).closeEvent(*args, **kwargs)
+        super().closeEvent(*args, **kwargs)
 
 
 if __name__ == '__main__':
@@ -157,7 +159,7 @@ if __name__ == '__main__':
     from instruments import Laser
 
     with Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
-            Laser('cobolt.cobolt0601.Cobolt0601', 'COM4') as bluelaser, \
+            Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
             Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser:
 
         print(redlaser.idn, bluelaser.idn, greenlaser.idn)

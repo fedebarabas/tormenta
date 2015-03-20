@@ -13,6 +13,7 @@ import scipy.ndimage as ndi
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
+import pygame
 
 from lantz import Q_
 
@@ -192,15 +193,10 @@ class FocusWidget(QtGui.QFrame):
         else:
             self.mean += (self.webcamView.focusSignal - self.mean)/self.n
             self.mean2 += (self.webcamView.focusSignal**2 - self.mean2)/self.n
-#        self.mean = np.around(np.mean(self.graph.savedDataSignal), 3)
-#        self.std_dev = np.around(np.std(self.graph.savedDataSignal), 5)
-#        dev = np.array(self.graph.savedDataSignal) - self.setPoint
-#        self.max_dev = np.around(np.max(np.abs(dev)), 5)
 
         self.std = np.sqrt(self.mean2 - self.mean**2)
-        self.max_dev = np.max(self.max_dev,
-                              self.webcamView.focusSignal - self.setPoint)
-
+        self.max_dev = np.max((self.max_dev,
+                               self.webcamView.focusSignal - self.setPoint))
         statData = 'std = {}    max_dev = {}'.format(np.round(self.std, 3),
                                                      np.round(self.max_dev, 3))
         self.graph.statistics.setText(statData)
@@ -227,15 +223,13 @@ class webcamView(pg.GraphicsLayoutWidget):
 
         super(webcamView, self).__init__(*args, **kwargs)
         self.webcam = webcam
-        self.sensorSize = self.webcam.get_image().shape
+        image = self.webcam.get_image()
+        self.sensorSize = pygame.surfarray.array2d(image).shape
 
         self.img = pg.ImageItem(border='w')
         self.view = self.addViewBox()
         self.view.setAspectLocked(True)  # square pixels
         self.view.addItem(self.img)
-#        hist = pg.HistogramLUTItem()
-#        hist.setImageItem(self.img)
-#        self.addItem(hist)
 
         # TODO: vale la pena promediar?
         # TODO: potencia óptima del láser
@@ -251,6 +245,7 @@ class webcamView(pg.GraphicsLayoutWidget):
         # mucha CPU
         for i in range(runs):
             image = self.webcam.get_image()
+            image = pygame.surfarray.array2d(image).astype(np.float)
             imageArray[i] = image / np.sum(image)
 
         finalImage = np.sum(imageArray, 0)

@@ -11,6 +11,7 @@ import numpy as np
 import os
 import datetime
 import time
+import re
 
 from PyQt4 import QtGui, QtCore
 
@@ -238,8 +239,9 @@ class RecordingWidget(QtGui.QFrame):
             self.attrs.extend([('Date', time.strftime("%Y-%m-%d")),
                                ('Start time', time.strftime("%H:%M:%S")),
                               ('element_size_um', (1, 0.133, 0.133))])
-#            TODO:
-#            self.attrs.append(self.main.lasersWidgets.attrs())
+            for laserControl in self.main.laserWidgets.controls:
+                name = re.sub('<[^<]+?>', '', laserControl.name.text())
+                self.attrs.append((name, laserControl.laser.power))
 
             # Acquisition preparation
             self.main.viewtimer.stop()
@@ -260,7 +262,7 @@ class RecordingWidget(QtGui.QFrame):
             self.store_file = hdf.File(self.savename, "w")
             initShape = (self.n(), self.shape[0], self.shape[1])
             self.store_file.create_dataset(name=self.dataname, shape=initShape,
-                                           maxshape=maxShape, dtype=np.uint16)
+                                           maxshape=initShape, dtype=np.uint16)
             self.dataset = self.store_file[self.dataname]
             self.startTime = ptime.time()
 
@@ -302,9 +304,6 @@ class RecordingWidget(QtGui.QFrame):
         else:
             self.main.focusWidget.graph.savedDataSignal = []
 
-#        if self.convertButton.isChecked():
-#            self.convertToTIFF()
-
         self.recButton.setChecked(False)
         self.editable = True
         self.main.tree.editable = True
@@ -314,7 +313,8 @@ class RecordingWidget(QtGui.QFrame):
 
     def convertToTiff(self):
         self.converterThread = QtCore.QThread()
-        self.converter = TiffConverter(self.savename, self.dataname)
+        self.converter = TiffConverter(self.savename, self.dataname,
+                                       self.attrs)
         self.converter.moveToThread(self.converterThread)
         self.converterThread.started.connect(self.converter.run)
         self.converterThread.start()
@@ -322,7 +322,7 @@ class RecordingWidget(QtGui.QFrame):
 
 class TiffConverter(QtCore.QObject):
 
-    def __init__(self, filename, dataname, *args, **kwargs):
+    def __init__(self, filename, dataname, attrs, *args, **kwargs):
         super(TiffConverter, self).__init__(*args, **kwargs)
         self.filename = filename
         self.dataname = dataname
@@ -352,6 +352,7 @@ class TiffConverter(QtCore.QObject):
 
         self.file.close()
         # TODO: guardar atributos como texto
+        # fp.write('\n'.join('{} {}'.format(x[0],x[1]) for x in mylist)
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -635,7 +636,8 @@ class TormentaGUI(QtGui.QMainWindow):
         dockArea.addDock(focusDock, 'above', wheelDock)
 
         laserDock = Dock("Laser Control", size=(1, 1))
-        self.laserWidgets = LaserWidget((redlaser, bluelaser, greenlaser))
+        self.lasers = (redlaser, bluelaser, greenlaser)
+        self.laserWidgets = LaserWidget(self.lasers)
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', focusDock)
 
@@ -860,7 +862,7 @@ if __name__ == '__main__':
 
     with Camera('andor.ccd.CCD') as andor, \
             Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
-            Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM4') as bluelaser, \
+            Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
             Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser, \
             ScanZ(12) as scanZ:
 #            DAQ() as DAQ, ScanZ(12) as scanZ:

@@ -22,26 +22,12 @@ class Webcam(object):
     def __new__(cls, *args):
         try:
             pygame.camera.init()
-            return auxWebcam(pygame.camera.list_cameras()[0])
+            webcam = pygame.camera.Camera(pygame.camera.list_cameras()[0])
+            webcam.start()
+            return webcam
 
         except:
             return MockWebcam()
-
-
-class auxWebcam(pygame.camera.Camera):
-
-    def __init__(self, device, *args, **kwargs):
-        super(auxWebcam, self).__init__(*args, **kwargs)
-        self.start()
-
-    def get_image(self, *args, **kwargs):
-        image = super(auxWebcam, self).get_image(*args, **kwargs)
-        arr = pygame.surfarray.array2d(image)
-        return arr.astype(np.float)
-
-    def stop(self, *args, **kwargs):
-        super(auxWebcam, self).stop(*args, **kwargs)
-        pygame.camera.quit()
 
 
 class Laser(object):
