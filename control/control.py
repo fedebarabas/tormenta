@@ -25,7 +25,7 @@ import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
 
 # Tormenta imports
-from instruments import Laser, Camera, ScanZ, DAQ
+from instruments import Laser, Camera, ScanZ   # , DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
 from viewboxtools import Grid, Crosshair, ROI
@@ -45,9 +45,21 @@ def getUniqueName(name):
     return name
 
 
-def insertSuffix(filename, suffix):
+def insertSuffix(filename, suffix, newExt=None):
     names = os.path.splitext(filename)
-    return names[0] + suffix + names[1]
+    if newExt is None:
+        return names[0] + suffix + names[1]
+    else:
+        return names[0] + suffix + newExt
+
+
+def fileSizeGB(shape):
+    # self.nPixels() * self.nExpositions * 16 / (8 * 1024**3)
+    return shape[0]*shape[1]*shape[2] / 2**29
+
+
+def nFramesPerChunk(shape):
+    return int(1.8 * 2**29 / (shape[1] * shape[2]))
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -69,14 +81,18 @@ class RecordingWidget(QtGui.QFrame):
         openFolderButton = QtGui.QPushButton('Open Folder')
         openFolderButton.clicked.connect(self.openFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
-        self.formatBox = QtGui.QComboBox()
-        self.formatBox.addItems(['hdf5', 'tiff'])
+        self.convertButton = QtGui.QPushButton('Convert to TIFF')
+        self.convertButton.clicked.connect(self.convertToTiff)
+        self.convertButton.setEnabled(False)
 
-        self.snapButton = QtGui.QPushButton('Snap')
-        self.snapButton.setEnabled(False)
-        self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
-                                      QtGui.QSizePolicy.Expanding)
-        self.snapButton.clicked.connect(self.snap)
+        self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
+        self.snapTIFFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                          QtGui.QSizePolicy.Expanding)
+        self.snapTIFFButton.clicked.connect(self.snapTIFF)
+        self.snapHDFButton = QtGui.QPushButton('Snap HDF5')
+        self.snapHDFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                         QtGui.QSizePolicy.Expanding)
+        self.snapHDFButton.clicked.connect(self.snapHDF)
         self.recButton = QtGui.QPushButton('REC')
         self.recButton.setCheckable(True)
         self.recButton.setEnabled(False)
@@ -100,16 +116,17 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(openFolderButton, 1, 1, 1, 2)
         recGrid.addWidget(self.folderEdit, 2, 0, 1, 3)
         recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
-        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 2)
-        recGrid.addWidget(self.formatBox, 4, 2)
-        recGrid.addWidget(self.snapButton, 1, 3, 2, 1)
-        recGrid.addWidget(self.recButton, 3, 3, 4, 1)
+        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 3)
+        recGrid.addWidget(self.convertButton, 6, 3)
+        recGrid.addWidget(self.snapTIFFButton, 1, 3)
+        recGrid.addWidget(self.snapHDFButton, 2, 3)
+        recGrid.addWidget(self.recButton, 3, 3, 3, 1)
         recGrid.addWidget(self.tElapsed, 6, 0)
         recGrid.addWidget(self.tRemaining, 6, 1, 1, 2)
 
         recGrid.setColumnMinimumWidth(0, 200)
 
-        self._editable = True
+        self.editable = False
 
     @property
     def editable(self):
@@ -117,11 +134,12 @@ class RecordingWidget(QtGui.QFrame):
 
     @editable.setter
     def editable(self, value):
-        self.snapButton.setEnabled(value)
+        self.snapTIFFButton.setEnabled(value)
+        self.snapHDFButton.setEnabled(value)
         self.folderEdit.setEnabled(value)
         self.filenameEdit.setEnabled(value)
         self.numExpositionsEdit.setEnabled(value)
-        self.formatBox.setEnabled(value)
+        self.convertButton.setEnabled(value)
         self._editable = value
 
     def n(self):
@@ -137,9 +155,6 @@ class RecordingWidget(QtGui.QFrame):
     def filename(self):
         return self.filenameEdit.text()
 
-    def saveFormat(self):
-        return self.formatBox.currentText()
-
     def nChanged(self):
         self.updateRemaining()
         self.limitExpositions(9)
@@ -152,10 +167,6 @@ class RecordingWidget(QtGui.QFrame):
     def nPixels(self):
         return self.shape[0] * self.shape[1]
 
-    def fileSizeGB(self):
-        # self.nPixels() * self.nExpositions * 16 / (8 * 1024**3)
-        return self.nPixels() * self.n() / 2**29
-
     # Setting a xGB limit on file sizes to be able to open them in Fiji
     def limitExpositions(self, xGB):
         # nMax = xGB * 8 * 1024**3 / (pixels * 16)
@@ -163,46 +174,63 @@ class RecordingWidget(QtGui.QFrame):
         if self.n() > nMax:
             self.numExpositionsEdit.setText(str(np.round(nMax).astype(int)))
 
-    if sys.platform == 'darwin':
-        def openFolder(self, path):
+    def openFolder(self, path):
+        if sys.platform == 'darwin':
             subprocess.check_call(['open', '', self.folder()])
-    elif sys.platform == 'linux':
-        def openFolder(self, path):
+        elif sys.platform == 'linux':
             subprocess.check_call(['gnome-open', '', self.folder()])
-    elif sys.platform == 'win32':
-        def openFolder(self, path):
+        elif sys.platform == 'win32':
             subprocess.check_call(['explorer', self.folder()])
 
-    def snap(self):
-
+    def snapHDF(self):
         image = andor.most_recent_image16(self.shape)
 
-        # Data storing
-        self.savename = (os.path.join(self.folder(), self.filename()) + '.' +
-                         self.format)
+        savename = (os.path.join(self.folder(), self.filename()) + '.hdf5')
+        store_file = hdf.File(savename)
+        # TODO: check if dataset exists
+        store_file.create_dataset(name=self.dataname + '_snap', data=image)
+        store_file.close()
 
-        if self.saveFormat() == 'hdf5':
-            self.store_file = hdf.File(getUniqueName(self.savename))
-            self.store_file.create_dataset(name=self.dataname + '_snap',
-                                           data=image)
-            self.store_file.close()
+    def snapTIFF(self):
+        image = andor.most_recent_image16(self.shape)
 
-        elif self.saveFormat() == 'tiff':
-            splitted = os.path.splitext(self.savename)
-            snapname = splitted[0] + '_snap' + splitted[1]
-            tiff.imsave(getUniqueName(snapname), image,
-                        description=self.dataname, software='Tormenta')
+        savename = os.path.join(self.folder(), self.filename()) + '_snap.tiff'
+        tiff.imsave(getUniqueName(savename), image, description=self.dataname,
+                    software='Tormenta')
+
+    def updateGUI(self, image):
+        self.main.img.setImage(image, autoLevels=False)
+        if self.main.crosshair.showed:
+            xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
+            ycoord = int(np.round(self.main.crosshair.hLine.pos()[0]))
+            self.main.xProfile.setData(image[xcoord])
+            self.main.yProfile.setData(image[:, ycoord])
+
+        # fps calculation
+        self.main.fpsMath()
+
+        # Elapsed and remaining times and frames
+        eSecs = np.round(ptime.time() - self.startTime)
+        eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
+        self.tElapsed.setText(eText)
+        nframe = self.j
+        rFrames = self.n() - nframe
+        rSecs = np.round(self.main.t_acc_real.magnitude * rFrames)
+        rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
+        self.tRemaining.setText(rText)
+        self.currentFrame.setText(str(nframe) + ' /')
 
     def startRecording(self):
 
         if self.recButton.isChecked():
 
             self.editable = False
+            self.convertButton.setEnabled(False)
             self.main.tree.editable = False
             self.main.liveviewButton.setEnabled(False)
 
             self.savename = (os.path.join(self.folder(), self.filename()) +
-                             '.' + self.saveFormat())
+                             '.hdf5')
             self.savename = getUniqueName(self.savename)
 
             # Attributes saving
@@ -220,125 +248,122 @@ class RecordingWidget(QtGui.QFrame):
             else:
                 andor.shutter(0, 1, 0, 0, 0)
 
-            self.iPart = 0
-            if self.fileSizeGB() < 2:
-                self.chunkMode = False
-                self.nn = np.zeros(1)
-                self.recordSingle(self.n(), self.savename)
+            # Frame counter
+            self.j = 0
 
-            else:
-                self.chunkMode = True
+            andor.free_int_mem()
+            andor.acquisition_mode = 'Kinetics'
+            andor.set_n_kinetics(self.n())
+            andor.start_acquisition()
+            time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
 
-                nn = np.zeros(np.ceil(self.fileSizeGB() / 2))
-                nn[:np.floor(self.fileSizeGB() / 2)] = 2
-                if nn[-1] == 0:
-                    nn[-1] = self.fileSizeGB() - np.sum(nn)
-                self.nn = (self.n() * nn / self.fileSizeGB()).astype(int)
-                suffix = '_part{}'.format(self.iPart)
-                partName = insertSuffix(self.savename, suffix)
+            self.store_file = hdf.File(self.savename, "w")
+            initShape = (0, self.shape[0], self.shape[1])
+            maxShape = (None, self.shape[0], self.shape[1])
+            self.store_file.create_dataset(name=self.dataname, shape=initShape,
+                                           maxshape=maxShape, dtype=np.uint16)
+            self.dataset = self.store_file[self.dataname]
+            self.startTime = ptime.time()
 
-                self.recordSingle(self.nn[self.iPart], partName)
+            QtCore.QTimer.singleShot(1, self.whileRecording)
 
-    def recordSingle(self, n, name):
-
-        # Frame counter
-        self.j = 0
-
-        andor.free_int_mem()
-        andor.acquisition_mode = 'Kinetics'
-        andor.set_n_kinetics(n)
-        andor.start_acquisition()
-        time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
-
-        self.stack = np.zeros((n, self.shape[0], self.shape[1]),
-                              dtype=np.uint16)
-
-        self.startTime = ptime.time()
-        QtCore.QTimer.singleShot(1, lambda: self.updateWhileRec(n, name))
-
-    def updateWhileRec(self, n, name):
+    def whileRecording(self):
 
         time.sleep(self.main.t_exp_real.magnitude)
         if andor.n_images_acquired > self.j:
             i, self.j = andor.new_images_index
-            self.stack[i - 1:self.j] = andor.images16(i, self.j, self.shape, 1,
-                                                      n)
-            self.main.img.setImage(np.transpose(self.stack[self.j - 1]),
-                                   autoLevels=False)
-            if self.main.crosshair.showed:
-                xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
-                ycoord = int(np.round(self.main.crosshair.hLine.pos()[0]))
-                self.main.xProfile.setData(self.stack[self.j - 1][xcoord])
-                self.main.yProfile.setData(self.stack[self.j - 1][:, ycoord])
+            self.dataset.resize((self.j, self.shape[0], self.shape[1]))
+            self.dataset[i - 1:self.j] = andor.images16(i, self.j, self.shape,
+                                                        1, self.n())
+            self.updateGUI(self.dataset[self.j - 1])
 
-            # fps calculation
-            self.main.fpsMath()
-
-            # Elapsed and remaining times and frames
-            eSecs = np.round(ptime.time() - self.startTime)
-            eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
-            self.tElapsed.setText(eText)
-            nframe = int(self.j + np.sum(self.nn[:self.iPart]))
-            rFrames = self.n() - nframe
-            rSecs = np.round(self.main.t_acc_real.magnitude * rFrames)
-            rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
-            self.tRemaining.setText(rText)
-            self.currentFrame.setText(str(nframe) + ' /')
-
-        if self.j < n and self.recButton.isChecked():
-            QtCore.QTimer.singleShot(0, lambda: self.updateWhileRec(n, name))
+        if self.j < self.n() and self.recButton.isChecked():
+            QtCore.QTimer.singleShot(0, self.whileRecording)
 
         else:
-            self.endRecording(name)
-
-    def endRecording(self, name):
-
-        if self.saveFormat() == 'hdf5':
-            self.store_file = hdf.File(name, "w")
-            self.store_file.create_dataset(name=self.dataname,
-                                           data=self.stack[0:self.j])
             # Saving parameters
             for item in self.attrs:
-                self.store_file[self.dataname].attrs[item[0]] = item[1]
+                self.dataset.attrs[item[0]] = item[1]
 
-            self.store_file.close()
+            self.endRecording()
 
-        elif self.saveFormat() == 'tiff':
-            tiff.imsave(name, self.stack[0:self.j], description=self.dataname,
-                        software='Tormenta')
+    def endRecording(self):
 
-        if self.chunkMode and self.iPart + 1 < len(self.nn):
-            self.iPart += 1
-            suffix = '_part{}'.format(self.iPart)
-            partName = insertSuffix(self.savename, suffix)
+        # Saving parameters
+        for item in self.attrs:
+            self.store_file[self.dataname].attrs[item[0]] = item[1]
 
-            self.recordSingle(self.nn[self.iPart], partName)
+        self.store_file.close()
 
+        if self.main.focusWidget.focusDataBox.isChecked():
+            self.main.focusWidget.exportData()
         else:
+            self.main.focusWidget.graph.savedDataSignal = []
 
-            if self.main.focusWidget.focusDataBox.isChecked():
-                self.main.focusWidget.exportData()
+#        if self.convertButton.isChecked():
+#            self.convertToTIFF()
 
-            else:
-                self.main.focusWidget.graph.savedDataSignal = []
+        self.recButton.setChecked(False)
+        self.editable = True
+        self.main.tree.editable = True
+        self.main.liveviewButton.setEnabled(True)
+        self.main.liveview(update=False)
+        self.convertButton.setEnabled(True)
 
-            self.recButton.setChecked(False)
-            self.editable = True
-            self.main.tree.editable = True
-            self.main.liveviewButton.setEnabled(True)
-            self.main.liveview(update=False)
+    def convertToTiff(self):
+        self.converterThread = QtCore.QThread()
+        self.converter = TiffConverter(self.savename, self.dataname)
+        self.converter.moveToThread(self.converterThread)
+        self.converterThread.started.connect(self.converter.run)
+        self.converterThread.start()
+
+
+class TiffConverter(QtCore.QObject):
+
+    def __init__(self, filename, dataname, *args, **kwargs):
+        super(TiffConverter, self).__init__(*args, **kwargs)
+        self.filename = filename
+        self.dataname = dataname
+        self.file = hdf.File(self.filename, mode='r')
+        self.filesize = fileSizeGB(self.file[self.dataname].shape)
+
+    def run(self):
+        if self.filesize < 2:
+            time.sleep(5)
+            tiff.imsave(os.path.splitext(self.filename)[0] + '.tiff',
+                        self.file[self.dataname], description=self.dataname,
+                        software='Tormenta')
+        else:
+            n = nFramesPerChunk(self.file[self.dataname].shape)
+            i = 0
+            while i < self.filesize // 1.8:
+                suffix = '_part{}'.format(i)
+                partName = insertSuffix(self.filename, suffix, '.tiff')
+                tiff.imsave(partName, self.file[self.dataname][i*n:(i + 1)*n],
+                            description=self.dataname, software='Tormenta')
+                i += 1
+            if self.filesize % 2 > 0:
+                suffix = '_part{}'.format(i)
+                partName = insertSuffix(self.filename, suffix, '.tiff')
+                tiff.imsave(partName, self.file[self.dataname][i*n:],
+                            description=self.dataname, software='Tormenta')
+
+        self.file.close()
+        # TODO: guardar atributos como texto
 
 
 class TemperatureStabilizer(QtCore.QObject):
 
-    def __init__(self, parameter, *args, **kwargs):
+    def __init__(self, main, *args, **kwargs):
 
         global andor
 
         super(TemperatureStabilizer, self).__init__(*args, **kwargs)
-        self.parameter = parameter
+        self.main = main
+        self.parameter = self.main.TempPar
         self.setPointPar = self.parameter.param('Set point')
         self.setPointPar.sigValueChanged.connect(self.updateTemp)
+        self.currTempPar = self.parameter.param('Current temperature')
 
     def updateTemp(self):
         andor.temperature_setpoint = Q_(self.setPointPar.value(), 'degC')
@@ -353,9 +378,11 @@ class TemperatureStabilizer(QtCore.QObject):
     def update(self):
         stable = 'Temperature has stabilized at set point.'
         if andor.temperature_status != stable:
-            CurrTempPar = self.parameter.param('Current temperature')
-            CurrTempPar.setValue(np.round(andor.temperature.magnitude, 1))
+            temperature = andor.temperature
+            self.currTempPar.setValue(np.round(temperature.magnitude, 1))
             self.parameter.param('Status').setValue(andor.temperature_status)
+            if temperature <= 0.8 * andor.temperature_setpoint:
+                self.main.liveviewButton.setEnabled(True)
             time.sleep(10)
         else:
             self.timer.stop()
@@ -364,7 +391,6 @@ class TemperatureStabilizer(QtCore.QObject):
 class CamParamTree(ParameterTree):
     """ Making the ParameterTree for configuration of the camera during imaging
     """
-
     global andor
 
     def __init__(self, *args, **kwargs):
@@ -562,12 +588,13 @@ class TormentaGUI(QtGui.QMainWindow):
         self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                           QtGui.QSizePolicy.Expanding)
         self.liveviewButton.clicked.connect(self.liveview)
+        self.liveviewButton.setEnabled(False)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
 
         # Temperature stabilization functionality
         self.TempPar = self.tree.p.param('Temperature')
-        self.stabilizer = TemperatureStabilizer(self.TempPar)
+        self.stabilizer = TemperatureStabilizer(self)
         self.stabilizerThread = QtCore.QThread()
         self.stabilizer.moveToThread(self.stabilizerThread)
         self.stabilizerThread.started.connect(self.stabilizer.start)
@@ -587,7 +614,8 @@ class TormentaGUI(QtGui.QMainWindow):
         data = np.array([('ZET642NF',    'Notch 642nm',     4, ''),
                          ('ET700/75m',   'Bandpass 700/75', 5, 'Alexa647, '
                                                                'Atto655'),
-                         ('FF01-593/40', 'Bandpass 593/40', 6, 'Atto565'),
+                         ('FF01-593/40', 'Bandpass 593/40', 6, 'Atto565, '
+                                                               'Nile Red'),
                          ('ET575/50',    'Bandpass 575/50', 1, 'Atto550'),
                          ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
                          ('',            '',                3, '')],
@@ -599,7 +627,8 @@ class TormentaGUI(QtGui.QMainWindow):
         dockArea.addDock(wheelDock, 'top', consoleDock)
 
         focusDock = Dock("Focus Control", size=(1, 1))
-        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
+#        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
+        self.focusWidget = FocusWidget(scanZ, self.recWidget)
         focusDock.addWidget(self.focusWidget)
         dockArea.addDock(focusDock, 'above', wheelDock)
 
@@ -752,7 +781,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
             andor.start_acquisition()
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
-            self.recWidget.snapButton.setEnabled(True)
+            self.recWidget.editable = True
             self.recWidget.recButton.setEnabled(True)
 
             # Initial image
@@ -766,6 +795,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         else:
             self.viewtimer.stop()
+            self.recWidget.editable = False
+            self.recWidget.recButton.setEnabled(False)
 
             # Turn off camera, close shutter
             if andor.status != 'Camera is idle, waiting for instructions.':
@@ -780,7 +811,7 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         try:
             image = andor.most_recent_image16(self.shape)
-            self.img.setImage(np.transpose(image), autoLevels=False)
+            self.img.setImage(image, autoLevels=False)
 
             if self.crosshair.showed:
                 xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
@@ -829,13 +860,14 @@ if __name__ == '__main__':
             Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
             Laser('cobolt.cobolt0601.Cobolt0601', 'COM4') as bluelaser, \
             Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser, \
-            DAQ() as DAQ, ScanZ(12) as scanZ:
+            ScanZ(12) as scanZ:
+#            DAQ() as DAQ, ScanZ(12) as scanZ:
 
         print(andor.idn)
         print(redlaser.idn)
         print(bluelaser.idn)
         print(greenlaser.idn)
-        print(DAQ.idn)
+#        print(DAQ.idn)
         print('Prior Z stage')
 
         win = TormentaGUI()

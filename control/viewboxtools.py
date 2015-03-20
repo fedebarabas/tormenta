@@ -6,6 +6,7 @@ Created on Fri Feb  6 13:20:02 2015
 """
 
 import pyqtgraph as pg
+import numpy as np
 
 
 class Grid():
@@ -115,7 +116,7 @@ class ROI(pg.ROI):
         vb.addItem(self)
 
         self.label = pg.TextItem()
-        self.label.setPos(0.5 * shape[0] - 64, 0.5 * shape[1] - 64)
+        self.label.setPos(self.pos())
         self.label.setText('128x128')
 
         self.sigRegionChanged.connect(self.updateText)
@@ -123,5 +124,10 @@ class ROI(pg.ROI):
         vb.addItem(self.label)
 
     def updateText(self):
-        self.label.setPos((0.5 * self.mainShape[0] - 64,
-                           0.5 * self.mainShape[1] - 64))
+        self.label.setPos(self.pos())
+        size = np.round(self.size()).astype(np.int)
+        self.label.setText('{}x{}'.format(size[0], size[1]))
+
+    def hide(self, *args, **kwargs):
+        super(ROI, self).hide(*args, **kwargs)
+        self.label.hide()

@@ -123,7 +123,6 @@ class MockLaser(Driver):
 
         self.enabled = False
         self.power_sp = 0 * self.mW
-        print("Simulated laser initialized")
 
     @property
     def idn(self):

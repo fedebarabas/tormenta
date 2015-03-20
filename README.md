@@ -1,8 +1,9 @@
 # Tormenta
 Measurement control and analysis for optical microscopy
 
-### Requirements
+### Dependencies
  - numpy
+ - scipy
  - h5py
  - PyQt4
  - pyqtgraph dev
@@ -11,3 +12,4 @@ Measurement control and analysis for optical microscopy
   - http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
  - lantz
   - https://github.com/hgrecco/lantz
+ - pygame
