@@ -96,7 +96,6 @@ class RecordingWidget(QtGui.QFrame):
         self.snapHDFButton.clicked.connect(self.snapHDF)
         self.recButton = QtGui.QPushButton('REC')
         self.recButton.setCheckable(True)
-        self.recButton.setEnabled(False)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
         self.recButton.clicked.connect(self.startRecording)
@@ -127,7 +126,19 @@ class RecordingWidget(QtGui.QFrame):
 
         recGrid.setColumnMinimumWidth(0, 200)
 
-        self.editable = False
+        self.editable = True
+        self.readyToRecord = False
+
+    @property
+    def readyToRecord(self):
+        return self._readyToRecord
+
+    @readyToRecord.setter
+    def readyToRecord(self, value):
+        self.snapTIFFButton.setEnabled(value)
+        self.snapHDFButton.setEnabled(value)
+        self.recButton.setEnabled(value)
+        self._readyToRecord = value
 
     @property
     def editable(self):
@@ -135,12 +146,9 @@ class RecordingWidget(QtGui.QFrame):
 
     @editable.setter
     def editable(self, value):
-        self.snapTIFFButton.setEnabled(value)
-        self.snapHDFButton.setEnabled(value)
         self.folderEdit.setEnabled(value)
         self.filenameEdit.setEnabled(value)
         self.numExpositionsEdit.setEnabled(value)
-        self.convertButton.setEnabled(value)
         self._editable = value
 
     def n(self):
@@ -226,6 +234,7 @@ class RecordingWidget(QtGui.QFrame):
         if self.recButton.isChecked():
 
             self.editable = False
+            self.readyToRecord = False
             self.convertButton.setEnabled(False)
             self.main.tree.editable = False
             self.main.liveviewButton.setEnabled(False)
@@ -305,7 +314,9 @@ class RecordingWidget(QtGui.QFrame):
             self.main.focusWidget.graph.savedDataSignal = []
 
         self.recButton.setChecked(False)
+        self.convertButton.setEnabled(True)
         self.editable = True
+        self.readyToRecord = True
         self.main.tree.editable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveview(update=False)
@@ -785,7 +796,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
             andor.start_acquisition()
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
-            self.recWidget.editable = True
+            self.recWidget.readyToRecord = True
             self.recWidget.recButton.setEnabled(True)
 
             # Initial image
