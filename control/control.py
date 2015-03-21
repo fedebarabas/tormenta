@@ -235,6 +235,8 @@ class RecordingWidget(QtGui.QFrame):
 
             self.editable = False
             self.readyToRecord = False
+            self.recButton.setEnabled(True)
+            self.recButton.setText('STOP')
             self.convertButton.setEnabled(False)
             self.main.tree.editable = False
             self.main.liveviewButton.setEnabled(False)
@@ -317,6 +319,7 @@ class RecordingWidget(QtGui.QFrame):
         self.convertButton.setEnabled(True)
         self.editable = True
         self.readyToRecord = True
+        self.recButton.setText('REC')
         self.main.tree.editable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveview(update=False)
@@ -810,8 +813,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         else:
             self.viewtimer.stop()
-            self.recWidget.editable = False
-            self.recWidget.recButton.setEnabled(False)
+            self.recWidget.readyToRecord = False
 
             # Turn off camera, close shutter
             if andor.status != 'Camera is idle, waiting for instructions.':
@@ -874,7 +876,7 @@ if __name__ == '__main__':
     with Camera('andor.ccd.CCD') as andor, \
             Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
             Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
-            Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser, \
+            Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser, \
             ScanZ(12) as scanZ:
 #            DAQ() as DAQ, ScanZ(12) as scanZ:
 

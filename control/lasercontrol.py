@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
     with Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
             Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
-            Laser('laserquantum.ventus.Ventus', 'COM10') as greenlaser:
+            Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser:
 
         print(redlaser.idn, bluelaser.idn, greenlaser.idn)
         win = LaserWidget((redlaser, bluelaser, greenlaser))
