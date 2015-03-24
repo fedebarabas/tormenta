@@ -46,6 +46,12 @@ def getUniqueName(name):
     return name
 
 
+def AttrsToTxt(filename, attrs):
+    fp = open(filename + '.txt', 'w')
+    fp.write('\n'.join('{}= {}'.format(x[0], x[1]) for x in attrs))
+    fp.close()
+
+
 def insertSuffix(filename, suffix, newExt=None):
     names = os.path.splitext(filename)
     if newExt is None:
@@ -191,21 +197,36 @@ class RecordingWidget(QtGui.QFrame):
         elif sys.platform == 'win32':
             subprocess.check_call(['explorer', self.folder()])
 
+    # Attributes saving
+    def getAttrs(self):
+        attrs = self.main.tree.attrs()
+        attrs.extend([('Date', time.strftime("%Y-%m-%d")),
+                      ('Start time', time.strftime("%H:%M:%S")),
+                      ('element_size_um', (1, 0.133, 0.133))])
+        for laserControl in self.main.laserWidgets.controls:
+            name = re.sub('<[^<]+?>', '', laserControl.name.text())
+            attrs.append((name, laserControl.laser.power))
+        return attrs
+
     def snapHDF(self):
         image = andor.most_recent_image16(self.shape)
 
-        savename = (os.path.join(self.folder(), self.filename()) + '.hdf5')
+        savename = getUniqueName(os.path.join(self.folder(), self.filename()) +
+                                 '_snap.hdf5')
         store_file = hdf.File(savename)
-        # TODO: check if dataset exists
-        store_file.create_dataset(name=self.dataname + '_snap', data=image)
+        store_file.create_dataset(name=self.dataname, data=image)
+        for item in self.getAttrs():
+            store_file[self.dataname].attrs[item[0]] = item[1]
         store_file.close()
 
     def snapTIFF(self):
         image = andor.most_recent_image16(self.shape)
 
-        savename = os.path.join(self.folder(), self.filename()) + '_snap.tiff'
-        tiff.imsave(getUniqueName(savename), image, description=self.dataname,
+        savename = getUniqueName(os.path.join(self.folder(), self.filename()) +
+                                 '_snap.tiff')
+        tiff.imsave(savename, image, description=self.dataname,
                     software='Tormenta')
+        AttrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
     def updateGUI(self, image):
         self.main.img.setImage(image, autoLevels=False)
@@ -244,15 +265,6 @@ class RecordingWidget(QtGui.QFrame):
             self.savename = (os.path.join(self.folder(), self.filename()) +
                              '.hdf5')
             self.savename = getUniqueName(self.savename)
-
-            # Attributes saving
-            self.attrs = self.main.tree.attrs()
-            self.attrs.extend([('Date', time.strftime("%Y-%m-%d")),
-                               ('Start time', time.strftime("%H:%M:%S")),
-                              ('element_size_um', (1, 0.133, 0.133))])
-            for laserControl in self.main.laserWidgets.controls:
-                name = re.sub('<[^<]+?>', '', laserControl.name.text())
-                self.attrs.append((name, laserControl.laser.power))
 
             # Acquisition preparation
             self.main.viewtimer.stop()
@@ -296,16 +308,12 @@ class RecordingWidget(QtGui.QFrame):
             if self.j < self.n():
                 self.dataset.resize((self.j, self.shape[0], self.shape[1]))
 
-            # Saving parameters
-            for item in self.attrs:
-                self.dataset.attrs[item[0]] = item[1]
-
             self.endRecording()
 
     def endRecording(self):
 
         # Saving parameters
-        for item in self.attrs:
+        for item in self.getAttrs():
             self.store_file[self.dataname].attrs[item[0]] = item[1]
 
         self.store_file.close()
@@ -328,7 +336,7 @@ class RecordingWidget(QtGui.QFrame):
     def convertToTiff(self):
         self.converterThread = QtCore.QThread()
         self.converter = TiffConverter(self.savename, self.dataname,
-                                       self.attrs)
+                                       self.getAttrs())
         self.converter.moveToThread(self.converterThread)
         self.converterThread.started.connect(self.converter.run)
         self.converterThread.start()
@@ -342,13 +350,14 @@ class TiffConverter(QtCore.QObject):
         self.dataname = dataname
         self.file = hdf.File(self.filename, mode='r')
         self.filesize = fileSizeGB(self.file[self.dataname].shape)
+        self.attrs = attrs
 
     def run(self):
         if self.filesize < 2:
             time.sleep(5)
-            tiff.imsave(os.path.splitext(self.filename)[0] + '.tiff',
-                        self.file[self.dataname], description=self.dataname,
-                        software='Tormenta')
+            filename = os.path.splitext(self.filename)[0]
+            tiff.imsave(filename + '.tiff', self.file[self.dataname],
+                        description=self.dataname, software='Tormenta')
         else:
             n = nFramesPerChunk(self.file[self.dataname].shape)
             i = 0
@@ -365,8 +374,10 @@ class TiffConverter(QtCore.QObject):
                             description=self.dataname, software='Tormenta')
 
         self.file.close()
-        # TODO: guardar atributos como texto
-        # fp.write('\n'.join('{} {}'.format(x[0],x[1]) for x in mylist)
+        AttrsToTxt(filename, self.attrs)
+        # for opening attributes this should work:
+        # myprops = dict(line.strip().split('=') for line in
+        #                open('/Path/filename.txt'))
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -398,7 +409,8 @@ class TemperatureStabilizer(QtCore.QObject):
             temperature = andor.temperature
             self.currTempPar.setValue(np.round(temperature.magnitude, 1))
             self.parameter.param('Status').setValue(andor.temperature_status)
-            if temperature <= 0.8 * andor.temperature_setpoint:
+            threshold = Q_(0.8 * andor.temperature_setpoint.magnitude, 'degC')
+            if temperature <= threshold or andor.mock:
                 self.main.liveviewButton.setEnabled(True)
             time.sleep(10)
         else:

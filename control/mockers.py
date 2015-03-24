@@ -191,6 +191,7 @@ class MockCamera(Driver):
         self.s = Q_(1, 's')
         self.us = Q_(1, 'us')
 
+        self.mock = True
         self.temperature_setpoint = Q_(-10, 'degC')
         self.cooler_on_state = False
         self.acq_mode = 'Run till abort'
