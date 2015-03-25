@@ -214,7 +214,7 @@ class FocusWidget(QtGui.QFrame):
 
         self.webcam.stop()
 
-        super(FocusWidget, self).closeEvent(*args, **kwargs)
+        super().closeEvent(*args, **kwargs)
 
 
 class webcamView(pg.GraphicsLayoutWidget):

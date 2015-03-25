@@ -29,44 +29,8 @@ from lantz import Q_
 from instruments import Laser, Camera, ScanZ   # , DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
-from viewboxtools import Grid, Crosshair, ROI
-
-
-# Check for same name conflict
-def getUniqueName(name):
-
-    n = 1
-    while os.path.exists(name):
-        if n > 1:
-            name = name.replace('_{}.'.format(n - 1), '_{}.'.format(n))
-        else:
-            name = insertSuffix(name, '_{}'.format(n))
-        n += 1
-
-    return name
-
-
-def AttrsToTxt(filename, attrs):
-    fp = open(filename + '.txt', 'w')
-    fp.write('\n'.join('{}= {}'.format(x[0], x[1]) for x in attrs))
-    fp.close()
-
-
-def insertSuffix(filename, suffix, newExt=None):
-    names = os.path.splitext(filename)
-    if newExt is None:
-        return names[0] + suffix + names[1]
-    else:
-        return names[0] + suffix + newExt
-
-
-def fileSizeGB(shape):
-    # self.nPixels() * self.nExpositions * 16 / (8 * 1024**3)
-    return shape[0]*shape[1]*shape[2] / 2**29
-
-
-def nFramesPerChunk(shape):
-    return int(1.8 * 2**29 / (shape[1] * shape[2]))
+from tools import getUniqueName, attrsToTxt, insertSuffix, fileSizeGB, \
+    nFramesPerChunk, convertToTiff, Grid, Crosshair, ROI
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -89,7 +53,6 @@ class RecordingWidget(QtGui.QFrame):
         openFolderButton.clicked.connect(self.openFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
         self.convertButton = QtGui.QPushButton('Export to TIFF')
-        self.convertButton.clicked.connect(self.convertToTiff)
         self.convertButton.setEnabled(False)
 
         self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
@@ -324,6 +287,8 @@ class RecordingWidget(QtGui.QFrame):
             self.main.focusWidget.graph.savedDataSignal = []
 
         self.recButton.setChecked(False)
+        convertFunction = lambda: convertToTiff(self.savename)
+        self.convertButton.clicked.connect(convertFunction)
         self.convertButton.setEnabled(True)
         self.editable = True
         self.readyToRecord = True
@@ -332,52 +297,6 @@ class RecordingWidget(QtGui.QFrame):
         self.main.liveviewButton.setEnabled(True)
         self.main.liveview(update=False)
         self.convertButton.setEnabled(True)
-
-    def convertToTiff(self):
-        self.converterThread = QtCore.QThread()
-        self.converter = TiffConverter(self.savename, self.dataname,
-                                       self.getAttrs())
-        self.converter.moveToThread(self.converterThread)
-        self.converterThread.started.connect(self.converter.run)
-        self.converterThread.start()
-
-
-class TiffConverter(QtCore.QObject):
-
-    def __init__(self, filename, dataname, attrs, *args, **kwargs):
-        super(TiffConverter, self).__init__(*args, **kwargs)
-        self.filename = filename
-        self.dataname = dataname
-        self.file = hdf.File(self.filename, mode='r')
-        self.filesize = fileSizeGB(self.file[self.dataname].shape)
-        self.attrs = attrs
-
-    def run(self):
-        if self.filesize < 2:
-            time.sleep(5)
-            filename = os.path.splitext(self.filename)[0]
-            tiff.imsave(filename + '.tiff', self.file[self.dataname],
-                        description=self.dataname, software='Tormenta')
-        else:
-            n = nFramesPerChunk(self.file[self.dataname].shape)
-            i = 0
-            while i < self.filesize // 1.8:
-                suffix = '_part{}'.format(i)
-                partName = insertSuffix(self.filename, suffix, '.tiff')
-                tiff.imsave(partName, self.file[self.dataname][i*n:(i + 1)*n],
-                            description=self.dataname, software='Tormenta')
-                i += 1
-            if self.filesize % 2 > 0:
-                suffix = '_part{}'.format(i)
-                partName = insertSuffix(self.filename, suffix, '.tiff')
-                tiff.imsave(partName, self.file[self.dataname][i*n:],
-                            description=self.dataname, software='Tormenta')
-
-        self.file.close()
-        AttrsToTxt(filename, self.attrs)
-        # for opening attributes this should work:
-        # myprops = dict(line.strip().split('=') for line in
-        #                open('/Path/filename.txt'))
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -533,6 +452,22 @@ class TormentaGUI(QtGui.QMainWindow):
         self.lastTime = ptime.time()
         self.fps = None
 
+        # Menubar
+        exportTiffAction = QtGui.QAction('Export HDF5 to Tiff', self)
+        exportTiffAction.setShortcut('Ctrl+E')
+        exportTiffAction.setStatusTip('Export HDF5 file to Tiff format')
+        exportTiffAction.triggered.connect(convertToTiff)
+        exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
+        exitAction.setShortcut('Ctrl+Q')
+        exitAction.setStatusTip('Exit application')
+        exitAction.triggered.connect(QtGui.QApplication.closeAllWindows)
+
+        menubar = self.menuBar()
+        fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(exportTiffAction)
+        fileMenu.addAction(exitAction)
+
+        self.statusBar()
         self.tree = CamParamTree()
 
         # Frame signals

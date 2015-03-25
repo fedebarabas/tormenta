@@ -43,7 +43,8 @@ class MockWebcam(object):
         pass
 
     def get_image(self):
-        return (100 * np.random.rand(480, 640)).astype(np.float)
+        arr = (100 * np.random.rand(480, 640)).astype(np.float)
+        return pygame.surfarray.make_surface(arr)
 
     def stop(self):
         pass
