@@ -13,12 +13,11 @@ import scipy.ndimage as ndi
 from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
 import pyqtgraph.ptime as ptime
-import pygame.camera
 import pygame
 
 from lantz import Q_
 
-from instruments import ScanZ   # , DAQ
+from instruments import ScanZ, Webcam   # , DAQ
 from pi import PI
 
 
@@ -29,6 +28,7 @@ class FocusWidget(QtGui.QFrame):
 
         super(FocusWidget, self).__init__(*args, **kwargs)
 
+
         self.main = main  # main va a ser RecordingWidget de control.py
 #        self.DAQ = DAQ
 #        try:
@@ -36,9 +36,7 @@ class FocusWidget(QtGui.QFrame):
 #        except:
 #            pass
 
-        pygame.camera.init()
-        self.webcam = pygame.camera.Camera(pygame.camera.list_cameras()[0])
-        self.webcam.start()
+        self.webcam = Webcam()
 
         self.z = scanZ
         self.setPoint = 0
@@ -98,8 +96,10 @@ class FocusWidget(QtGui.QFrame):
 #        self.focusAnalisisButton.clicked.connect(self.analizeFocus)
         self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
 #        self.focusPropertiesDisplay.setReadOnly(True)
+
 #        style = QtGui.QFrame.Panel | QtGui.QFrame.Raised
 #        self.focusPropertiesDisplay.setFrameStyle(style)
+
 
         self.webcamView = webcamView(self.webcam)
         self.graph = FocusLockGraph(self, main)
@@ -196,12 +196,9 @@ class FocusWidget(QtGui.QFrame):
         else:
             self.mean += (self.webcamView.focusSignal - self.mean)/self.n
             self.mean2 += (self.webcamView.focusSignal**2 - self.mean2)/self.n
-#        self.mean = np.around(np.mean(self.graph.savedDataSignal), 3)
-#        self.std_dev = np.around(np.std(self.graph.savedDataSignal), 5)
-#        dev = np.array(self.graph.savedDataSignal) - self.setPoint
-#        self.max_dev = np.around(np.max(np.abs(dev)), 5)
 
         self.std = np.sqrt(self.mean2 - self.mean**2)
+
         self.max_dev = np.max([self.max_dev,
                               self.webcamView.focusSignal - self.setPoint])
 
@@ -221,9 +218,8 @@ class FocusWidget(QtGui.QFrame):
 #        self.streamThread.terminate()
 
         self.webcam.stop()
-        pygame.camera.quit()
 
-        super(FocusWidget, self).closeEvent(*args, **kwargs)
+        super().closeEvent(*args, **kwargs)
 
 
 class webcamView(pg.GraphicsLayoutWidget):
@@ -239,11 +235,7 @@ class webcamView(pg.GraphicsLayoutWidget):
         self.view = self.addViewBox()
         self.view.setAspectLocked(True)  # square pixels
         self.view.addItem(self.img)
-#        hist = pg.HistogramLUTItem()
-#        hist.setImageItem(self.img)
-#        self.addItem(hist)
 
-        # TODO: simplified view
         # TODO: vale la pena promediar?
         # TODO: potencia óptima del láser
         # TODO: caja
@@ -271,6 +263,8 @@ class FocusLockGraph(pg.GraphicsWindow):
 
     def __init__(self, focusWidget, main=None, *args, **kwargs):
 
+        super(FocusLockGraph, self).__init__(*args, **kwargs)
+
         self.focusWidget = focusWidget
         self.main = main
         self.scansPerS = self.focusWidget.scansPerS
@@ -280,7 +274,6 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.savedDataTime = []
         self.savedDataPosition = []
 
-        super(FocusLockGraph, self).__init__(*args, **kwargs)
         self.setWindowTitle('Focus')
         self.setAntialiasing(True)
 
@@ -365,9 +358,7 @@ class focusCalibration(QtCore.QObject):
 
         poly = np.polyfit(np.array(self.signalData),
                           np.array(self.positionData), 1)
-
         self.calibrationResult = np.around(poly, 2)
-
         self.export()
 
     def export(self):

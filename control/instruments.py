@@ -11,7 +11,23 @@ import importlib
 from lantz.drivers.andor.ccd import CCD
 from lantz import Q_
 
-from mockers import MockCamera, MockScanZ, MockLaser, MockDAQ
+import pygame
+import pygame.camera
+
+from mockers import MockCamera, MockScanZ, MockLaser, MockDAQ, MockWebcam
+
+
+class Webcam(object):
+
+    def __new__(cls, *args):
+        try:
+            pygame.camera.init()
+            webcam = pygame.camera.Camera(pygame.camera.list_cameras()[0])
+            webcam.start()
+            return webcam
+
+        except:
+            return MockWebcam()
 
 
 class Laser(object):
@@ -24,13 +40,10 @@ class Laser(object):
             driver = getattr(package, driverName)
             laser = driver(*args)
             laser.initialize()
+            return driver(*args)
 
         except:
             return MockLaser()
-
-        else:
-            laser.finalize()
-            return driver(*args)
 
 
 class DAQ(object):
@@ -55,9 +68,7 @@ class ScanZ(object):
             from lantz.drivers.prior.nanoscanz import NanoScanZ
             scan = NanoScanZ(*args)
             scan.initialize()
-            scan.finalize()
-
-            return NanoScanZ(*args)
+            return scan
 
         except:
             return MockScanZ()
@@ -80,7 +91,6 @@ class Camera(object):
             return MockCamera()
 
         else:
-            camera.finalize()
             return STORMCamera(*args)
 
 
