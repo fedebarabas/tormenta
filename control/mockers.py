@@ -19,6 +19,7 @@ Created on Tue Aug 12 20:02:08 2014
 
 import logging
 import numpy as np
+import pygame
 
 from lantz import Driver
 from lantz import Q_
@@ -31,6 +32,22 @@ class constants:
 
     def __init__(self):
         self.GND = 0
+
+
+class MockWebcam(object):
+
+    def __init__(self):
+        super(MockWebcam).__init__()
+
+    def start(self):
+        pass
+
+    def get_image(self):
+        arr = (100 * np.random.rand(480, 640)).astype(np.float)
+        return pygame.surfarray.make_surface(arr)
+
+    def stop(self):
+        pass
 
 
 class MockDAQ(Driver):
@@ -175,6 +192,7 @@ class MockCamera(Driver):
         self.s = Q_(1, 's')
         self.us = Q_(1, 'us')
 
+        self.mock = True
         self.temperature_setpoint = Q_(-10, 'degC')
         self.cooler_on_state = False
         self.acq_mode = 'Run till abort'
