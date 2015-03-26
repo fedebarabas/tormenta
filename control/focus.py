@@ -181,10 +181,10 @@ class FocusWidget(QtGui.QFrame):
         self.graph.savedDataSignal = []
         self.graph.savedDataTime = []
 
-        self.plot = plt.plot(self.graph.savedDataTime,
-                             self.graph.savedDataSignal, 'b-',
-                             self.graph.savedDataTime,
-                             np.ones(self.sizeofData)*self.setPoint, 'r-')
+#        self.plot = plt.plot(self.graph.savedDataTime,
+#                             self.graph.savedDataSignal, 'b-',
+#                             self.graph.savedDataTime,
+#                             np.ones(self.sizeofData)*self.setPoint, 'r-')
 
 #        self.graph.savedDataPosition = []
 
@@ -202,8 +202,8 @@ class FocusWidget(QtGui.QFrame):
 #        self.max_dev = np.around(np.max(np.abs(dev)), 5)
 
         self.std = np.sqrt(self.mean2 - self.mean**2)
-        self.max_dev = np.max(self.max_dev,
-                              self.webcamView.focusSignal - self.setPoint)
+        self.max_dev = np.max([self.max_dev,
+                              self.webcamView.focusSignal - self.setPoint])
 
         statData = 'std = {}    max_dev = {}'.format(np.round(self.std, 3),
                                                      np.round(self.max_dev, 3))
@@ -329,7 +329,7 @@ class FocusLockGraph(pg.GraphicsWindow):
 
             if self.recButton.isChecked():
                 self.savedDataSignal.append(self.focusSignal)
-                self.savedDataTime.append(self.ptr/self.scansPerS)
+                self.savedDataTime.append(self.time[-1])
 #               self.savedDataPosition.append(self.DAQ.position)
 
             if self.recButton.isChecked():
