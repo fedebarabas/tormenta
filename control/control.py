@@ -30,7 +30,7 @@ from instruments import Laser, Camera, ScanZ   # , DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
 from tools import getUniqueName, attrsToTxt, insertSuffix, fileSizeGB, \
-    nFramesPerChunk, convertToTiff, Grid, Crosshair, ROI
+    nFramesPerChunk, TiffConverterThread, Grid, Crosshair, ROI
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -52,8 +52,6 @@ class RecordingWidget(QtGui.QFrame):
         openFolderButton = QtGui.QPushButton('Open Folder')
         openFolderButton.clicked.connect(self.openFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
-        self.convertButton = QtGui.QPushButton('Export to TIFF')
-        self.convertButton.setEnabled(False)
 
         self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
         self.snapTIFFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
@@ -86,10 +84,9 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(self.folderEdit, 2, 0, 1, 3)
         recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
         recGrid.addWidget(self.filenameEdit, 4, 0, 1, 3)
-        recGrid.addWidget(self.convertButton, 6, 3)
         recGrid.addWidget(self.snapTIFFButton, 1, 3)
         recGrid.addWidget(self.snapHDFButton, 2, 3)
-        recGrid.addWidget(self.recButton, 3, 3, 3, 1)
+        recGrid.addWidget(self.recButton, 3, 3, 4, 1)
         recGrid.addWidget(self.tElapsed, 6, 0)
         recGrid.addWidget(self.tRemaining, 6, 1, 1, 2)
 
@@ -221,7 +218,6 @@ class RecordingWidget(QtGui.QFrame):
             self.readyToRecord = False
             self.recButton.setEnabled(True)
             self.recButton.setText('STOP')
-            self.convertButton.setEnabled(False)
             self.main.tree.editable = False
             self.main.liveviewButton.setEnabled(False)
 
@@ -287,16 +283,15 @@ class RecordingWidget(QtGui.QFrame):
             self.main.focusWidget.graph.savedDataSignal = []
 
         self.recButton.setChecked(False)
-        convertFunction = lambda: convertToTiff(self.savename)
-        self.convertButton.clicked.connect(convertFunction)
-        self.convertButton.setEnabled(True)
+        converterFunction = lambda: TiffConverterThread(self.savename)
+        self.main.exportlastAction.triggered.connect(converterFunction)
+        self.main.exportlastAction.setEnabled(True)
         self.editable = True
         self.readyToRecord = True
         self.recButton.setText('REC')
         self.main.tree.editable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveview(update=False)
-        self.convertButton.setEnabled(True)
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -453,10 +448,17 @@ class TormentaGUI(QtGui.QMainWindow):
         self.fps = None
 
         # Menubar
-        exportTiffAction = QtGui.QAction('Export HDF5 to Tiff', self)
-        exportTiffAction.setShortcut('Ctrl+E')
-        exportTiffAction.setStatusTip('Export HDF5 file to Tiff format')
-        exportTiffAction.triggered.connect(convertToTiff)
+        self.exportTiffAction = QtGui.QAction('Export HDF5 to Tiff...', self)
+        self.exportTiffAction.setShortcut('Ctrl+E')
+        self.exportTiffAction.setStatusTip('Export HDF5 file to Tiff format')
+        self.exportTiffAction.triggered.connect(lambda: TiffConverterThread())
+
+        self.exportlastAction = QtGui.QAction('Export last recording to Tiff',
+                                              self)
+        self.exportlastAction.setEnabled(False)
+        self.exportlastAction.setShortcut('Ctrl+L')
+        self.exportlastAction.setStatusTip('Export last recording to Tiff ' +
+                                           'format')
         exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
@@ -464,7 +466,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
-        fileMenu.addAction(exportTiffAction)
+        fileMenu.addAction(self.exportTiffAction)
+        fileMenu.addAction(self.exportlastAction)
         fileMenu.addAction(exitAction)
 
         self.statusBar()
@@ -609,7 +612,7 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setColumnMinimumWidth(1, 600)
         layout.setColumnMinimumWidth(2, 200)
         layout.setRowMinimumHeight(0, 220)
-        layout.setRowMinimumHeight(1, 550)
+        layout.setRowMinimumHeight(1, 510)
         layout.setRowMinimumHeight(2, 20)
         layout.setRowMinimumHeight(3, 180)
         layout.setRowMinimumHeight(4, 20)
@@ -813,7 +816,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.laserWidgets.closeEvent(*args, **kwargs)
         self.focusWidget.closeEvent(*args, **kwargs)
-        super(TormentaGUI, self).closeEvent(*args, **kwargs)
+        super().closeEvent(*args, **kwargs)
 
 
 if __name__ == '__main__':

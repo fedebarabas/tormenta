@@ -1,4 +1,5 @@
 *.raw
+*.txt
 *.inf
 *~
 *.dax

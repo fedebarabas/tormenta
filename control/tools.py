@@ -5,10 +5,14 @@ Created on Fri Feb  6 13:20:02 2015
 @author: federico
 """
 import os
+import time
 import pyqtgraph as pg
 import numpy as np
+import h5py as hdf
+import tifffile as tiff
 
 from PyQt4 import QtGui, QtCore
+from tkinter import Tk, filedialog
 
 
 # Check for same name conflict
@@ -48,51 +52,74 @@ def nFramesPerChunk(shape):
     return int(1.8 * 2**29 / (shape[1] * shape[2]))
 
 
-def convertToTiff(filename):
+class TiffConverterThread(QtCore.QThread):
 
-    self.converterThread = QtCore.QThread()
-    self.converter = TiffConverter(filename)
-    self.converter.moveToThread(self.converterThread)
-    self.converterThread.started.connect(self.converter.run)
-    self.converterThread.start()
+    def __init__(self, filename=None):
+        super().__init__()
+        self.converter = TiffConverter(filename, self)
+        self.converter.moveToThread(self)
+        self.started.connect(self.converter.run)
+        self.start()
 
 
 class TiffConverter(QtCore.QObject):
 
-    def __init__(self, filename, *args, **kwargs):
-        super(TiffConverter, self).__init__(*args, **kwargs)
-        self.filename = filename
-        self.file = hdf.File(self.filename, mode='r')
+    def __init__(self, filenames, thread, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.filenames = filenames
+        self.thread = thread
 
     def run(self):
 
-        for dataname in self.file:
+        if self.filenames is None:
+            root = Tk()
+            filenames = filedialog.askopenfilenames(title="Select HDF5 files",
+                                                    filetypes=[('HDF5 files',
+                                                                '.hdf5')])
+            root.destroy()
+            self.filenames = root.tk.splitlist(filenames)
 
-            data = self.file[dataname]
-            filesize = fileSizeGB(data.shape)
-            filename = (os.path.splitext(self.filename)[0] + '_' + dataname)
-            attrsToTxt(filename, [at for at in data.attrs.items()])
+        else:
+            self.filenames = [self.filenames]
 
-            if filesize < 2:
-                time.sleep(5)
-                tiff.imsave(filename + '.tiff', data, description=dataname,
-                            software='Tormenta')
-            else:
-                n = nFramesPerChunk(data.shape)
-                i = 0
-                while i < filesize // 1.8:
-                    suffix = '_part{}'.format(i)
-                    partName = insertSuffix(filename, suffix, '.tiff')
-                    tiff.imsave(partName, data[i*n:(i + 1)*n],
-                                description=dataname, software='Tormenta')
-                    i += 1
-                if filesize % 2 > 0:
-                    suffix = '_part{}'.format(i)
-                    partName = insertSuffix(filename, suffix, '.tiff')
-                    tiff.imsave(partName, data[i*n:],
-                                description=dataname, software='Tormenta')
+        if len(self.filenames) > 0:
+            for filename in self.filenames:
 
-        self.file.close()
+                file = hdf.File(filename, mode='r')
+
+                for dataname in file:
+
+                    data = file[dataname]
+                    filesize = fileSizeGB(data.shape)
+                    filename = (os.path.splitext(filename)[0] + '_' + dataname)
+                    attrsToTxt(filename, [at for at in data.attrs.items()])
+
+                    if filesize < 2:
+                        time.sleep(5)
+                        tiff.imsave(filename + '.tiff', data,
+                                    description=dataname, software='Tormenta')
+                    else:
+                        n = nFramesPerChunk(data.shape)
+                        i = 0
+                        while i < filesize // 1.8:
+                            suffix = '_part{}'.format(i)
+                            partName = insertSuffix(filename, suffix, '.tiff')
+                            tiff.imsave(partName, data[i*n:(i + 1)*n],
+                                        description=dataname,
+                                        software='Tormenta')
+                            i += 1
+                        if filesize % 2 > 0:
+                            suffix = '_part{}'.format(i)
+                            partName = insertSuffix(filename, suffix, '.tiff')
+                            tiff.imsave(partName, data[i*n:],
+                                        description=dataname,
+                                        software='Tormenta')
+
+                file.close()
+
+        print(self.filenames, 'exported to TIFF')
+        self.filenames = None
+        self.thread.terminate()
         # for opening attributes this should work:
         # myprops = dict(line.strip().split('=') for line in
         #                open('/Path/filename.txt'))
