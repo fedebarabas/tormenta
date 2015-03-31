@@ -127,9 +127,9 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.lockButton, 1, 5, 2, 1)
         grid.addWidget(self.focusDataBox, 1, 2)
 
-        grid.setColumnMinimumWidth(1, 100)
-#        grid.setColumnMinimumWidth(2, 40)
-        grid.setColumnMinimumWidth(0, 100)
+#        grid.setColumnMinimumWidth(1, 100)
+##        grid.setColumnMinimumWidth(2, 40)
+#        grid.setColumnMinimumWidth(0, 100)
 
     def update(self):
         self.webcamView.update()
@@ -229,12 +229,26 @@ class webcamView(pg.GraphicsLayoutWidget):
         super(webcamView, self).__init__(*args, **kwargs)
         self.webcam = webcam
         image = self.webcam.get_image()
-        self.sensorSize = pygame.surfarray.array2d(image).shape
+        self.sensorSize = np.array(pygame.surfarray.array2d(image).shape)
 
-        self.img = pg.ImageItem(border='w')
-        self.view = self.addViewBox()
-        self.view.setAspectLocked(True)  # square pixels
-        self.view.addItem(self.img)
+        self.plot = self.addPlot(row=0, col=0)
+        self.plot.setLabels(bottom=('x', 'px'), left=('y', 'px'))
+        self.plot.showGrid(x=True, y=True)
+
+        self.massCenterPlot = self.plot.plot([0,0], pen=(200, 200, 200),
+                                             symbolBrush=(255, 0, 0),
+                                             symbolPen='w')
+
+        self.addItem(self.plot)
+        self.plot.enableAutoRange('xy', False)
+        self.plot.setRange(xRange=(-200,200), yRange=(-100,100))
+
+
+
+#        self.img = pg.ImageItem(border='w')
+#        self.view = self.addViewBox(invertY=True, invertX=False)
+#        self.view.setAspectLocked(True)  # square pixels
+#        self.view.addItem(self.img)
 
         # TODO: vale la pena promediar?
         # TODO: potencia óptima del láser
@@ -254,9 +268,16 @@ class webcamView(pg.GraphicsLayoutWidget):
             imageArray[i] = image / np.sum(image)
 
         finalImage = np.sum(imageArray, 0)
-        self.img.setImage(finalImage)
-        self.focusSignal = (ndi.measurements.center_of_mass(finalImage)[0] -
-                            self.sensorSize[0] / 2)
+        self.massCenter = np.array(ndi.measurements.center_of_mass(finalImage))
+        self.massCenter[0] = self.massCenter[0] - self.sensorSize[0] / 2
+        self.massCenter[1] = self.massCenter[1] - self.sensorSize[1] / 2
+
+
+        self.massCenterPlot.setData([self.massCenter[0]], [self.massCenter[1]])
+        self.focusSignal = self.massCenter[0]
+
+#        self.img.setImage(finalImage)
+#        self.focusSignal = (self.massCenter[0] - self.sensorSize[0] / 2)
 
 
 class FocusLockGraph(pg.GraphicsWindow):

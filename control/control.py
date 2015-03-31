@@ -595,6 +595,10 @@ class TormentaGUI(QtGui.QMainWindow):
         focusDock = Dock("Focus Control", size=(1, 1))
 #        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
         self.focusWidget = FocusWidget(scanZ, self.recWidget)
+#        self.focusThread = QtCore.QThread()
+#        self.focusWidget.moveToThread(self.focusThread)
+#        self.focusThread.started.connect(self.focusWidget)
+#        self.focusThread.start()
         focusDock.addWidget(self.focusWidget)
         dockArea.addDock(focusDock, 'above', wheelDock)
 
@@ -807,6 +811,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewtimer.stop()
         self.stabilizer.timer.stop()
         self.stabilizerThread.terminate()
+        self.focusThread.terminate()
 
         # Turn off camera, close shutter
         if andor.status != 'Camera is idle, waiting for instructions.':
