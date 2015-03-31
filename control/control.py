@@ -220,35 +220,131 @@ class RecordingWidget(QtGui.QFrame):
             self.recButton.setText('STOP')
             self.main.tree.editable = False
             self.main.liveviewButton.setEnabled(False)
+            self.main.viewtimer.stop()
 
             self.savename = (os.path.join(self.folder(), self.filename()) +
                              '.hdf5')
             self.savename = getUniqueName(self.savename)
 
-            # Acquisition preparation
-            self.main.viewtimer.stop()
-            if andor.status != 'Camera is idle, waiting for instructions.':
-                andor.abort_acquisition()
-            else:
-                andor.shutter(0, 1, 0, 0, 0)
+            self.worker = RecWorker(self, self.savename)
+            self.recordingThread = QtCore.QThread()
+            self.worker.moveToThread(self.recordingThread)
+            self.recordingThread.started.connect(self.worker.start)
+            self.recordingThread.start()
 
-            # Frame counter
-            self.j = 0
+#
+#            self.editable = False
+#            self.readyToRecord = False
+#            self.recButton.setEnabled(True)
+#            self.recButton.setText('STOP')
+#            self.main.tree.editable = False
+#            self.main.liveviewButton.setEnabled(False)
+#
+#            self.savename = (os.path.join(self.folder(), self.filename()) +
+#                             '.hdf5')
+#            self.savename = getUniqueName(self.savename)
+#
+#            # Acquisition preparation
+#            self.main.viewtimer.stop()
+#            if andor.status != 'Camera is idle, waiting for instructions.':
+#                andor.abort_acquisition()
+#            else:
+#                andor.shutter(0, 1, 0, 0, 0)
+#
+#            # Frame counter
+#            self.j = 0
+#
+#            andor.free_int_mem()
+#            andor.acquisition_mode = 'Kinetics'
+#            andor.set_n_kinetics(self.n())
+#            andor.start_acquisition()
+#            time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
+#
+#            self.store_file = hdf.File(self.savename, "w")
+#            initShape = (self.n(), self.shape[0], self.shape[1])
+#            self.store_file.create_dataset(name=self.dataname, shape=initShape,
+#                                           maxshape=initShape, dtype=np.uint16)
+#            self.dataset = self.store_file[self.dataname]
+#            self.startTime = ptime.time()
+#
+#            QtCore.QTimer.singleShot(1, self.whileRecording)
+#
+#    def whileRecording(self):
+#
+#        time.sleep(self.main.t_exp_real.magnitude)
+#        if andor.n_images_acquired > self.j:
+#            i, self.j = andor.new_images_index
+#            self.dataset[i - 1:self.j] = andor.images16(i, self.j, self.shape,
+#                                                        1, self.n())
+#            self.updateGUI(self.dataset[self.j - 1])
+#
+#        if self.j < self.n() and self.recButton.isChecked():
+#            QtCore.QTimer.singleShot(0, self.whileRecording)
+#
+#        else:
+#            # Crop dataset if it's stopped before finishing
+#            if self.j < self.n():
+#                self.dataset.resize((self.j, self.shape[0], self.shape[1]))
+#
+#            self.endRecording()
+#
+#    def endRecording(self):
+#
+#        # Saving parameters
+#        for item in self.getAttrs():
+#            self.store_file[self.dataname].attrs[item[0]] = item[1]
+#
+#        self.store_file.close()
+#
+#        if self.main.focusWidget.focusDataBox.isChecked():
+#            self.main.focusWidget.exportData()
+#        else:
+#            self.main.focusWidget.graph.savedDataSignal = []
+#
+#        self.recButton.setChecked(False)
+#        converterFunction = lambda: TiffConverterThread(self.savename)
+#        self.main.exportlastAction.triggered.connect(converterFunction)
+#        self.main.exportlastAction.setEnabled(True)
+#        self.editable = True
+#        self.readyToRecord = True
+#        self.recButton.setText('REC')
+#        self.main.tree.editable = True
+#        self.main.liveviewButton.setEnabled(True)
+#        self.main.liveview(update=False)
 
-            andor.free_int_mem()
-            andor.acquisition_mode = 'Kinetics'
-            andor.set_n_kinetics(self.n())
-            andor.start_acquisition()
-            time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
 
-            self.store_file = hdf.File(self.savename, "w")
-            initShape = (self.n(), self.shape[0], self.shape[1])
-            self.store_file.create_dataset(name=self.dataname, shape=initShape,
-                                           maxshape=initShape, dtype=np.uint16)
-            self.dataset = self.store_file[self.dataname]
-            self.startTime = ptime.time()
+class RecWorker(QtCore.QObject):
 
-            QtCore.QTimer.singleShot(1, self.whileRecording)
+    def __init__(self, recWidget, savename, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.recWidget = recWidget
+        self.savename = savename
+
+    def start(self):
+
+        # Acquisition preparation
+        if andor.status != 'Camera is idle, waiting for instructions.':
+            andor.abort_acquisition()
+        else:
+            andor.shutter(0, 1, 0, 0, 0)
+
+        # Frame counter
+        self.j = 0
+
+        andor.free_int_mem()
+        andor.acquisition_mode = 'Kinetics'
+        andor.set_n_kinetics(self.n())
+        andor.start_acquisition()
+        time.sleep(np.min((5 * self.main.t_exp_real.magnitude, 1)))
+
+        self.store_file = hdf.File(self.savename, "w")
+        initShape = (self.n(), self.shape[0], self.shape[1])
+        self.store_file.create_dataset(name=self.dataname, shape=initShape,
+                                       maxshape=initShape, dtype=np.uint16)
+        self.dataset = self.store_file[self.dataname]
+        self.startTime = ptime.time()
+
+        QtCore.QTimer.singleShot(1, self.whileRecording)
 
     def whileRecording(self):
 
@@ -257,7 +353,9 @@ class RecordingWidget(QtGui.QFrame):
             i, self.j = andor.new_images_index
             self.dataset[i - 1:self.j] = andor.images16(i, self.j, self.shape,
                                                         1, self.n())
-            self.updateGUI(self.dataset[self.j - 1])
+#            self.recWidget.updateGUI(self.dataset[self.j - 1])
+            self.emit(updategui, self.dataset[self.j - 1])
+            # TODO: fekopkewopfjk
 
         if self.j < self.n() and self.recButton.isChecked():
             QtCore.QTimer.singleShot(0, self.whileRecording)
@@ -277,22 +375,6 @@ class RecordingWidget(QtGui.QFrame):
 
         self.store_file.close()
 
-        if self.main.focusWidget.focusDataBox.isChecked():
-            self.main.focusWidget.exportData()
-        else:
-            self.main.focusWidget.graph.savedDataSignal = []
-
-        self.recButton.setChecked(False)
-        converterFunction = lambda: TiffConverterThread(self.savename)
-        self.main.exportlastAction.triggered.connect(converterFunction)
-        self.main.exportlastAction.setEnabled(True)
-        self.editable = True
-        self.readyToRecord = True
-        self.recButton.setText('REC')
-        self.main.tree.editable = True
-        self.main.liveviewButton.setEnabled(True)
-        self.main.liveview(update=False)
-
 
 class TemperatureStabilizer(QtCore.QObject):
 
@@ -300,7 +382,7 @@ class TemperatureStabilizer(QtCore.QObject):
 
         global andor
 
-        super(TemperatureStabilizer, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.main = main
         self.parameter = self.main.TempPar
         self.setPointPar = self.parameter.param('Set point')
