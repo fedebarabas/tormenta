@@ -246,10 +246,12 @@ class webcamView(pg.GraphicsLayoutWidget):
 
 
 
-#        self.img = pg.ImageItem(border='w')
-#        self.view = self.addViewBox(invertY=True, invertX=False)
-#        self.view.setAspectLocked(True)  # square pixels
-#        self.view.addItem(self.img)
+#==============================================================================
+#         self.img = pg.ImageItem(border='w')
+#         self.view = self.addViewBox(invertY=True, invertX=False)
+#         self.view.setAspectLocked(True)  # square pixels
+#         self.view.addItem(self.img)
+#==============================================================================
 
         # TODO: vale la pena promediar?
         # TODO: potencia óptima del láser
@@ -276,8 +278,10 @@ class webcamView(pg.GraphicsLayoutWidget):
 
         self.focusSignal = self.massCenter[0]
 
-#        self.img.setImage(finalImage)
-#        self.focusSignal = (self.massCenter[0] - self.sensorSize[0] / 2)
+#==============================================================================
+#         self.img.setImage(finalImage)
+#         self.focusSignal = (self.massCenter[0] - self.sensorSize[0] / 2)
+#==============================================================================
 
 
 class FocusLockGraph(pg.GraphicsWindow):
