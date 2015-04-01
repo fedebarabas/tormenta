@@ -104,6 +104,7 @@ class STORMCamera(CCD):
         super(STORMCamera, self).initialize(*args, **kwargs)
 
         self.s = Q_(1, 's')
+        self.mock = False
 
         # Default imaging parameters
         self.readout_mode = 'Image'
