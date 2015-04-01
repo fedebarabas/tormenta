@@ -7,7 +7,6 @@ Created on Wed Oct  1 13:41:48 2014
 
 import numpy as np
 import time
-import matplotlib.pyplot as plt
 import scipy.ndimage as ndi
 
 from PyQt4 import QtGui, QtCore
@@ -27,7 +26,6 @@ class FocusWidget(QtGui.QFrame):
     def __init__(self, scanZ, main=None, *args, **kwargs):
 
         super(FocusWidget, self).__init__(*args, **kwargs)
-
 
         self.main = main  # main va a ser RecordingWidget de control.py
 #        self.DAQ = DAQ
@@ -59,7 +57,7 @@ class FocusWidget(QtGui.QFrame):
 #        self.streamThread.started.connect(self.stream.start)
 #        self.streamThread.start()
 
-        self.focusCalib = focusCalibration(self)
+        self.focusCalib = FocusCalibration(self)
         self.focusCalibThread = QtCore.QThread()
         self.focusCalib.moveToThread(self.focusCalibThread)
         self.focusCalibButton = QtGui.QPushButton('Calibrate')
@@ -90,20 +88,11 @@ class FocusWidget(QtGui.QFrame):
 
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
 
-#        self.exportDataButton = QtGui.QPushButton('Export data')
-#        self.exportDataButton.clicked.connect(self.exportData)
-#        self.focusAnalisisButton = QtGui.QPushButton('Focus analisis')
-#        self.focusAnalisisButton.clicked.connect(self.analizeFocus)
         self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
-#        self.focusPropertiesDisplay.setReadOnly(True)
 
-#        style = QtGui.QFrame.Panel | QtGui.QFrame.Raised
-#        self.focusPropertiesDisplay.setFrameStyle(style)
-
-        self.webcamView = webcamView(self.webcam)
+        self.ProcessData = ProcessData(self.webcam)
         self.graph = FocusLockGraph(self, main)
         self.webcamgraph = WebcamGraph(self)
-        print(self.webcamgraph)
 
         self.focusTime = 1000 / self.scansPerS
         self.focusTimer = QtCore.QTimer()
@@ -129,22 +118,21 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.focusDataBox, 1, 2)
 
 #        grid.setColumnMinimumWidth(1, 100)
-##        grid.setColumnMinimumWidth(2, 40)
+#        grid.setColumnMinimumWidth(2, 40)
 #        grid.setColumnMinimumWidth(0, 100)
 
     def update(self):
-        self.webcamView.update()
+        self.ProcessData.update()
         self.graph.update()
         self.webcamgraph.update()
         self.webcamgraph.prueba()
-        print('update')
-        
+
         if self.locked:
             self.updatePI()
 
     def toggleFocus(self):
         if self.lockButton.isChecked():
-            self.setPoint = self.webcamView.focusSignal
+            self.setPoint = self.ProcessData.focusSignal
             self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
             self.PI = PI(self.setPoint,
                          np.float(self.kpEdit.text()),
@@ -167,7 +155,7 @@ class FocusWidget(QtGui.QFrame):
         # TODO: explain ifs
         self.distance = self.z.position - self.initialZ
 #        out = self.PI.update(self.stream.newData)
-        out = self.PI.update(self.webcamView.focusSignal)
+        out = self.PI.update(self.ProcessData.focusSignal)
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
         else:
@@ -182,26 +170,19 @@ class FocusWidget(QtGui.QFrame):
         self.graph.savedDataSignal = []
         self.graph.savedDataTime = []
 
-#        self.plot = plt.plot(self.graph.savedDataTime,
-#                             self.graph.savedDataSignal, 'b-',
-#                             self.graph.savedDataTime,
-#                             np.ones(self.sizeofData)*self.setPoint, 'r-')
-
-#        self.graph.savedDataPosition = []
-
     def analizeFocus(self):
 
         if self.n == 1:
-            self.mean = self.webcamView.focusSignal
-            self.mean2 = self.webcamView.focusSignal**2
+            self.mean = self.ProcessData.focusSignal
+            self.mean2 = self.ProcessData.focusSignal**2
         else:
-            self.mean += (self.webcamView.focusSignal - self.mean)/self.n
-            self.mean2 += (self.webcamView.focusSignal**2 - self.mean2)/self.n
+            self.mean += (self.ProcessData.focusSignal - self.mean)/self.n
+            self.mean2 += (self.ProcessData.focusSignal**2 - self.mean2)/self.n
 
         self.std = np.sqrt(self.mean2 - self.mean**2)
 
         self.max_dev = np.max([self.max_dev,
-                              self.webcamView.focusSignal - self.setPoint])
+                              self.ProcessData.focusSignal - self.setPoint])
 
         statData = 'std = {}    max_dev = {}'.format(np.round(self.std, 3),
                                                      np.round(self.max_dev, 3))
@@ -212,39 +193,19 @@ class FocusWidget(QtGui.QFrame):
     def closeEvent(self, *args, **kwargs):
 
         self.focusTimer.stop()
-#        if self.lockButton.isChecked():
-#            self.lockTimer.stop()
-
-#        self.DAQ.streamStop()
-#        self.streamThread.terminate()
-
         self.webcam.stop()
 
         super().closeEvent(*args, **kwargs)
 
 
-class webcamView(pg.GraphicsLayoutWidget):
+class ProcessData(pg.GraphicsLayoutWidget):
 
     def __init__(self, webcam, *args, **kwargs):
 
-        super(webcamView, self).__init__(*args, **kwargs)
+        super(ProcessData, self).__init__(*args, **kwargs)
         self.webcam = webcam
         image = self.webcam.get_image()
         self.sensorSize = np.array(pygame.surfarray.array2d(image).shape)
-
-#        self.plot = self.addPlot(row=0, col=0)
-#        self.plot.setLabels(bottom=('x', 'px'), left=('y', 'px'))
-#        self.plot.showGrid(x=True, y=True)
-#
-#        self.massCenterPlot = self.plot.plot([0,0], pen=(200, 200, 200),
-#                                             symbolBrush=(255, 0, 0),
-#                                             symbolPen='w')
-#
-#        self.addItem(self.plot)
-#        self.plot.enableAutoRange('xy', False)
-#        self.plot.setRange(xRange=(-200,200), yRange=(-100,100))
-
-
 
 #==============================================================================
 #         self.img = pg.ImageItem(border='w')
@@ -253,14 +214,8 @@ class webcamView(pg.GraphicsLayoutWidget):
 #         self.view.addItem(self.img)
 #==============================================================================
 
-        # TODO: vale la pena promediar?
-        # TODO: potencia óptima del láser
-        # TODO: caja
-        # TODO: circuito
-
     def update(self):
 
-        print('updatewebcamview')
         runs = 1
         imageArray = np.zeros((runs, self.sensorSize[0], self.sensorSize[1]),
                               np.float)
@@ -325,8 +280,7 @@ class FocusLockGraph(pg.GraphicsWindow):
     def update(self):
         """ Update the data displayed in the graphs
         """
-        print('updatefocusgraph')
-        self.focusSignal = self.focusWidget.webcamView.focusSignal
+        self.focusSignal = self.focusWidget.ProcessData.focusSignal
 
         if self.ptr < self.npoints:
             self.data[self.ptr] = self.focusSignal
@@ -354,46 +308,39 @@ class FocusLockGraph(pg.GraphicsWindow):
             if self.recButton.isChecked():
                 self.analize()
 
+
 class WebcamGraph(pg.GraphicsWindow):
-    
+
     def __init__(self, focusWidget, *args, **kwargs):
-        
+
         super().__init__(*args, **kwargs)
 
         self.focusWidget = focusWidget
-        
+
         self.plot = self.addPlot(row=0, col=0)
         self.plot.setLabels(bottom=('x', 'px'), left=('y', 'px'))
         self.plot.showGrid(x=True, y=True)
 
-        self.massCenterPlot = self.plot.plot([0,0], pen=(200, 200, 200),
+        self.massCenterPlot = self.plot.plot([0, 0], pen=(200, 200, 200),
                                              symbolBrush=(255, 0, 0),
                                              symbolPen='w')
 
         self.addItem(self.plot)
         self.plot.enableAutoRange('xy', False)
-        self.plot.setRange(xRange=(-200,200), yRange=(-100,100))
-        print('OBJETO CREADO')
-        
-    def prueba(self):
-        print('probando')
-        
-    def update(self):
-        
-        print('hola2')
-        
-        self.massCenter = self.focusWidget.webcamView.massCenter
-        self.massCenterPlot.setData([self.massCenter[0]], 
-                                    [self.massCenter[1]])
-                                        
+        self.plot.setRange(xRange=(-200, 200), yRange=(-100, 100))
 
-                                        
-           
-class focusCalibration(QtCore.QObject):
+    def update(self):
+
+        self.massCenter = self.focusWidget.ProcessData.massCenter
+        self.massCenterPlot.setData([self.massCenter[0]],
+                                    [self.massCenter[1]])
+
+
+class FocusCalibration(QtCore.QObject):
 
     def __init__(self, mainwidget, *args, **kwargs):
 
-        super(focusCalibration, self).__init__(*args, **kwargs)
+        super(FocusCalibration, self).__init__(*args, **kwargs)
         self.signalData = []
         self.positionData = []
         self.nm = Q_(1, 'nm')
