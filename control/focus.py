@@ -125,7 +125,6 @@ class FocusWidget(QtGui.QFrame):
         self.ProcessData.update()
         self.graph.update()
         self.webcamgraph.update()
-        self.webcamgraph.prueba()
 
         if self.locked:
             self.updatePI()
