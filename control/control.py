@@ -248,11 +248,14 @@ class RecordingWidget(QtGui.QFrame):
             self.main.focusWidget.exportData()
         else:
             self.main.focusWidget.graph.savedDataSignal = []
+            self.main.focusWidget.graph.mean = 0
+            self.main.focusWidget.n = 1
+            self.main.focusWidget.max_dev = 0
 
-        self.recButton.setChecked(False)
         converterFunction = lambda: TiffConverterThread(self.savename)
         self.main.exportlastAction.triggered.connect(converterFunction)
         self.main.exportlastAction.setEnabled(True)
+
         self.editable = True
         self.readyToRecord = True
         self.recButton.setText('REC')
@@ -624,6 +627,10 @@ class TormentaGUI(QtGui.QMainWindow):
         focusDock = Dock("Focus Control", size=(1, 1))
 #        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
         self.focusWidget = FocusWidget(scanZ, self.recWidget)
+#        self.focusThread = QtCore.QThread()
+#        self.focusWidget.moveToThread(self.focusThread)
+#        self.focusThread.started.connect(self.focusWidget)
+#        self.focusThread.start()
         focusDock.addWidget(self.focusWidget)
         dockArea.addDock(focusDock, 'above', wheelDock)
 

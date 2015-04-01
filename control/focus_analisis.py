@@ -8,7 +8,7 @@ Created on Wed Jan  7 15:49:02 2015
 import numpy as np
 import matplotlib.pyplot as plt
 
-rawData = np.loadtxt('focus_data')
+rawData = np.loadtxt('filename_focusdata')
 setPoint = rawData[0]
 plt.plot(rawData[2], rawData[1], 'b-', rawData[2], setPoint, 'r-')
 
