@@ -32,7 +32,7 @@ def kernel(fwhm):
     y = x
     xx, yy = np.meshgrid(x, y, sparse=True)
     matrix = gauss(xx, x.mean(), fwhm) * gauss(yy, y.mean(), fwhm)
-    matrix = matrix - matrix.sum() / matrix.size
+    matrix /= matrix.sum()
     return matrix
 
 
