@@ -92,7 +92,7 @@ class RecordingWidget(QtGui.QFrame):
 
         recGrid.setColumnMinimumWidth(0, 200)
 
-        self.editable = True
+        self.writable = True
         self.readyToRecord = False
 
     @property
@@ -107,15 +107,15 @@ class RecordingWidget(QtGui.QFrame):
         self._readyToRecord = value
 
     @property
-    def editable(self):
-        return self._editable
+    def writable(self):
+        return self._writable
 
-    @editable.setter
-    def editable(self, value):
+    @writable.setter
+    def writable(self, value):
         self.folderEdit.setEnabled(value)
         self.filenameEdit.setEnabled(value)
         self.numExpositionsEdit.setEnabled(value)
-        self._editable = value
+        self._writable = value
 
     def n(self):
         text = self.numExpositionsEdit.text()
@@ -214,11 +214,11 @@ class RecordingWidget(QtGui.QFrame):
 
         if self.recButton.isChecked():
 
-            self.editable = False
+            self.writable = False
             self.readyToRecord = False
             self.recButton.setEnabled(True)
             self.recButton.setText('STOP')
-            self.main.tree.editable = False
+            self.main.tree.writable = False
             self.main.liveviewButton.setEnabled(False)
             self.main.viewtimer.stop()
 
@@ -256,10 +256,10 @@ class RecordingWidget(QtGui.QFrame):
         self.main.exportlastAction.triggered.connect(converterFunction)
         self.main.exportlastAction.setEnabled(True)
 
-        self.editable = True
+        self.writable = True
         self.readyToRecord = True
         self.recButton.setText('REC')
-        self.main.tree.editable = True
+        self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveview(update=False)
 
@@ -284,8 +284,8 @@ class RecWorker(QtCore.QObject):
         # Acquisition preparation
         if andor.status != 'Camera is idle, waiting for instructions.':
             andor.abort_acquisition()
-        else:
-            andor.shutter(0, 1, 0, 0, 0)
+#        else:
+#            andor.shutter(0, 1, 0, 0, 0)
 
         # Frame counter
         self.j = 0
@@ -379,8 +379,6 @@ class CamParamTree(ParameterTree):
                                   'Custom']},
                       {'name': 'Apply', 'type': 'action'}]},
                   {'name': 'Timings', 'type': 'group', 'children': [
-                      {'name': 'Frame Transfer Mode', 'type': 'bool',
-                       'value': False},
                       {'name': 'Horizontal readout rate', 'type': 'list',
                        'values': andor.HRRates},
                       {'name': 'Vertical pixel shift', 'type': 'group',
@@ -390,6 +388,10 @@ class CamParamTree(ParameterTree):
                             'value':andor.vertSpeeds[1]},
                            {'name': 'Clock voltage amplitude',
                             'type': 'list', 'values': andor.vertAmps}]},
+                      {'name': 'Frame Transfer Mode', 'type': 'bool',
+                       'value': False},
+                      {'name': 'Crop mode', 'type': 'group', 'children': [
+                          {'name': 'Crop CCD', 'type': 'action'}]},
                       {'name': 'Set exposure time', 'type': 'float',
                        'value': 0.1, 'limits': (0,
                                                 andor.max_exposure.magnitude),
@@ -419,29 +421,40 @@ class CamParamTree(ParameterTree):
 
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
-        self._editable = True
+        self._writable = True
 
-        self.p.param('Image frame').param('Size')
+        self.timeParams = self.p.param('Timings')
+        self.cropModeParam = self.timeParams.param('Crop mode').param('Crop CCD')
+        self.cropModeParam.setWritable(False)
+        self.frameTransferParam = self.timeParams.param('Frame Transfer Mode')
+        self.frameTransferParam.sigValueChanged.connect(self.enableCropMode)
+
+    def enableCropMode(self):
+        value = self.frameTransferParam.value()
+        if value:
+            self.cropModeParam.setWritable(True)
+        else:
+            self.cropModeParam.setValue(False)
+            self.cropModeParam.setWritable(False)
 
     @property
-    def editable(self):
-        return self._editable
+    def writable(self):
+        return self._writable
 
-    @editable.setter
-    def editable(self, value):
-        self._editable = value
-        value = not(value)
-        self.p.param('Image frame').param('Size').setReadonly(value)
-        timeParams = self.p.param('Timings')
-        timeParams.param('Frame Transfer Mode').setReadonly(value)
-        timeParams.param('Horizontal readout rate').setReadonly(value)
-        timeParams.param('Set exposure time').setReadonly(value)
-        vpsParams = timeParams.param('Vertical pixel shift')
-        vpsParams.param('Speed').setReadonly(True)
-        vpsParams.param('Clock voltage amplitude').setReadonly(value)
+    @writable.setter
+    def writable(self, value):
+        self._writable = value
+        self.p.param('Image frame').param('Size').setWritable(value)
+        self.timeParams.param('Frame Transfer Mode').setWritable(value)
+        self.timeParams.param('Crop Mode').setWritable(value)
+        self.timeParams.param('Horizontal readout rate').setWritable(value)
+        self.timeParams.param('Set exposure time').setWritable(value)
+        vpsParams = self.timeParams.param('Vertical pixel shift')
+        vpsParams.param('Speed').setWritable(True)
+        vpsParams.param('Clock voltage amplitude').setWritable(value)
         gainParams = self.p.param('Gain')
-        gainParams.param('Pre-amp gain').setReadonly(value)
-        gainParams.param('EM gain').setReadonly(value)
+        gainParams.param('Pre-amp gain').setWritable(value)
+        gainParams.param('EM gain').setWritable(value)
 
     def attrs(self):
         attrs = []
@@ -780,7 +793,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 andor.abort_acquisition()
 
             andor.acquisition_mode = 'Run till abort'
-            andor.shutter(0, 1, 0, 0, 0)
+#            andor.shutter(0, 1, 0, 0, 0)
 
             andor.start_acquisition()
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
