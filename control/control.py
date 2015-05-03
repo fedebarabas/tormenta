@@ -30,7 +30,7 @@ from instruments import Laser, Camera, ScanZ   # , DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
 from tools import getUniqueName, attrsToTxt, TiffConverterThread, Grid, \
-    Crosshair, ROI
+    Crosshair, ROI, cubehelix
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -391,7 +391,8 @@ class CamParamTree(ParameterTree):
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
                        'value': False},
                       {'name': 'Crop mode', 'type': 'group', 'children': [
-                          {'name': 'Crop CCD', 'type': 'action'}]},
+                          {'name': 'Enable', 'type': 'bool', 'value': False},
+                          {'name': 'Apply', 'type': 'action'}]},
                       {'name': 'Set exposure time', 'type': 'float',
                        'value': 0.1, 'limits': (0,
                                                 andor.max_exposure.magnitude),
@@ -424,7 +425,7 @@ class CamParamTree(ParameterTree):
         self._writable = True
 
         self.timeParams = self.p.param('Timings')
-        self.cropModeParam = self.timeParams.param('Crop mode').param('Crop CCD')
+        self.cropModeParam = self.timeParams.param('Crop mode').param('Enable')
         self.cropModeParam.setWritable(False)
         self.frameTransferParam = self.timeParams.param('Frame Transfer Mode')
         self.frameTransferParam.sigValueChanged.connect(self.enableCropMode)
@@ -523,19 +524,21 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Exposition signals
         changeExposure = lambda: self.changeParameter(self.setExposure)
-        TimingsPar = self.tree.p.param('Timings')
-        self.ExpPar = TimingsPar.param('Set exposure time')
-        self.ExpPar.sigValueChanged.connect(changeExposure)
-        self.FTMPar = TimingsPar.param('Frame Transfer Mode')
+        timingsPar = self.tree.p.param('Timings')
+        self.expPar = timingsPar.param('Set exposure time')
+        self.expPar.sigValueChanged.connect(changeExposure)
+        self.FTMPar = timingsPar.param('Frame Transfer Mode')
         self.FTMPar.sigValueChanged.connect(changeExposure)
-        self.HRRatePar = TimingsPar.param('Horizontal readout rate')
+        self.HRRatePar = timingsPar.param('Horizontal readout rate')
         self.HRRatePar.sigValueChanged.connect(changeExposure)
-        vertShiftPar = TimingsPar.param('Vertical pixel shift')
+        vertShiftPar = timingsPar.param('Vertical pixel shift')
         self.vertShiftSpeedPar = vertShiftPar.param('Speed')
         self.vertShiftSpeedPar.sigValueChanged.connect(changeExposure)
         self.vertShiftAmpPar = vertShiftPar.param('Clock voltage amplitude')
         self.vertShiftAmpPar.sigValueChanged.connect(changeExposure)
         changeExposure()    # Set default values
+        self.cropParam = timingsPar.param('Crop mode')
+        self.cropParam.param('Enable').sigValueChanged.connect(self.cropCCD)
 
         # Gain signals
         self.PreGainPar = self.tree.p.param('Gain').param('Pre-amp gain')
@@ -552,6 +555,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
         self.img.translate(-0.5, -0.5)
+        self.img.setLookupTable(cubehelix())
         self.vb.addItem(self.img)
         self.vb.setAspectLocked(True)
 
@@ -673,6 +677,43 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.crosshairButton, 4, 4)
         layout.addWidget(dockArea, 0, 5, 5, 1)
 
+    def cropCCD(self):
+        if self.cropParam.param('Enable').value():
+
+            self.shape = andor.detector_shape
+            self.changeParameter(self.adjustFrame)
+
+            ROIpos = (self.shape[0] - 64, self.shape[1] - 64)
+            self.cropROI = ROI(self.shape, self.vb, ROIpos, scaleSnap=True,
+                               translateSnap=True, movable=False)
+
+            # Signals
+            applyParam = self.cropParam.param('Apply')
+            applyParam.sigStateChanged.connect(self.setCropMode)
+
+        else:
+            andor.crop_mode = False
+            self.shape = andor.detector_shape
+            self.changeParameter(self.adjustFrame)
+            self.updateTimings()
+
+    def setCropMode(self):
+        ROISize = self.cropROI.size()
+        self.shape = (int(ROISize[0]), int(ROISize[1]))
+        startROI = self.cropROI.pos()
+        startROI = (int(startROI[0]), int(startROI[1]))
+
+        self.changeParameter(self.startCropMode)
+        self.updateTimings()
+        self.cropROI.hide()
+        self.grid.update(self.shape)
+
+    def startCropMode(self):
+        andor.crop_size = True
+        andor.crop_mode = True
+        self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5, yMin=-0.5,
+                          yMax=self.shape[1] - 0.5, minXRange=4, minYRange=4)
+
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
         the camera to be idle to be able to be adjusted.
@@ -737,8 +778,9 @@ class TormentaGUI(QtGui.QMainWindow):
         frameParam = self.tree.p.param('Image frame')
         if frameParam.param('Size').value() == 'Custom':
 
-            self.ROI = ROI(self.shape, self.vb)
-#            label = pg.LabelItem(justify='right')
+            ROIpos = (0.5 * self.shape[0] - 64, 0.5 * self.shape[1] - 64)
+            self.ROI = ROI(self.shape, self.vb, ROIpos, scaleSnap=True,
+                           translateSnap=True)
 
             # Signals
             applyParam = frameParam.param('Apply')
