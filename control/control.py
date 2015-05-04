@@ -284,8 +284,8 @@ class RecWorker(QtCore.QObject):
         # Acquisition preparation
         if andor.status != 'Camera is idle, waiting for instructions.':
             andor.abort_acquisition()
-#        else:
-#            andor.shutter(0, 1, 0, 0, 0)
+        else:
+            andor.shutter(0, 1, 0, 0, 0)
 
         # Frame counter
         self.j = 0
@@ -840,7 +840,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 andor.abort_acquisition()
 
             andor.acquisition_mode = 'Run till abort'
-#            andor.shutter(0, 1, 0, 0, 0)
+            andor.shutter(0, 1, 0, 0, 0)
 
             andor.start_acquisition()
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
