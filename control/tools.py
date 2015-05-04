@@ -482,12 +482,13 @@ class Crosshair():
 
 class ROI(pg.ROI):
 
-    def __init__(self, shape, vb, pos, *args, **kwargs):
+    def __init__(self, shape, vb, pos, handlePos, handleCenter,
+                 *args, **kwargs):
 
         self.mainShape = shape
 
         pg.ROI.__init__(self, pos, size=(128, 128), pen='y', *args, **kwargs)
-        self.addScaleHandle((1, 0), (0, 1), lockAspect=True)
+        self.addScaleHandle(handlePos, handleCenter, lockAspect=True)
         vb.addItem(self)
 
         self.label = pg.TextItem()

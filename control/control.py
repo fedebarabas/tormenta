@@ -594,7 +594,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Initial camera configuration taken from the parameter tree
         self.shape = andor.detector_shape
-        andor.set_exposure_time(self.ExpPar.value() * self.s)
+        andor.set_exposure_time(self.expPar.value() * self.s)
         self.adjustFrame()
 
         # Liveview functionality
@@ -680,39 +680,43 @@ class TormentaGUI(QtGui.QMainWindow):
     def cropCCD(self):
         if self.cropParam.param('Enable').value():
 
-            self.shape = andor.detector_shape
-            self.changeParameter(self.adjustFrame)
+            self.FTMPar.setWritable()
+            if self.shape != andor.detector_shape:
+                self.shape = andor.detector_shape
+                self.changeParameter(self.adjustFrame)
 
-            ROIpos = (self.shape[0] - 64, self.shape[1] - 64)
-            self.cropROI = ROI(self.shape, self.vb, ROIpos, scaleSnap=True,
+            ROIpos = (self.shape[0] - 128, self.shape[1] - 128)
+            self.cropROI = ROI(self.shape, self.vb, ROIpos, handlePos=(0, 0),
+                               handleCenter=(1, 1), scaleSnap=True,
                                translateSnap=True, movable=False)
 
             # Signals
             applyParam = self.cropParam.param('Apply')
-            applyParam.sigStateChanged.connect(self.setCropMode)
+            applyParam.sigStateChanged.connect(self.startCropMode)
 
         else:
-            andor.crop_mode = False
+            self.cropROI.hide()
             self.shape = andor.detector_shape
-            self.changeParameter(self.adjustFrame)
-            self.updateTimings()
+            self.changeParameter(lambda: self.setCropMode(False))
 
-    def setCropMode(self):
+    def startCropMode(self):
         ROISize = self.cropROI.size()
         self.shape = (int(ROISize[0]), int(ROISize[1]))
-        startROI = self.cropROI.pos()
-        startROI = (int(startROI[0]), int(startROI[1]))
+        andor.crop_mode_shape = self.shape
 
-        self.changeParameter(self.startCropMode)
+        self.changeParameter(lambda: self.setCropMode(True))
+        self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5,
+                          yMin=-0.5, yMax=self.shape[1] - 0.5,
+                          minXRange=4, minYRange=4)
         self.updateTimings()
         self.cropROI.hide()
         self.grid.update(self.shape)
 
-    def startCropMode(self):
-        andor.crop_size = True
-        andor.crop_mode = True
-        self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5, yMin=-0.5,
-                          yMax=self.shape[1] - 0.5, minXRange=4, minYRange=4)
+    def setCropMode(self, state):
+        andor.crop_mode = state
+        if not(state):
+            self.shape = andor.detector_shape
+            self.adjustFrame()
 
     def changeParameter(self, function):
         """ This method is used to change those camera properties that need
@@ -741,7 +745,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def setExposure(self):
         """ Method to change the exposure time setting
         """
-        andor.set_exposure_time(self.ExpPar.value() * self.s)
+        andor.set_exposure_time(self.expPar.value() * self.s)
         andor.frame_transfer_mode = self.FTMPar.value()
         n_hrr = np.where(np.array([item.magnitude for item in andor.HRRates])
                          == self.HRRatePar.value().magnitude)[0][0]
@@ -779,7 +783,8 @@ class TormentaGUI(QtGui.QMainWindow):
         if frameParam.param('Size').value() == 'Custom':
 
             ROIpos = (0.5 * self.shape[0] - 64, 0.5 * self.shape[1] - 64)
-            self.ROI = ROI(self.shape, self.vb, ROIpos, scaleSnap=True,
+            self.ROI = ROI(self.shape, self.vb, ROIpos, handlePos=(1, 0),
+                           handleCenter=(0, 1), scaleSnap=True,
                            translateSnap=True)
 
             # Signals
