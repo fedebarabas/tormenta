@@ -319,7 +319,8 @@ class RecWorker(QtCore.QObject):
 
         # Saving parameters
         for item in self.attrs:
-            self.store_file[self.dataname].attrs[item[0]] = item[1]
+            if item[1] is not None:
+                self.dataset.attrs[item[0]] = item[1]
 
         self.store_file.close()
         self.doneSignal.emit()
@@ -447,7 +448,7 @@ class CamParamTree(ParameterTree):
         self._writable = value
         self.p.param('Image frame').param('Size').setWritable(value)
         self.timeParams.param('Frame Transfer Mode').setWritable(value)
-        self.timeParams.param('Crop Mode').setWritable(value)
+        self.timeParams.param('Crop mode').param('Enable').setWritable(value)
         self.timeParams.param('Horizontal readout rate').setWritable(value)
         self.timeParams.param('Set exposure time').setWritable(value)
         vpsParams = self.timeParams.param('Vertical pixel shift')
