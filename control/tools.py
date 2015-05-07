@@ -460,10 +460,8 @@ class Crosshair():
             pass
 
     def toggle(self):
-
         if self.showed:
             self.hide()
-
         else:
             self.show()
 
