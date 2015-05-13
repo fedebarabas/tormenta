@@ -120,7 +120,7 @@ class STORMCamera(CCD):
                                   for n in np.arange(self.n_preamps)],
                                  decimals=1)[::-1]
         self.HRRates = [self.true_horiz_shift_speed(n)
-                        for n in np.arange(self.n_horiz_shift_speeds())]
+                        for n in np.arange(self.n_horiz_shift_speeds())][::-1]
         self.vertSpeeds = [np.round(self.true_vert_shift_speed(n), 1)
                            for n in np.arange(self.n_vert_shift_speeds)]
         self.vertAmps = ['+' + str(self.true_vert_amp(n))

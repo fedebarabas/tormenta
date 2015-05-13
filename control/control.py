@@ -29,7 +29,7 @@ from lantz import Q_
 from instruments import Laser, Camera, ScanZ   # , DAQ
 from lasercontrol import LaserWidget
 from focus import FocusWidget
-from tools import getUniqueName, attrsToTxt, TiffConverterThread, Grid, \
+from guitools import getUniqueName, attrsToTxt, TiffConverterThread, Grid, \
     Crosshair, ROI, cubehelix
 
 
@@ -259,6 +259,7 @@ class RecordingWidget(QtGui.QFrame):
         self.writable = True
         self.readyToRecord = True
         self.recButton.setText('REC')
+        self.recButton.setChecked(False)
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveview(update=False)
@@ -371,6 +372,32 @@ class CamParamTree(ParameterTree):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        vpssTip = ("Faster vertical shift speeds allow for higher maximum \n"
+                   "frame rates but reduce the pixel well depth, causing \n"
+                   "degraded spatial resolution (smearing) for bright \n"
+                   "signals. To improve the charge transfer efficiency the \n"
+                   "vertical clock voltage amplitude can be increased at \n"
+                   "the expense of a higher clock-induced charge.")
+
+        preampTip = ("Andor recommend using the highest value setting for \n"
+                     "most low-light applications")
+
+        EMGainTip = ("A gain of x4-5 the read noise (see spec sheet) is \n"
+                     "enough to render this noise source negligible. In \n"
+                     "practice, this can always be achieved with EM Gain of \n"
+                     "less than x300 (often much less). Pushing gain beyond \n"
+                     "300 would give little or no extra SNR benefit and \n"
+                     "would only reduce dynamic range.")
+
+        hrrTip = ("Slower readout typically allows lower read noise and \n"
+                  "higher available dynamic range, but at the expense of \n"
+                  "slower frame rates")
+
+        croppedTip = ("Ensure that no light is falling on the light \n"
+                      "sensitive area outside of the defined region. Any \n"
+                      "light collected outside the cropped area could \n"
+                      "corrupt the images which were acquired in this mode.")
+
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
@@ -381,19 +408,21 @@ class CamParamTree(ParameterTree):
                       {'name': 'Apply', 'type': 'action'}]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Horizontal readout rate', 'type': 'list',
-                       'values': andor.HRRates},
+                       'values': andor.HRRates, 'tip': hrrTip},
                       {'name': 'Vertical pixel shift', 'type': 'group',
                        'children': [
                            {'name': 'Speed', 'type': 'list',
                             'values': andor.vertSpeeds[::-1],
-                            'value':andor.vertSpeeds[1]},
-                           {'name': 'Clock voltage amplitude',
+                            'tip': vpssTip},
+                           {'name': 'Clock voltage amplitude', 'tip': vpssTip,
                             'type': 'list', 'values': andor.vertAmps}]},
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
                        'value': False},
-                      {'name': 'Crop mode', 'type': 'group', 'children': [
-                          {'name': 'Enable', 'type': 'bool', 'value': False},
-                          {'name': 'Apply', 'type': 'action'}]},
+                      {'name': 'Cropped sensor mode', 'type': 'group',
+                       'children': [
+                           {'name': 'Enable', 'type': 'bool', 'value': False,
+                            'tip': croppedTip},
+                           {'name': 'Apply', 'type': 'action'}]},
                       {'name': 'Set exposure time', 'type': 'float',
                        'value': 0.1, 'limits': (0,
                                                 andor.max_exposure.magnitude),
@@ -409,9 +438,11 @@ class CamParamTree(ParameterTree):
                        'suffix': 'Hz'}]},
                   {'name': 'Gain', 'type': 'group', 'children': [
                       {'name': 'Pre-amp gain', 'type': 'list',
-                       'values': list(andor.PreAmps)},
+                       'values': list(andor.PreAmps),
+                       'tip': preampTip},
                       {'name': 'EM gain', 'type': 'int', 'value': 1,
-                       'limits': (0, andor.EM_gain_range[1])}]},
+                       'limits': (0, andor.EM_gain_range[1]),
+                       'tip': EMGainTip}]},
                   {'name': 'Temperature', 'type': 'group', 'children': [
                       {'name': 'Set point', 'type': 'int', 'value': -50,
                        'suffix': 'º', 'limits': (-80, 0)},
@@ -426,18 +457,19 @@ class CamParamTree(ParameterTree):
         self._writable = True
 
         self.timeParams = self.p.param('Timings')
-        self.cropModeParam = self.timeParams.param('Crop mode').param('Enable')
-        self.cropModeParam.setWritable(False)
+        self.cropModeParam = self.timeParams.param('Cropped sensor mode')
+        self.cropModeEnableParam = self.cropModeParam.param('Enable')
+        self.cropModeEnableParam.setWritable(False)
         self.frameTransferParam = self.timeParams.param('Frame Transfer Mode')
         self.frameTransferParam.sigValueChanged.connect(self.enableCropMode)
 
     def enableCropMode(self):
         value = self.frameTransferParam.value()
         if value:
-            self.cropModeParam.setWritable(True)
+            self.cropModeParamEnable.setWritable(True)
         else:
-            self.cropModeParam.setValue(False)
-            self.cropModeParam.setWritable(False)
+            self.cropModeParamEnable.setValue(False)
+            self.cropModeParamEnable.setWritable(False)
 
     @property
     def writable(self):
@@ -448,7 +480,8 @@ class CamParamTree(ParameterTree):
         self._writable = value
         self.p.param('Image frame').param('Size').setWritable(value)
         self.timeParams.param('Frame Transfer Mode').setWritable(value)
-        self.timeParams.param('Crop mode').param('Enable').setWritable(value)
+        croppedParam = self.timeParams.param('Cropped sensor mode')
+        croppedParam.param('Enable').setWritable(value)
         self.timeParams.param('Horizontal readout rate').setWritable(value)
         self.timeParams.param('Set exposure time').setWritable(value)
         vpsParams = self.timeParams.param('Vertical pixel shift')
@@ -538,7 +571,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vertShiftAmpPar = vertShiftPar.param('Clock voltage amplitude')
         self.vertShiftAmpPar.sigValueChanged.connect(changeExposure)
         changeExposure()    # Set default values
-        self.cropParam = timingsPar.param('Crop mode')
+        self.cropParam = timingsPar.param('Cropped sensor mode')
         self.cropParam.param('Enable').sigValueChanged.connect(self.cropCCD)
 
         # Gain signals
@@ -556,14 +589,13 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
         self.img.translate(-0.5, -0.5)
-        self.img.setLookupTable(cubehelix())
         self.vb.addItem(self.img)
         self.vb.setAspectLocked(True)
 
-        # HistogramLUT
         self.hist = pg.HistogramLUTItem()
         self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
+#        self.img.setLookupTable(cubehelix())
 #        self.hist.plot.setLogMode(False, True)  # this breakes the LUT update
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imageWidget.addItem(self.hist, row=1, col=2)
@@ -686,9 +718,10 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.shape = andor.detector_shape
                 self.changeParameter(self.adjustFrame)
 
-            ROIpos = (self.shape[0] - 128, self.shape[1] - 128)
-            self.cropROI = ROI(self.shape, self.vb, ROIpos, handlePos=(0, 0),
-                               handleCenter=(1, 1), scaleSnap=True,
+#            ROIpos = (self.shape[0] - 128, self.shape[1] - 128)
+            ROIpos = (0, 0)
+            self.cropROI = ROI(self.shape, self.vb, ROIpos, handlePos=(1, 1),
+                               handleCenter=(0, 0), scaleSnap=True,
                                translateSnap=True, movable=False)
 
             # Signals
@@ -740,7 +773,9 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         PreAmpGain = self.PreGainPar.value()
         n = np.where(andor.PreAmps == PreAmpGain)[0][0]
-        andor.preamp = n
+        # The (2 - n) accounts for the difference in order between the options
+        # in the GUI and the camera settings
+        andor.preamp = 2 - n
         andor.EM_gain = self.GainPar.value()
 
     def setExposure(self):
@@ -750,7 +785,9 @@ class TormentaGUI(QtGui.QMainWindow):
         andor.frame_transfer_mode = self.FTMPar.value()
         n_hrr = np.where(np.array([item.magnitude for item in andor.HRRates])
                          == self.HRRatePar.value().magnitude)[0][0]
-        andor.horiz_shift_speed = n_hrr
+        # The (3 - n) accounts for the difference in order between the options
+        # in the GUI and the camera settings
+        andor.horiz_shift_speed = 3 - n_hrr
 
         n_vss = np.where(np.array([item.magnitude
                                   for item in andor.vertSpeeds])
