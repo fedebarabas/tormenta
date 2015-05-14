@@ -259,6 +259,7 @@ class RecordingWidget(QtGui.QFrame):
         self.writable = True
         self.readyToRecord = True
         self.recButton.setText('REC')
+        self.recButton.setChecked(False)
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveview(update=False)
