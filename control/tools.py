@@ -313,6 +313,17 @@ def nFramesPerChunk(shape):
     return int(1.8 * 2**29 / (shape[1] * shape[2]))
 
 
+def getFilenames(title, filetypes):
+    try:
+        root = Tk()
+        filenames = filedialog.askopenfilenames(title=title,
+                                                filetypes=filetypes)
+        root.destroy()
+        return root.tk.splitlist(filenames)
+    except OSError:
+        print("No files selected!")
+
+
 class TiffConverterThread(QtCore.QThread):
 
     def __init__(self, filename=None):
@@ -333,12 +344,8 @@ class TiffConverter(QtCore.QObject):
     def run(self):
 
         if self.filenames is None:
-            root = Tk()
-            filenames = filedialog.askopenfilenames(title="Select HDF5 files",
-                                                    filetypes=[('HDF5 files',
-                                                                '.hdf5')])
-            root.destroy()
-            self.filenames = root.tk.splitlist(filenames)
+            self.filenames = getFilenames("Select HDF5 files",
+                                          [('HDF5 files', '.hdf5')])
 
         else:
             self.filenames = [self.filenames]
