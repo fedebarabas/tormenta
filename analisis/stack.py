@@ -10,7 +10,7 @@ import numpy as np
 import h5py as hdf
 
 from airygauss import fwhm
-import maxima
+#import maxima
 from tools import does_overlap
 
 # data-type definitions
@@ -44,10 +44,15 @@ def xkernel(fwhm):
     return matrix
 
 
+def convert(word):
+    splitted = word.split(' ')
+    return splitted[0] + ''.join(x.capitalize() for x in splitted[1:])
+
+
 class Stack(object):
     """Measurement stored in a hdf5 file"""
 
-    def __init__(self, filename=None, imagename='frames'):
+    def __init__(self, filename=None, imagename='data'):
 
         if filename is None:
 
@@ -59,15 +64,25 @@ class Stack(object):
                                                   title='Select hdf5 file')
             root.destroy()
 
-        hdffile = hdf.File(filename, 'r')
+        self.file = hdf.File(filename, 'r')
 
         # Loading of measurements (i.e., images) in HDF5 file
-        for measure in hdffile.items():
-            setattr(self, measure[0], measure[1])
+        self.imageData = self.file[imagename].value
 
         # Attributes loading as attributes of the stack
-        for att in hdffile.attrs.items():
-            setattr(self, att[0], att[1])
+        self.attrs = self.file[imagename].attrs
+#        try:
+#            self.attrs['lambda_em']
+#        except:
+#        self.attrs['lambda_em'] = 670
+        self.lambda_em = 670
+
+#        try:
+#            self.attrs['NA']
+#        except:
+        self.NA = 1.42
+
+        self.nm_per_px = 1000 * self.attrs['element_size_um'][2]
 
         self.frame = 0
         self.fwhm = fwhm(self.lambda_em, self.NA) / self.nm_per_px
@@ -75,6 +90,9 @@ class Stack(object):
 
         self.kernel = kernel(self.fwhm)
         self.xkernel = xkernel(self.fwhm)
+
+    def __exit__(self):
+        self.file.close()
 
     def localize_molecules(self, init=0, end=None, fit_model='2d'):
 
@@ -145,7 +163,8 @@ class Stack(object):
 #            sorted_m = np.array_split(sorted_m, cuts)
 
 
-
+    def close(self):
+        self.file.close()
 
 
 

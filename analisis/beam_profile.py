@@ -7,54 +7,34 @@ Created on Wed May 13 23:35:23 2015
 """
 
 import numpy as np
+from tkinter import Tk, filedialog
 
-t_on = 10
-r_min = (15, 25)
-l = 85
-
-# seguir con esto
-def load_stack(filename, shape=shapes, dtype=np.dtype('>u2')):
-
-    # assuming big-endian
-    data = np.memmap(filename, dtype=dtype, mode='r')
-    return data.reshape(shape)
+from stack import Stack
 
 
-def mean_frame(stack, start_frame=0):
-    '''Get the mean of all pixels from start_frame'''
+def loadStacks():
+    # Get filenames from user
+    try:
+        root = Tk()
+        stacksNames = filedialog.askopenfilenames(parent=root)
+        root.destroy()
+    except OSError:
+        print("No files selected!")
 
-    return stack[start_frame:].mean(0)
-
-
-def get_beam(image):
-
-    hist, edg = np.histogram(image, bins=50)
-
-    # We get the inside of the beam as the pixels with intesity higher than the
-    # minimum of the histogram of the image, between the background and the
-    # beam distribution
-    thres = edg[np.argmin(hist[:np.argmax(hist)])]
-    beam_mask = np.zeros(shape=image.shape)
-    beam_mask[image < thres] = True
-
-    return np.ma.masked_array(image, beam_mask)
+    return stacksNames
 
 
-def beam_mean(filenames):
+def beamProfile(shape=(512, 512)):
 
-    mean_frames = np.zeros((len(filenames), shapes[1], shapes[2]))
+    profile = np.zeros(shape)
 
-    for i in np.arange(len(filenames)):
-        print(filenames[i])
-        data = load_stack(filenames[i])
-        mean_frames[i] = mean_frame(data, t_on)
+    for filename in loadStacks():
+        stack = Stack(filename=filename)
+        meanFrame = stack.imageData.mean(0)
+        profile += meanFrame / meanFrame.mean()
+        stack.close()
 
-    return get_beam(mean_frames.mean(0))
-
-
-def frame(image, r_min=r_min, l=l):
-
-    return image[r_min[1]:r_min[1] + l, r_min[0]:r_min[0] + l]
+    return profile
 
 
 def analyze_beam(epinames=None, tirfnames=None):
@@ -74,18 +54,8 @@ def analyze_beam(epinames=None, tirfnames=None):
 
 if __name__ == "__main__":
 
-#    %load_ext autoreload
-#    %autoreload 2
-
-    import sys
-
-    repos = 'P:\\Private\\repos'
-    sys.path.append(repos)
-
-    import switching_analysis.beam_profile as bp
-
-    epi_fov = bp.beam_mean(bp.load_files('epi'))
-    tirf_fov = bp.beam_mean(bp.load_files('tirf'))
+    epi_fov = beam_mean(bp.load_files('epi'))
+    tirf_fov = beam_mean(bp.load_files('tirf'))
 
     tirf_factor = frame(tirf_fov).mean() / frame(epi_fov).mean()
     frame_factor = frame(tirf_fov).mean() / tirf_fov.mean()
