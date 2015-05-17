@@ -596,8 +596,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vb.addItem(self.img)
         self.vb.setAspectLocked(True)
 
-        self.hist = pg.HistogramLUTItem()
-        self.hist.setImageItem(self.img)
+        self.hist = pg.HistogramLUTItem(image=self.img)
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imageWidget.addItem(self.hist, row=1, col=2)
 
