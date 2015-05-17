@@ -194,7 +194,7 @@ class RecordingWidget(QtGui.QFrame):
         self.main.img.setImage(image, autoLevels=False)
         if self.main.crosshair.showed:
             xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
-            ycoord = int(np.round(self.main.crosshair.hLine.pos()[0]))
+            ycoord = int(np.round(self.main.crosshair.vLine.pos()[0]))
             self.main.xProfile.setData(image[xcoord])
             self.main.yProfile.setData(image[:, ycoord])
 
@@ -590,15 +590,14 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vb = imageWidget.addViewBox(row=1, col=1)
         self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
+        self.lut = cubehelix()
+        self.img.setLookupTable(self.lut)
         self.img.translate(-0.5, -0.5)
         self.vb.addItem(self.img)
         self.vb.setAspectLocked(True)
 
         self.hist = pg.HistogramLUTItem()
-        self.hist.gradient.loadPreset('yellowy')
         self.hist.setImageItem(self.img)
-#        self.img.setLookupTable(cubehelix())
-#        self.hist.plot.setLogMode(False, True)  # this breakes the LUT update
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imageWidget.addItem(self.hist, row=1, col=2)
 
@@ -913,7 +912,7 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         try:
             image = andor.most_recent_image16(self.shape)
-            self.img.setImage(image, autoLevels=False)
+            self.img.setImage(image, autoLevels=False, lut=self.lut)
 
             if self.crosshair.showed:
                 xcoord = int(np.round(self.crosshair.hLine.pos()[1]))

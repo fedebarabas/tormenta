@@ -37,29 +37,29 @@ def beamProfile(shape=(512, 512)):
     return profile
 
 
-def analyze_beam(epinames=None, tirfnames=None):
-
-    if epinames is None:
-        epinames = load_files('epi')
-        tirfnames = load_files('tirf')
-
-    epi_mean = beam_mean(epinames)
-    tirf_mean = beam_mean(tirfnames)
-
-    tirf_factor = frame(tirf_mean).mean() / frame(epi_mean).mean()
-    frame_factor = frame(tirf_mean).mean() / tirf_mean.mean()
-    variance = 100 * frame(tirf_mean).std() / frame(tirf_mean).mean()
-
-    return tirf_factor, frame_factor, variance
-
-if __name__ == "__main__":
-
-    epi_fov = beam_mean(bp.load_files('epi'))
-    tirf_fov = beam_mean(bp.load_files('tirf'))
-
-    tirf_factor = frame(tirf_fov).mean() / frame(epi_fov).mean()
-    frame_factor = frame(tirf_fov).mean() / tirf_fov.mean()
-    std = 100 * frame(tirf_fov).std() / frame(tirf_fov).mean()
+#def analyze_beam(epinames=None, tirfnames=None):
+#
+#    if epinames is None:
+#        epinames = load_files('epi')
+#        tirfnames = load_files('tirf')
+#
+#    epi_mean = beam_mean(epinames)
+#    tirf_mean = beam_mean(tirfnames)
+#
+#    tirf_factor = frame(tirf_mean).mean() / frame(epi_mean).mean()
+#    frame_factor = frame(tirf_mean).mean() / tirf_mean.mean()
+#    variance = 100 * frame(tirf_mean).std() / frame(tirf_mean).mean()
+#
+#    return tirf_factor, frame_factor, variance
+#
+#if __name__ == "__main__":
+#
+#    epi_fov = beam_mean(bp.load_files('epi'))
+#    tirf_fov = beam_mean(bp.load_files('tirf'))
+#
+#    tirf_factor = frame(tirf_fov).mean() / frame(epi_fov).mean()
+#    frame_factor = frame(tirf_fov).mean() / tirf_fov.mean()
+#    std = 100 * frame(tirf_fov).std() / frame(tirf_fov).mean()
 
 #   plt.imshow(tirf_mean, interpolation='none')
 #   plt.colorbar()
