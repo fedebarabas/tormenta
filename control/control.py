@@ -887,7 +887,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
             # Initial image
             image = andor.most_recent_image16(self.shape)
-            self.img.setImage(image, autoLevels=False)
+            self.img.setImage(image, autoLevels=False, lut=self.lut)
             if update:
                 self.hist.setLevels(np.min(image) - np.std(image),
                                     np.max(image) + np.std(image))
@@ -911,7 +911,7 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         try:
             image = andor.most_recent_image16(self.shape)
-            self.img.setImage(image, autoLevels=False, lut=self.lut)
+            self.img.setImage(image, autoLevels=False)
 
             if self.crosshair.showed:
                 xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
