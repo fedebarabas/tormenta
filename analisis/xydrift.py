@@ -187,68 +187,71 @@ def xycorrect(images):
 
     return corrected
 
-import os
-#os.chdir(r'/home/federico/codigo/python/tormenta/analisis/')
-from get_i3_results import get_i3_results
 
-#folder = r'/home/federico/data/CM1/FedeFuentes/02/'
-folder = r'/home/federico/Desktop/FedeFuentes/04/'
-results = ['04a.bin', '04bok.bin', '04b1.bin', '04b2.bin']
-paths = [folder + r for r in results]
+if __name__ == '__main__':
 
-scale = 133/40
-pixels = [253, 239]
-nbins = np.round(np.array(pixels) * scale)
-scale = nbins[0] /pixels[0]
-# histos = np.array([make_histo(p, nbins) for p in paths])
+    from get_i3_results import get_i3_results
 
-xl, yl = get_i3_results(paths[0])
-for p in np.arange(1, len(paths)):
-    xn, yn = get_i3_results(paths[p])
-    xl, yl = np.hstack((xl, xn)), np.hstack((yl, yn))
+    folder = r'/home/federico/Desktop/FedeFuentes/04/'
+    results = ['04a.bin', '04bok.bin', '04b1.bin', '04b2.bin']
+    paths = [folder + r for r in results]
 
-n_locs = len(xl)
-xl, yl = chunker(xl, 100000), chunker(yl, 100000)
-histos = np.array([np.histogram2d(x, y, bins=nbins,
-                                  range=[[0, 253], [0, 239]])[0]
-                  for x, y in zip(xl, yl)])
+    scale = 133/40
+    pixels = [253, 239]
+    nbins = np.round(np.array(pixels) * scale)
+    scale = nbins[0] / pixels[0]
+    # histos = np.array([make_histo(p, nbins) for p in paths])
 
-tracks = drift_track(histos)
-xt, yt = tracks[0], tracks[1]
-print(xt[1], yt[1])
-xt, yt = xt / scale, yt / scale
+    xl, yl = get_i3_results(paths[0])
+    for p in np.arange(1, len(paths)):
+        xn, yn = get_i3_results(paths[p])
+        xl, yl = np.hstack((xl, xn)), np.hstack((yl, yn))
 
-x_loc, y_loc = xl[0], yl[0]
-for p in np.arange(1, len(paths)):
-    x_loc = np.hstack((x_loc, xl[p] + xt[p]))
-    y_loc = np.hstack((y_loc, yl[p] + yt[p]))
+    n_locs = len(xl)
+    xl, yl = chunker(xl, 100000), chunker(yl, 100000)
+    histos = np.array([np.histogram2d(x, y, bins=nbins,
+                                      range=[[0, 253], [0, 239]])[0]
+                      for x, y in zip(xl, yl)])
 
-import matplotlib.gridspec as gridspec
+    tracks = drift_track(histos)
+    xt, yt = tracks[0], tracks[1]
+    print(xt[1], yt[1])
+    xt, yt = xt / scale, yt / scale
 
-fig = plt.figure(figsize=(17.0, 7.0))
-gs = gridspec.GridSpec(2, 2)
+    x_loc, y_loc = xl[0], yl[0]
+    for p in np.arange(1, len(paths)):
+        x_loc = np.hstack((x_loc, xl[p] + xt[p]))
+        y_loc = np.hstack((y_loc, yl[p] + yt[p]))
 
-ax00 = plt.subplot(gs[0, 0])
-img00 = ax00.imshow(histos[0], interpolation='none', vmax=10, origin='lower')
-plt.xlabel('data0')
-fig.colorbar(img00, ax=ax00)
+    import matplotlib.gridspec as gridspec
 
-ax01 = plt.subplot(gs[0, 1])
-img01 = ax01.imshow(histos[1], interpolation='none', vmax=10, origin='lower')
-plt.xlabel('data1')
-fig.colorbar(img01, ax=ax01)
+    fig = plt.figure(figsize=(17.0, 7.0))
+    gs = gridspec.GridSpec(2, 2)
 
-ax10 = plt.subplot(gs[1, 0])
-img10 = ax10.imshow(histos[0] + histos[1], interpolation='none', vmax=10,
-                    origin='lower')
-plt.xlabel('data0 + data1')
-fig.colorbar(img10, ax=ax10)
+    ax00 = plt.subplot(gs[0, 0])
+    img00 = ax00.imshow(histos[0], interpolation='none', vmax=10,
+                        origin='lower')
+    plt.xlabel('data0')
+    fig.colorbar(img00, ax=ax00)
 
-#x_loc, y_loc = xl[0], yl[0]
-#x_loc = np.hstack((x_loc, xl[1] + xt[1]))
-#y_loc = np.hstack((y_loc, yl[1] + yt[1]))
-#H = np.histogram2d(x_loc, y_loc, bins=nbins, range=[[0, 253], [0, 239]])[0]
-ax11 = plt.subplot(gs[1, 1])
-img11 = ax11.imshow(H, interpolation='none', vmax=10, origin='lower')
-plt.xlabel('corrected')
-fig.colorbar(img11, ax=ax11)
+    ax01 = plt.subplot(gs[0, 1])
+    img01 = ax01.imshow(histos[1], interpolation='none', vmax=10,
+                        origin='lower')
+    plt.xlabel('data1')
+    fig.colorbar(img01, ax=ax01)
+
+    ax10 = plt.subplot(gs[1, 0])
+    img10 = ax10.imshow(histos[0] + histos[1], interpolation='none', vmax=10,
+                        origin='lower')
+    plt.xlabel('data0 + data1')
+    fig.colorbar(img10, ax=ax10)
+
+    # x_loc, y_loc = xl[0], yl[0]
+    # x_loc = np.hstack((x_loc, xl[1] + xt[1]))
+    # y_loc = np.hstack((y_loc, yl[1] + yt[1]))
+    # H = np.histogram2d(x_loc, y_loc, bins=nbins,
+#                                      range=[[0, 253], [0, 239]])[0]
+    ax11 = plt.subplot(gs[1, 1])
+#    img11 = ax11.imshow(H, interpolation='none', vmax=10, origin='lower')
+    plt.xlabel('corrected')
+#    fig.colorbar(img11, ax=ax11)
