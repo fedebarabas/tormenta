@@ -162,7 +162,7 @@ class RecordingWidget(QtGui.QFrame):
         attrs = self.main.tree.attrs()
         attrs.extend([('Date', time.strftime("%Y-%m-%d")),
                       ('Start time', time.strftime("%H:%M:%S")),
-                      ('element_size_um', (1, 0.133, 0.133)),
+                      ('element_size_um', (1, 0.143, 0.143)),
                       ('NA', 1.42),
                       ('lambda_em', 670)])
         for laserControl in self.main.laserWidgets.controls:
@@ -178,7 +178,8 @@ class RecordingWidget(QtGui.QFrame):
         store_file = hdf.File(savename)
         store_file.create_dataset(name=self.dataname, data=image)
         for item in self.getAttrs():
-            store_file[self.dataname].attrs[item[0]] = item[1]
+            if item[1] is not None:
+                store_file[self.dataname].attrs[item[0]] = item[1]
         store_file.close()
 
     def snapTIFF(self):
