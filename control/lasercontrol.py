@@ -45,8 +45,8 @@ class LaserWidget(QtGui.QFrame):
         self.blueControl = LaserControl(self.bluelaser,
                                         '<h3>RGB 405nm</h3>',
                                         color=(73, 0, 188),
-                                        prange=(0, 100),
-                                        tickInterval=10, singleStep=1)
+                                        prange=(0, 53),
+                                        tickInterval=5, singleStep=1)
 
         self.greenControl = LaserControl(self.greenlaser,
                                          '<h3>Ventus 532nm</h3>',
@@ -60,7 +60,6 @@ class LaserWidget(QtGui.QFrame):
         self.setEpiButton = QtGui.QPushButton('Set EPI')
         self.tirfButton = QtGui.QPushButton('TIRF')
         self.tirfButton.setCheckable(True)
-        self.tirfButton.
         self.epiButton = QtGui.QPushButton('EPI')
         self.epiButton.setCheckable(True)
         self.stagePosLabel = QtGui.QLabel('0 mm')
@@ -127,6 +126,8 @@ class LaserControl(QtGui.QFrame):
         self.slider.setValue(self.laser.power.magnitude)
         self.minpower = QtGui.QLabel(str(prange[0]))
         self.minpower.setAlignment(QtCore.Qt.AlignCenter)
+        self.shutterBox = QtGui.QCheckBox('Shutter open')
+        self.shutterBox.stateChanged.connect(self.shutterAction)
 
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
@@ -137,6 +138,7 @@ class LaserControl(QtGui.QFrame):
         grid.addWidget(self.maxpower, 1, 1)
         grid.addWidget(self.slider, 2, 1, 5, 1)
         grid.addWidget(self.minpower, 7, 1)
+        grid.addWidget(self.shutterBox, 6, 0)
 
         grid.setRowMinimumHeight(2, 60)
         grid.setRowMinimumHeight(6, 60)
@@ -145,6 +147,9 @@ class LaserControl(QtGui.QFrame):
         self.enableButton.toggled.connect(self.toggleLaser)
         self.slider.valueChanged[int].connect(self.changeSlider)
         self.setPointEdit.returnPressed.connect(self.changeEdit)
+
+    def shutterAction(self):
+        pass
 
     def toggleLaser(self):
         if self.enableButton.isChecked():
