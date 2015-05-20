@@ -25,7 +25,7 @@ class FocusWidget(QtGui.QFrame):
     # def __init__(self, DAQ, scanZ, main=None, *args, **kwargs):
     def __init__(self, scanZ, main=None, *args, **kwargs):
 
-        super(FocusWidget, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.main = main  # main va a ser RecordingWidget de control.py
 #        self.DAQ = DAQ

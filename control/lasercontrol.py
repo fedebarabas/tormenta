@@ -43,7 +43,7 @@ class LaserWidget(QtGui.QFrame):
                                        tickInterval=100, singleStep=10)
 
         self.blueControl = LaserControl(self.bluelaser,
-                                        '<h3>Cobolt 405nm</h3>',
+                                        '<h3>RGB 405nm</h3>',
                                         color=(73, 0, 188),
                                         prange=(0, 100),
                                         tickInterval=10, singleStep=1)
@@ -56,12 +56,28 @@ class LaserWidget(QtGui.QFrame):
 
         self.controls = (self.redControl, self.blueControl, self.greenControl)
 
+        self.findTirfButton = QtGui.QPushButton('Find TIRF')
+        self.setEpiButton = QtGui.QPushButton('Set EPI')
+        self.tirfButton = QtGui.QPushButton('TIRF')
+        self.tirfButton.setCheckable(True)
+        self.tirfButton.
+        self.epiButton = QtGui.QPushButton('EPI')
+        self.epiButton.setCheckable(True)
+        self.stagePosLabel = QtGui.QLabel('0 mm')
+        self.stagePosLabel.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                         QtGui.QSizePolicy.Expanding)
+
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.redControl, 0, 1)
         grid.addWidget(self.blueControl, 0, 0)
         grid.addWidget(self.greenControl, 0, 2)
+        grid.addWidget(self.findTirfButton, 1, 0)
+        grid.addWidget(self.setEpiButton, 2, 0)
+        grid.addWidget(self.tirfButton, 1, 1)
+        grid.addWidget(self.epiButton, 2, 1)
+        grid.addWidget(self.stagePosLabel, 2, 2, 2, 1)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
@@ -79,7 +95,7 @@ class LaserControl(QtGui.QFrame):
 
     def __init__(self, laser, name, color, prange, tickInterval, singleStep,
                  *args, **kwargs):
-        super(QtGui.QFrame, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         self.laser = laser
         self.mW = Q_(1, 'mW')

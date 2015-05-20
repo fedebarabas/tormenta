@@ -37,7 +37,7 @@ def beamProfile(shape=(512, 512)):
     return profile
 
 
-#def analyze_beam(epinames=None, tirfnames=None):
+# def analyze_beam(epinames=None, tirfnames=None):
 #
 #    if epinames is None:
 #        epinames = load_files('epi')
@@ -52,8 +52,12 @@ def beamProfile(shape=(512, 512)):
 #
 #    return tirf_factor, frame_factor, variance
 #
-#if __name__ == "__main__":
-#
+if __name__ == "__main__":
+
+    from PIL import Image
+
+    profile = beamPorfile()
+
 #    epi_fov = beam_mean(bp.load_files('epi'))
 #    tirf_fov = beam_mean(bp.load_files('tirf'))
 #
@@ -61,5 +65,8 @@ def beamProfile(shape=(512, 512)):
 #    frame_factor = frame(tirf_fov).mean() / tirf_fov.mean()
 #    std = 100 * frame(tirf_fov).std() / frame(tirf_fov).mean()
 
-#   plt.imshow(tirf_mean, interpolation='none')
-#   plt.colorbar()
+    im = Image.fromarray(profile)
+    im.save('beam_profile.tiff')
+
+    plt.imshow(profile, interpolation='none')
+    plt.colorbar()
