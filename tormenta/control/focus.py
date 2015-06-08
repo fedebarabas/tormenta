@@ -74,10 +74,10 @@ class FocusWidget(QtGui.QFrame):
         self.calibrationDisplay.setReadOnly(False)
 
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit('-0.002')
+        self.kpEdit = QtGui.QLineEdit('-0.005')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('-0.000006')
+        self.kiEdit = QtGui.QLineEdit('-0.000001')
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')

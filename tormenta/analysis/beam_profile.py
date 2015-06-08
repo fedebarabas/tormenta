@@ -21,14 +21,23 @@ def loadStacks():
     except OSError:
         print("No files selected!")
 
-    return stacksNames
+    # Fix for names with whitespace.
+    # Taken from: http://stackoverflow.com/questions/9227859/
+    # tkfiledialog-not-converting-results-to-a-python-list-on-windows
+    if isinstance(stacksNames, list):
+        return stacksNames
+    else:
+        return stacksNames.strip('{}').split('} {')
 
 
 def beamProfile(shape=(512, 512)):
 
     profile = np.zeros(shape)
 
-    for filename in loadStacks():
+    stacks = loadStacks()
+
+    for filename in stacks:
+        print(filename)
         stack = Stack(filename=filename)
         meanFrame = stack.imageData.mean(0)
         profile += meanFrame / meanFrame.mean()
@@ -55,8 +64,9 @@ def beamProfile(shape=(512, 512)):
 if __name__ == "__main__":
 
     from PIL import Image
+    import matplotlib.pyplot as plt
 
-    profile = beamPorfile()
+    profile = beamProfile()
 
 #    epi_fov = beam_mean(bp.load_files('epi'))
 #    tirf_fov = beam_mean(bp.load_files('tirf'))
