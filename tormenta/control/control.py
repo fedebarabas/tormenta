@@ -183,8 +183,8 @@ class RecordingWidget(QtGui.QFrame):
     def snapTIFF(self):
         image = self.main.andor.most_recent_image16(self.shape)
 
-        savename = getUniqueName(os.path.join(self.folder(), self.filename()) +
-                                 '_snap.tiff')
+        savename = os.path.join(self.folder(), self.filename()) + '_snap.tiff'
+        savename = guitools.getUniqueName(savename)
         tiff.imsave(savename, image, description=self.dataname,
                     software='Tormenta')
         guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
@@ -225,11 +225,11 @@ class RecordingWidget(QtGui.QFrame):
 
             self.savename = (os.path.join(self.folder(), self.filename()) +
                              '.hdf5')
-            self.savename = getUniqueName(self.savename)
+            self.savename = guitools.getUniqueName(self.savename)
             self.startTime = ptime.time()
 
             shape = (self.n(), self.shape[0], self.shape[1])
-            self.worker = RecWorker(shape, self.main.andor,
+            self.worker = RecWorker(self.main.andor, shape,
                                     self.main.t_exp_real, self.savename,
                                     self.dataname, self.getAttrs())
             self.worker.updateSignal.connect(self.updateGUI)
@@ -905,7 +905,8 @@ class TormentaGUI(QtGui.QMainWindow):
             self.recWidget.readyToRecord = False
 
             # Turn off camera, close shutter
-            if self.andor.status != 'Camera is idle, waiting for instructions.':
+            idleMsg = 'Camera is idle, waiting for instructions.'
+            if self.andor.status != idleMsg:
                 self.andor.abort_acquisition()
 
             self.andor.shutter(0, 2, 0, 0, 0)
