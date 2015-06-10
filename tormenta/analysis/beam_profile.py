@@ -9,6 +9,8 @@ Created on Wed May 13 23:35:23 2015
 import numpy as np
 from scipy.signal import argrelextrema
 from tkinter import Tk, filedialog
+from PIL import Image
+import matplotlib.pyplot as plt
 
 from stack import Stack
 
@@ -62,32 +64,22 @@ def beamProfile(ask, folder=None, shape=(512, 512)):
 
 
 def frame(image, center=(256, 256), shape=(128, 128)):
+    # Untested for not centered frames
 
     return image[center[0] - int(shape[0] / 2):center[0] + int(shape[0] / 2),
                  center[1] - int(shape[1] / 2):center[1] + int(shape[1] / 2)]
 
-# def analyze_beam(epinames=None, tirfnames=None):
-#
-#    if epinames is None:
-#        epinames = load_files('epi')
-#        tirfnames = load_files('tirf')
-#
-#    epi_mean = beam_mean(epinames)
-#    tirf_mean = beam_mean(tirfnames)
-#
-#    tirf_factor = frame(tirf_mean).mean() / frame(epi_mean).mean()
-#    frame_factor = frame(tirf_mean).mean() / tirf_mean.mean()
-#    variance = 100 * frame(tirf_mean).std() / frame(tirf_mean).mean()
-#
-#    return tirf_factor, frame_factor, variance
-#
-if __name__ == "__main__":
 
-    from PIL import Image
-    import matplotlib.pyplot as plt
+def analyzeBeam():
+    """
+    Script for loading EPI and TIRF images of homogeneous samples for
+    measuring the illumination beam profile.
+    It loads as many images as you have for both illumination schemes and
+    then it calculates the means and correction factors.
+    """
 
-    profileEPI, normEPI, folder = beamProfile('epi')
-    profileTIRF, normTIRF, folder = beamProfile('tirf', folder)
+    profileEPI, normEPI, folder = beamProfile('Select EPI profiles')
+    profileTIRF, normTIRF, folder = beamProfile('Select TIRF profiles', folder)
     TIRFactor = normTIRF / normEPI
 
     TIRFrameFactor = frame(profileTIRF).mean() / profileTIRF.mean()
@@ -95,27 +87,35 @@ if __name__ == "__main__":
     TIRstd = 100 * frame(profileTIRF).std() / frame(profileTIRF).mean()
     EPIstd = 100 * frame(profileEPI).std() / frame(profileEPI).mean()
 
-    print('TIRF intensity factor', TIRFactor)
-    print('EPI Frame factor', EPIFrameFactor)
-    print('TIRF Frame factor', TIRFrameFactor)
-    print('%std for EPI frame', EPIstd)
-    print('%std for TIRF frame', TIRstd)
-
     im = Image.fromarray(profileEPI)
-    im.save('profileEPI.tiff')
+    im.save(os.path.join(folder, 'profileEPI.tiff'))
     im = Image.fromarray(profileTIRF)
-    im.save('profileTIRF.tiff')
+    im.save(os.path.join(folder, 'profileTIRF.tiff'))
 
-#    f = plt.figure()
-    plt.subplot(2,  1, 1)
+    # EPI profile
+    plt.subplot(2,  2, 1)
     plt.imshow(profileEPI, interpolation='None', cmap=cm.cubehelix)
-    plt.title('EPI')
+    plt.title('EPI profile')
     plt.colorbar()
-    plt.text(700, 100, 'TIRF intensity factor={}'.format(np.round(TIRFactor, 2)))
+    plt.text(800, 100,
+             'EPI frame factor={}'.format(np.round(EPIFrameFactor, 2)))
+    plt.text(800, 150,
+             'EPI % standard dev={}'.format(np.round(EPIstd, 2)))
 
-    plt.subplot(2, 1, 2)
+    # TIRF profile
+    plt.subplot(2, 2, 3)
     plt.imshow(profileTIRF, interpolation='None', cmap=cm.cubehelix)
-    plt.title('TIRF')
+    plt.title('TIRF profile')
     plt.colorbar()
+    plt.text(800, 100,
+             'TIRF frame factor={}'.format(np.round(TIRFrameFactor, 2)))
+    plt.text(800, 150,
+             'TIRF % standard dev={}'.format(np.round(TIRstd, 2)))
+    plt.text(800, 250,
+             'TIRF intensity factor={}'.format(np.round(TIRFactor, 2)))
 
     plt.show()
+
+if __name__ == "__main__":
+
+    analyzeBeam()
