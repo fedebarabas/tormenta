@@ -47,7 +47,16 @@ def beamProfile(ask, folder=None, shape=(512, 512)):
         print(filename)
         stack = Stack(filename=filename)
         meanFrame = stack.imageData.mean(0)
-        meanInt = meanFrame.mean()
+
+        # Beam identification
+        hist, edg = np.histogram(meanFrame, bins=100)
+        thres = edg[argrelextrema(hist, np.less)[0][0] + 1]
+        beamMask = np.zeros(shape=meanFrame.shape, dtype=bool)
+        beamMask[meanFrame < thres] = True
+        beamFrame = np.ma.masked_array(meanFrame, beamMask)
+
+        # Normalization
+        meanInt = beamFrame.mean()
         profile += meanFrame / meanInt
         norm += meanInt
         stack.close()
@@ -55,8 +64,8 @@ def beamProfile(ask, folder=None, shape=(512, 512)):
     norm /= n
 
     hist, edg = np.histogram(profile, bins=100)
-    thres = edg[argrelextrema(hist, np.less)[0][0] + 1]
-    beam_mask = np.zeros(shape=profile.shape)
+    thres = edg[argrelextrema(hist, np.less)[0][0] + 2]
+    beam_mask = np.zeros(shape=profile.shape, dtype=bool)
     beam_mask[profile < thres] = True
     beamProfile = np.ma.masked_array(profile, beam_mask)
 
@@ -82,11 +91,17 @@ def analyzeBeam():
     profileTIRF, normTIRF, folder = beamProfile('Select TIRF profiles', folder)
     TIRFactor = normTIRF / normEPI
 
-    TIRFrameFactor = frame(profileTIRF).mean() / profileTIRF.mean()
+    # Measurements in EPI
     EPIFrameFactor = frame(profileEPI).mean() / profileEPI.mean()
-    TIRstd = 100 * frame(profileTIRF).std() / frame(profileTIRF).mean()
     EPIstd = 100 * frame(profileEPI).std() / frame(profileEPI).mean()
+    EPIarea = profileTIRF.mask.size - profileEPI.mask.sum()
 
+    # Measurements in TIRF
+    TIRFrameFactor = frame(profileTIRF).mean() / profileTIRF.mean()
+    TIRstd = 100 * frame(profileTIRF).std() / frame(profileTIRF).mean()
+    TIRarea = profileTIRF.mask.size - profileTIRF.mask.sum()
+
+    # Profile images saving
     im = Image.fromarray(profileEPI)
     im.save(os.path.join(folder, 'profileEPI.tiff'))
     im = Image.fromarray(profileTIRF)
@@ -101,6 +116,7 @@ def analyzeBeam():
              'EPI frame factor={}'.format(np.round(EPIFrameFactor, 2)))
     plt.text(800, 150,
              'EPI % standard dev={}'.format(np.round(EPIstd, 2)))
+    plt.text(800, 200, 'EPI mask area={}'.format(EPIarea) + ' px^2')
 
     # TIRF profile
     plt.subplot(2, 2, 3)
@@ -111,7 +127,8 @@ def analyzeBeam():
              'TIRF frame factor={}'.format(np.round(TIRFrameFactor, 2)))
     plt.text(800, 150,
              'TIRF % standard dev={}'.format(np.round(TIRstd, 2)))
-    plt.text(800, 250,
+    plt.text(800, 200, 'TIRF mask area={}'.format(TIRarea) + ' px^2')
+    plt.text(800, 300,
              'TIRF intensity factor={}'.format(np.round(TIRFactor, 2)))
 
     plt.show()
