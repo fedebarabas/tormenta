@@ -11,7 +11,7 @@ import numpy as np
 import h5py as hdf
 import tifffile as tiff
 
-from PyQt4 import QtCore
+from PyQt4 import QtCore, QtGui
 from tkinter import Tk, filedialog
 
 
@@ -165,6 +165,10 @@ class Grid():
         self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1], pen='y', angle=0)
         self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1], pen='y', angle=0)
 
+        self.rectangle = QtGui.QGraphicsRectItem(192, 192, 128, 128)
+        pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.DashLine)
+        self.rectangle.setPen(pen)
+
     def update(self, shape):
         self.yline1.setPos(0.25*shape[0])
         self.yline2.setPos(0.50*shape[0])
@@ -188,6 +192,7 @@ class Grid():
         self.vb.addItem(self.yline1)
         self.vb.addItem(self.yline2)
         self.vb.addItem(self.yline3)
+        self.vb.addItem(self.rectangle)
         self.showed = True
 
     def hide(self):
@@ -197,6 +202,7 @@ class Grid():
         self.vb.removeItem(self.yline1)
         self.vb.removeItem(self.yline2)
         self.vb.removeItem(self.yline3)
+        self.vb.removeItem(self.rectangle)
         self.showed = False
 
 
