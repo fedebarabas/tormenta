@@ -851,13 +851,14 @@ class TormentaGUI(QtGui.QMainWindow):
     def customFrame(self):
 
         ROISize = self.ROI.size()
-        self.shape = (int(ROISize[0]), int(ROISize[1]))
+        self.shape = (int(ROISize[1]), int(ROISize[0]))
         startROI = self.ROI.pos()
-        startROI = (int(startROI[0]), int(startROI[1]))
+        startROI = (int(startROI[1]), int(startROI[0]))
 
         self.changeParameter(lambda: self.adjustFrame(self.shape, startROI))
         self.ROI.hide()
         self.grid.update(self.shape)
+        self.recWidget.shape = self.shape
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter

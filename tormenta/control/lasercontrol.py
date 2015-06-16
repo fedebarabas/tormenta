@@ -46,7 +46,7 @@ class LaserWidget(QtGui.QFrame):
                                         '<h3>RGB 405nm</h3>',
                                         color=(73, 0, 188),
                                         prange=(0, 53),
-                                        tickInterval=5, singleStep=1)
+                                        tickInterval=5, singleStep=0.1)
 
         self.greenControl = LaserControl(self.greenlaser,
                                          '<h3>Ventus 532nm</h3>',
