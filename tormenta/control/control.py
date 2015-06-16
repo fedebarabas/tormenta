@@ -668,7 +668,8 @@ class TormentaGUI(QtGui.QMainWindow):
                                                                'Atto655'),
                          ('FF01-593/40', 'Bandpass 593/40', 6, 'Atto565, '
                                                                'Nile Red'),
-                         ('ET575/50',    'Bandpass 575/50', 1, 'Atto550'),
+                         ('ET575/50',    'Bandpass 575/50', 1, 'Atto550, '
+                                                               'Alexa532'),
                          ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
                          ('',            '',                3, '')],
                         dtype=[('Filtro', object), ('Descripción', object),
