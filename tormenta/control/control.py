@@ -674,7 +674,7 @@ class TormentaGUI(QtGui.QMainWindow):
                          ('',            '',                3, '')],
                         dtype=[('Filtro', object), ('Descripción', object),
                                ('Antiposición', int),
-                               ('Fluorósforos', object)])
+                               ('Fluoróforos', object)])
         tableWidget.setData(data)
         wheelDock.addWidget(tableWidget)
         dockArea.addDock(wheelDock, 'top', consoleDock)
