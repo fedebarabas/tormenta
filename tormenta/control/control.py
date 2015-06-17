@@ -663,18 +663,17 @@ class TormentaGUI(QtGui.QMainWindow):
 
         wheelDock = Dock("Emission filters", size=(20, 20))
         tableWidget = pg.TableWidget(sortable=False)
-        data = np.array([('ZET642NF',    'Notch 642nm',     4, ''),
-                         ('ET700/75m',   'Bandpass 700/75', 5, 'Alexa647, '
-                                                               'Atto655'),
-                         ('FF01-593/40', 'Bandpass 593/40', 6, 'Atto565, '
-                                                               'Nile Red'),
-                         ('ET575/50',    'Bandpass 575/50', 1, 'Atto550, '
-                                                               'Alexa532'),
-                         ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
-                         ('',            '',                3, '')],
-                        dtype=[('Filtro', object), ('Descripción', object),
-                               ('Antiposición', int),
-                               ('Fluoróforos', object)])
+        filters = [('ZET642NF',    'Notch 642nm',     4, ''),
+                   ('ET700/75m',   'Bandpass 700/75', 5, 'Alexa647, Atto655'),
+                   ('FF01-593/40', 'Bandpass 593/40', 6, 'Alexa568, Atto565, '
+                                                         'Nile Red'),
+                   ('ET575/50',    'Bandpass 575/50', 1, 'Alexa532, Atto550'),
+                   ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
+                   ('',            '',                3, '')],
+        data = np.array(filters, dtype=[('Filtro', object),
+                                        ('Descripción', object),
+                                        ('Antiposición', int),
+                                        ('Fluoróforos', object)])
         tableWidget.setData(data)
         wheelDock.addWidget(tableWidget)
         dockArea.addDock(wheelDock, 'top', consoleDock)
