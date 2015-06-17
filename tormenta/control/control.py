@@ -669,7 +669,7 @@ class TormentaGUI(QtGui.QMainWindow):
                                                          'Nile Red'),
                    ('ET575/50',    'Bandpass 575/50', 1, 'Alexa532, Atto550'),
                    ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
-                   ('',            '',                3, '')],
+                   ('',            '',                3, '')]
         data = np.array(filters, dtype=[('Filtro', object),
                                         ('Descripción', object),
                                         ('Antiposición', int),
