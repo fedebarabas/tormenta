@@ -20,6 +20,7 @@ from pyqtgraph.parametertree import Parameter, ParameterTree
 from pyqtgraph.dockarea import Dock, DockArea
 from pyqtgraph.console import ConsoleWidget
 
+from tkinter import Tk, filedialog, messagebox
 import h5py as hdf
 import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
@@ -39,16 +40,17 @@ class RecordingWidget(QtGui.QFrame):
         self.main = main
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.shape = self.main.shape
+        self.initialDir = r'C:\Users\Usuario\Documents\Data'
 
         recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
         recTitle.setTextFormat(QtCore.Qt.RichText)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
 
-        self.currentFrame = QtGui.QLabel('0 /')
-        self.numExpositionsEdit = QtGui.QLineEdit('100')
-        self.folderEdit = QtGui.QLineEdit(os.getcwd())
-        openFolderButton = QtGui.QPushButton('Open Folder')
+        self.folderEdit = QtGui.QLineEdit(self.initialDir)
+        openFolderButton = QtGui.QPushButton('Open')
         openFolderButton.clicked.connect(self.openFolder)
+        loadFolderButton = QtGui.QPushButton('Load...')
+        loadFolderButton.clicked.connect(self.loadFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
 
         self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
@@ -65,30 +67,47 @@ class RecordingWidget(QtGui.QFrame):
                                      QtGui.QSizePolicy.Expanding)
         self.recButton.clicked.connect(self.startRecording)
 
+        self.currentFrame = QtGui.QLabel('0 /')
+        self.currentFrame.setAlignment((QtCore.Qt.AlignRight |
+                                        QtCore.Qt.AlignVCenter))
+        self.currentFrame.setFixedWidth(45)
+        self.numExpositionsEdit = QtGui.QLineEdit('100')
+        self.numExpositionsEdit.setFixedWidth(45)
         zeroTime = datetime.timedelta(seconds=0)
         self.tElapsed = QtGui.QLabel('Elapsed: {}'.format(zeroTime))
         self.tRemaining = QtGui.QLabel()
+        self.tRemaining.setAlignment((QtCore.Qt.AlignRight |
+                                      QtCore.Qt.AlignVCenter))
         self.numExpositionsEdit.textChanged.connect(self.nChanged)
         self.updateRemaining()
 
+        buttonWidget = QtGui.QWidget()
+        buttonGrid = QtGui.QGridLayout()
+        buttonWidget.setLayout(buttonGrid)
+        buttonGrid.addWidget(self.snapTIFFButton, 0, 0)
+        buttonGrid.addWidget(self.snapHDFButton, 0, 1)
+        buttonGrid.addWidget(self.recButton, 0, 2)
+
         recGrid = QtGui.QGridLayout()
         self.setLayout(recGrid)
+
         recGrid.addWidget(recTitle, 0, 0, 1, 3)
+        recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0)
+        recGrid.addWidget(loadFolderButton, 1, 5)
+        recGrid.addWidget(openFolderButton, 1, 4)
+        recGrid.addWidget(self.folderEdit, 2, 0, 1, 6)
+        recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
+        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 6)
         recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
         recGrid.addWidget(self.currentFrame, 5, 1)
         recGrid.addWidget(self.numExpositionsEdit, 5, 2)
-        recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0)
-        recGrid.addWidget(openFolderButton, 1, 1, 1, 2)
-        recGrid.addWidget(self.folderEdit, 2, 0, 1, 3)
-        recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
-        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 3)
-        recGrid.addWidget(self.snapTIFFButton, 1, 3)
-        recGrid.addWidget(self.snapHDFButton, 2, 3)
-        recGrid.addWidget(self.recButton, 3, 3, 4, 1)
-        recGrid.addWidget(self.tElapsed, 6, 0)
-        recGrid.addWidget(self.tRemaining, 6, 1, 1, 2)
+        recGrid.addWidget(self.tElapsed, 5, 4)
+        recGrid.addWidget(self.tRemaining, 5, 5)
+        recGrid.addWidget(buttonWidget, 6, 0, 1, 6)
 
-        recGrid.setColumnMinimumWidth(0, 200)
+        recGrid.setColumnMinimumWidth(0, 110)
+        recGrid.setColumnMinimumWidth(3, 20)
+        recGrid.setRowMinimumHeight(6, 60)
 
         self.writable = True
         self.readyToRecord = False
@@ -122,12 +141,6 @@ class RecordingWidget(QtGui.QFrame):
         else:
             return int(text)
 
-    def folder(self):
-        return self.folderEdit.text()
-
-    def filename(self):
-        return self.filenameEdit.text()
-
     def nChanged(self):
         self.updateRemaining()
         self.limitExpositions(9)
@@ -148,12 +161,24 @@ class RecordingWidget(QtGui.QFrame):
             self.numExpositionsEdit.setText(str(np.round(nMax).astype(int)))
 
     def openFolder(self, path):
+        print(self.folderEdit.text())
         if sys.platform == 'darwin':
-            subprocess.check_call(['open', '', self.folder()])
+            subprocess.check_call(['open', '', self.folderEdit.text()])
         elif sys.platform == 'linux':
-            subprocess.check_call(['gnome-open', '', self.folder()])
+            subprocess.check_call(['gnome-open', '', self.folderEdit.text()])
         elif sys.platform == 'win32':
-            subprocess.check_call(['explorer', self.folder()])
+            os.startfile(self.folderEdit.text())
+
+    def loadFolder(self):
+        try:
+            root = Tk()
+            folder = filedialog.askdirectory(parent=root,
+                                             initialdir=self.initialDir)
+            root.destroy()
+            self.folderEdit.setText(folder)
+        except OSError:
+            print(self.folderEdit.text())
+            pass
 
     # Attributes saving
     def getAttrs(self):
@@ -169,33 +194,52 @@ class RecordingWidget(QtGui.QFrame):
         return attrs
 
     def snapHDF(self):
-        image = self.main.andor.most_recent_image16(self.shape)
 
-        name = os.path.join(self.folder(), self.filename())
-        savename = guitools.getUniqueName(name + '_snap.hdf5')
-        store_file = hdf.File(savename)
-        store_file.create_dataset(name=self.dataname, data=image)
-        for item in self.getAttrs():
-            if item[1] is not None:
-                store_file[self.dataname].attrs[item[0]] = item[1]
-        store_file.close()
+        folder = self.folderEdit.text()
+        if os.path.exists(folder):
+
+            image = self.main.andor.most_recent_image16(self.shape)
+
+            name = os.path.join(folder, self.filename())
+            savename = guitools.getUniqueName(name + '_snap.hdf5')
+            store_file = hdf.File(savename)
+            store_file.create_dataset(name=self.dataname, data=image)
+            for item in self.getAttrs():
+                if item[1] is not None:
+                    store_file[self.dataname].attrs[item[0]] = item[1]
+            store_file.close()
+
+        else:
+            self.folderWarning()
 
     def snapTIFF(self):
-        image = self.main.andor.most_recent_image16(self.shape)
 
-        savename = os.path.join(self.folder(), self.filename()) + '_snap.tiff'
-        savename = guitools.getUniqueName(savename)
-        tiff.imsave(savename, image, description=self.dataname,
-                    software='Tormenta')
-        guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
+        folder = self.folderEdit.text()
+        if os.path.exists(folder):
+
+            image = self.main.andor.most_recent_image16(self.shape)
+
+            savename = (os.path.join(folder, self.filename()) + '_snap.tiff')
+            savename = guitools.getUniqueName(savename)
+            tiff.imsave(savename, image, description=self.dataname,
+                        software='Tormenta')
+            guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
+
+        else:
+            self.folderWarning()
+
+    def folderWarning(self):
+        root = Tk()
+        messagebox.showwarning(title='Warning', message="Folder doesn't exist")
+        root.destroy()
 
     def updateGUI(self, image):
         self.main.img.setImage(image, autoLevels=False)
         if self.main.crosshair.showed:
-            xcoord = int(np.round(self.main.crosshair.hLine.pos()[1]))
-            ycoord = int(np.round(self.main.crosshair.vLine.pos()[0]))
-            self.main.xProfile.setData(image[xcoord])
-            self.main.yProfile.setData(image[:, ycoord])
+                ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
+                self.xProfile.setData(image[:, ycoord])
+                self.yProfile.setData(image[xcoord])
 
         # fps calculation
         self.main.fpsMath()
@@ -215,29 +259,36 @@ class RecordingWidget(QtGui.QFrame):
 
         if self.recButton.isChecked():
 
-            self.writable = False
-            self.readyToRecord = False
-            self.recButton.setEnabled(True)
-            self.recButton.setText('STOP')
-            self.main.tree.writable = False
-            self.main.liveviewButton.setEnabled(False)
-            self.main.viewtimer.stop()
+            folder = self.folderEdit.text()
+            if os.path.exists(folder):
 
-            self.savename = (os.path.join(self.folder(), self.filename()) +
-                             '.hdf5')
-            self.savename = guitools.getUniqueName(self.savename)
-            self.startTime = ptime.time()
+                self.writable = False
+                self.readyToRecord = False
+                self.recButton.setEnabled(True)
+                self.recButton.setText('STOP')
+                self.main.tree.writable = False
+                self.main.liveviewButton.setEnabled(False)
+                self.main.viewtimer.stop()
 
-            shape = (self.n(), self.shape[0], self.shape[1])
-            self.worker = RecWorker(self.main.andor, shape,
-                                    self.main.t_exp_real, self.savename,
-                                    self.dataname, self.getAttrs())
-            self.worker.updateSignal.connect(self.updateGUI)
-            self.worker.doneSignal.connect(self.endRecording)
-            self.recordingThread = QtCore.QThread()
-            self.worker.moveToThread(self.recordingThread)
-            self.recordingThread.started.connect(self.worker.start)
-            self.recordingThread.start()
+                self.savename = (os.path.join(folder, self.filename())
+                                 + '.hdf5')
+                self.savename = guitools.getUniqueName(self.savename)
+                self.startTime = ptime.time()
+
+                shape = (self.n(), self.shape[0], self.shape[1])
+                self.worker = RecWorker(self.main.andor, shape,
+                                        self.main.t_exp_real, self.savename,
+                                        self.dataname, self.getAttrs())
+                self.worker.updateSignal.connect(self.updateGUI)
+                self.worker.doneSignal.connect(self.endRecording)
+                self.recordingThread = QtCore.QThread()
+                self.worker.moveToThread(self.recordingThread)
+                self.recordingThread.started.connect(self.worker.start)
+                self.recordingThread.start()
+
+            else:
+                self.folderWarning()
+                self.recButton.setChecked(False)
 
         else:
             self.worker.pressed = False
@@ -714,6 +765,8 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.crosshairButton, 4, 4)
         layout.addWidget(dockArea, 0, 5, 5, 1)
 
+        layout.setRowMinimumHeight(2, 40)
+
     def cropCCD(self):
         if self.cropParam.param('Enable').value():
 
@@ -722,7 +775,6 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.shape = self.andor.detector_shape
                 self.changeParameter(self.adjustFrame)
 
-#            ROIpos = (self.shape[0] - 128, self.shape[1] - 128)
             ROIpos = (0, 0)
             self.cropROI = guitools.ROI(self.shape, self.vb, ROIpos,
                                         handlePos=(1, 1), handleCenter=(0, 0),
@@ -922,10 +974,10 @@ class TormentaGUI(QtGui.QMainWindow):
             self.img.setImage(image, autoLevels=False)
 
             if self.crosshair.showed:
-                xcoord = int(np.round(self.crosshair.hLine.pos()[1]))
-                ycoord = int(np.round(self.crosshair.vLine.pos()[0]))
-                self.xProfile.setData(image[xcoord])
-                self.yProfile.setData(image[:, ycoord])
+                ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
+                self.xProfile.setData(image[:, ycoord])
+                self.yProfile.setData(image[xcoord])
 
             self.fpsMath()
 
