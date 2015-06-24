@@ -42,10 +42,12 @@ class RecordingWidget(QtGui.QFrame):
         self.shape = self.main.shape
         self.initialDir = r'C:\Users\Usuario\Documents\Data'
 
-        recTitle = QtGui.QLabel('<h2><strong>Recording settings</strong></h2>')
+        # Title
+        recTitle = QtGui.QLabel('<h2><strong>Recording</strong></h2>')
         recTitle.setTextFormat(QtCore.Qt.RichText)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
 
+        # Folder and filename fields
         self.folderEdit = QtGui.QLineEdit(self.initialDir)
         openFolderButton = QtGui.QPushButton('Open')
         openFolderButton.clicked.connect(self.openFolder)
@@ -53,20 +55,25 @@ class RecordingWidget(QtGui.QFrame):
         loadFolderButton.clicked.connect(self.loadFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
 
+        # Snap and recording buttons
         self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
+        self.snapTIFFButton.setStyleSheet("font-size:16px")
         self.snapTIFFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                           QtGui.QSizePolicy.Expanding)
         self.snapTIFFButton.clicked.connect(self.snapTIFF)
         self.snapHDFButton = QtGui.QPushButton('Snap HDF5')
+        self.snapHDFButton.setStyleSheet("font-size:16px")
         self.snapHDFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                          QtGui.QSizePolicy.Expanding)
         self.snapHDFButton.clicked.connect(self.snapHDF)
         self.recButton = QtGui.QPushButton('REC')
+        self.recButton.setStyleSheet("font-size:16px")
         self.recButton.setCheckable(True)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
         self.recButton.clicked.connect(self.startRecording)
 
+        # Number of frames and measurement timing
         self.currentFrame = QtGui.QLabel('0 /')
         self.currentFrame.setAlignment((QtCore.Qt.AlignRight |
                                         QtCore.Qt.AlignVCenter))
@@ -81,6 +88,7 @@ class RecordingWidget(QtGui.QFrame):
         self.numExpositionsEdit.textChanged.connect(self.nChanged)
         self.updateRemaining()
 
+        # Layout
         buttonWidget = QtGui.QWidget()
         buttonGrid = QtGui.QGridLayout()
         buttonWidget.setLayout(buttonGrid)
@@ -686,7 +694,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.adjustFrame()
 
         # Liveview functionality
-        self.liveviewButton = QtGui.QPushButton('Liveview')
+        self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
+        self.liveviewButton.setStyleSheet("font-size:20px")
         self.liveviewButton.setCheckable(True)
         self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                           QtGui.QSizePolicy.Expanding)
@@ -745,6 +754,16 @@ class TormentaGUI(QtGui.QMainWindow):
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', focusDock)
 
+        # Camera settings widget
+        cameraWidget = QtGui.QFrame()
+        cameraWidget.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+        cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
+        cameraTitle.setTextFormat(QtCore.Qt.RichText)
+        cameraGrid = QtGui.QGridLayout()
+        cameraWidget.setLayout(cameraGrid)
+        cameraGrid.addWidget(cameraTitle, 0, 0)
+        cameraGrid.addWidget(self.tree, 1, 0)
+
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
@@ -756,7 +775,7 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setRowMinimumHeight(2, 20)
         layout.setRowMinimumHeight(3, 180)
         layout.setRowMinimumHeight(4, 20)
-        layout.addWidget(self.tree, 0, 0, 2, 1)
+        layout.addWidget(cameraWidget, 0, 0, 2, 1)
         layout.addWidget(self.liveviewButton, 2, 0)
         layout.addWidget(self.recWidget, 3, 0, 2, 1)
         layout.addWidget(imageWidget, 0, 1, 4, 4)
