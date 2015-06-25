@@ -59,14 +59,12 @@ class MoleculesGraph(pg.GraphicsWindow):
         self.plot.showGrid(x=True, y=True)
         self.curve = self.plot.plot(pen='y')
 
-        self.ptr = 0
-        self.npoints = 200
-        self.data = np.zeros(self.npoints, dtype=np.int)
-        self.time = np.zeros(self.npoints)
-        self.startTime = ptime.time()
-
     def getTime(self):
         if self.main.enabled:
+            self.ptr = 0
+            self.npoints = 200
+            self.data = np.zeros(self.npoints, dtype=np.int)
+            self.time = np.zeros(self.npoints)
             self.startTime = ptime.time()
 
     def update(self, image):

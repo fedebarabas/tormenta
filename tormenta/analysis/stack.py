@@ -10,7 +10,6 @@ import numpy as np
 import h5py as hdf
 
 from airygauss import fwhm
-#import maxima
 from tools import does_overlap
 
 # data-type definitions
@@ -20,28 +19,6 @@ parameters = [('frame', int), ('maxima', np.int, (2,)), ('photons', float),
               ('sharpness', float), ('roundness', float),
               ('brightness', float)]
 dt_2d = np.dtype(parameters + parameters_2d)
-
-
-def gauss(x, center, fwhm):
-    return np.exp(- 4 * np.log(2) * (x - center)**2 / fwhm**2)
-
-
-def kernel(fwhm):
-    window = np.ceil(fwhm) + 3
-    x = np.arange(0, window)
-    y = x
-    xx, yy = np.meshgrid(x, y, sparse=True)
-    matrix = gauss(xx, x.mean(), fwhm) * gauss(yy, y.mean(), fwhm)
-    matrix /= matrix.sum()
-    return matrix
-
-
-def xkernel(fwhm):
-    window = np.ceil(fwhm) + 3
-    x = np.arange(0, window)
-    matrix = gauss(x, x.mean(), fwhm)
-    matrix = matrix - matrix.sum() / matrix.size
-    return matrix
 
 
 def convert(word):
