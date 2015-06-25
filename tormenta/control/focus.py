@@ -9,8 +9,8 @@ import numpy as np
 import time
 import scipy.ndimage as ndi
 
-from PyQt4 import QtGui, QtCore
 import pyqtgraph as pg
+from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph.ptime as ptime
 import pygame
 
@@ -242,7 +242,7 @@ class FocusLockGraph(pg.GraphicsWindow):
 
     def __init__(self, focusWidget, main=None, *args, **kwargs):
 
-        super(FocusLockGraph, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.focusWidget = focusWidget
         self.main = main

@@ -29,7 +29,9 @@ from lantz import Q_
 import tormenta.control.instruments as instruments
 import tormenta.control.lasercontrol as lasercontrol
 import tormenta.control.focus as focus
+import tormenta.control.molecules_counter as moleculesCounter
 import tormenta.control.guitools as guitools
+#import tormenta.analysis.
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -422,6 +424,8 @@ class TemperatureStabilizer(QtCore.QObject):
             threshold = Q_(0.8 * tempSetPoint, 'degC')
             if temperature <= threshold or self.main.andor.mock:
                 self.main.liveviewButton.setEnabled(True)
+                self.main.liveviewAction.setEnabled(True)
+
             time.sleep(10)
         else:
             self.timer.stop()
@@ -528,10 +532,10 @@ class CamParamTree(ParameterTree):
     def enableCropMode(self):
         value = self.frameTransferParam.value()
         if value:
-            self.cropModeParamEnable.setWritable(True)
+            self.cropModeEnableParam.setWritable(True)
         else:
-            self.cropModeParamEnable.setValue(False)
-            self.cropModeParamEnable.setWritable(False)
+            self.cropModeEnableParam.setValue(False)
+            self.cropModeEnableParam.setWritable(False)
 
     @property
     def writable(self):
@@ -579,6 +583,7 @@ class TormentaGUI(QtGui.QMainWindow):
         super().__init__(*args, **kwargs)
 
         self.andor = andor
+        self.shape = self.andor.detector_shape
         self.redlaser = redlaser
         self.greenlaser = greenlaser
         self.bluelaser = bluelaser
@@ -592,7 +597,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.lastTime = ptime.time()
         self.fps = None
 
-        # Menubar
+        # Actions and menubar
+        self.liveviewAction = QtGui.QAction(self)
+        self.liveviewAction.setShortcut('Ctrl+Space')
+        self.liveviewAction.triggered.connect(self.liveviewKey)
+        self.liveviewAction.setEnabled(False)
         self.exportTiffAction = QtGui.QAction('Export HDF5 to Tiff...', self)
         self.exportTiffAction.setShortcut('Ctrl+E')
         self.exportTiffAction.setStatusTip('Export HDF5 file to Tiff format')
@@ -647,6 +656,38 @@ class TormentaGUI(QtGui.QMainWindow):
         self.GainPar.sigValueChanged.connect(updateGain)
         updateGain()        # Set default values
 
+        # Camera settings widget
+        cameraWidget = QtGui.QFrame()
+        cameraWidget.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+        cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
+        cameraTitle.setTextFormat(QtCore.Qt.RichText)
+        cameraGrid = QtGui.QGridLayout()
+        cameraWidget.setLayout(cameraGrid)
+        cameraGrid.addWidget(cameraTitle, 0, 0)
+        cameraGrid.addWidget(self.tree, 1, 0)
+
+        # Temperature stabilization functionality
+        self.TempPar = self.tree.p.param('Temperature')
+        self.stabilizer = TemperatureStabilizer(self)
+        self.stabilizerThread = QtCore.QThread()
+        self.stabilizer.moveToThread(self.stabilizerThread)
+        self.stabilizerThread.started.connect(self.stabilizer.start)
+        self.stabilizerThread.start()
+
+        # Liveview functionality
+        self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
+        self.liveviewButton.setStyleSheet("font-size:20px")
+        self.liveviewButton.setCheckable(True)
+        self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                          QtGui.QSizePolicy.Expanding)
+        self.liveviewButton.clicked.connect(self.liveview)
+        self.liveviewButton.setEnabled(False)
+        self.viewtimer = QtCore.QTimer()
+        self.viewtimer.timeout.connect(self.updateView)
+
+        # Recording settings widget
+        self.recWidget = RecordingWidget(self)
+
         # Image Widget
         self.fpsBox = QtGui.QLabel()
         imageWidget = pg.GraphicsLayoutWidget()
@@ -658,10 +699,13 @@ class TormentaGUI(QtGui.QMainWindow):
         self.img.translate(-0.5, -0.5)
         self.vb.addItem(self.img)
         self.vb.setAspectLocked(True)
-
         self.hist = pg.HistogramLUTItem(image=self.img)
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imageWidget.addItem(self.hist, row=1, col=2)
+
+        # Initial camera configuration taken from the parameter tree
+        self.andor.set_exposure_time(self.expPar.value() * self.s)
+        self.adjustFrame()
 
         # x and y profiles
         xPlot = imageWidget.addPlot(row=0, col=1)
@@ -678,8 +722,7 @@ class TormentaGUI(QtGui.QMainWindow):
         imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
         yPlot.setYLink(self.vb)
 
-        # viewBox Tools
-        self.shape = self.andor.detector_shape
+        # viewBox custom Tools
         self.gridButton = QtGui.QPushButton('Grid')
         self.gridButton.setCheckable(True)
         self.grid = guitools.Grid(self.vb, self.shape)
@@ -689,38 +732,16 @@ class TormentaGUI(QtGui.QMainWindow):
         self.crosshair = guitools.Crosshair(self.vb)
         self.crosshairButton.clicked.connect(self.crosshair.toggle)
 
-        # Initial camera configuration taken from the parameter tree
-        self.andor.set_exposure_time(self.expPar.value() * self.s)
-        self.adjustFrame()
-
-        # Liveview functionality
-        self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
-        self.liveviewButton.setStyleSheet("font-size:20px")
-        self.liveviewButton.setCheckable(True)
-        self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
-                                          QtGui.QSizePolicy.Expanding)
-        self.liveviewButton.clicked.connect(self.liveview)
-        self.liveviewButton.setEnabled(False)
-        self.viewtimer = QtCore.QTimer()
-        self.viewtimer.timeout.connect(self.updateView)
-
-        # Temperature stabilization functionality
-        self.TempPar = self.tree.p.param('Temperature')
-        self.stabilizer = TemperatureStabilizer(self)
-        self.stabilizerThread = QtCore.QThread()
-        self.stabilizer.moveToThread(self.stabilizerThread)
-        self.stabilizerThread.started.connect(self.stabilizer.start)
-        self.stabilizerThread.start()
-
-        self.recWidget = RecordingWidget(self)
-
+        # Dock widget
         dockArea = DockArea()
 
+        # Console widget
         consoleDock = Dock("Console", size=(600, 200))
         console = ConsoleWidget(namespace={'pg': pg, 'np': np})
         consoleDock.addWidget(console)
         dockArea.addDock(consoleDock)
 
+        # Emission filters table widget
         wheelDock = Dock("Emission filters", size=(20, 20))
         tableWidget = pg.TableWidget(sortable=False)
         filters = [('ZET642NF',    'Notch 642nm',     4, ''),
@@ -738,6 +759,13 @@ class TormentaGUI(QtGui.QMainWindow):
         wheelDock.addWidget(tableWidget)
         dockArea.addDock(wheelDock, 'top', consoleDock)
 
+        # Molecule counting widget
+        moleculesDock = Dock('Molecule counting', size=(1, 1))
+        self.moleculeWidget = moleculesCounter.MoleculeWidget()
+        moleculesDock.addWidget(self.moleculeWidget)
+        dockArea.addDock(moleculesDock, 'above', wheelDock)
+
+        # Focus lock widget
         focusDock = Dock("Focus Control", size=(1, 1))
 #        self.focusWidget = FocusWidget(DAQ, scanZ, self.recWidget)
         self.focusWidget = focus.FocusWidget(scanZ, self.recWidget)
@@ -746,23 +774,13 @@ class TormentaGUI(QtGui.QMainWindow):
 #        self.focusThread.started.connect(self.focusWidget)
 #        self.focusThread.start()
         focusDock.addWidget(self.focusWidget)
-        dockArea.addDock(focusDock, 'above', wheelDock)
+        dockArea.addDock(focusDock, 'above', moleculesDock)
 
         laserDock = Dock("Laser Control", size=(1, 1))
         self.lasers = (redlaser, bluelaser, greenlaser)
         self.laserWidgets = lasercontrol.LaserWidget(self.lasers)
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', focusDock)
-
-        # Camera settings widget
-        cameraWidget = QtGui.QFrame()
-        cameraWidget.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
-        cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
-        cameraTitle.setTextFormat(QtCore.Qt.RichText)
-        cameraGrid = QtGui.QGridLayout()
-        cameraWidget.setLayout(cameraGrid)
-        cameraGrid.addWidget(cameraTitle, 0, 0)
-        cameraGrid.addWidget(self.tree, 1, 0)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
@@ -945,45 +963,64 @@ class TormentaGUI(QtGui.QMainWindow):
         RealAccPar.setValue(self.t_acc_real.magnitude)
         EffFRPar.setValue(1 / self.t_acc_real.magnitude)
 
+    # This is the function triggered by the liveview shortcut
+    def liveviewKey(self):
+
+        if self.liveviewButton.isChecked():
+            self.liveviewStop()
+            self.liveviewButton.setChecked(False)
+
+        else:
+            self.liveviewStart(True)
+            self.liveviewButton.setChecked(True)
+
+    # This is the function triggered by pressing the liveview button
     def liveview(self, update=True):
         """ Image live view when not recording
         """
         if self.liveviewButton.isChecked():
+            self.liveviewStart(update)
 
-            self.stabilizer.timer.stop()
-            idle = 'Camera is idle, waiting for instructions.'
-            if self.andor.status != idle:
-                self.andor.abort_acquisition()
+        else:
+            self.liveviewStop()
 
-            self.andor.acquisition_mode = 'Run till abort'
-            self.andor.shutter(0, 1, 0, 0, 0)
+    def liveviewStart(self, update):
+        self.stabilizer.timer.stop()
+        idle = 'Camera is idle, waiting for instructions.'
+        if self.andor.status != idle:
+            self.andor.abort_acquisition()
 
-            self.andor.start_acquisition()
-            time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
-            self.recWidget.readyToRecord = True
-            self.recWidget.recButton.setEnabled(True)
+        self.andor.acquisition_mode = 'Run till abort'
+        self.andor.shutter(0, 1, 0, 0, 0)
 
-            # Initial image
-            image = self.andor.most_recent_image16(self.shape)
-            self.img.setImage(image, autoLevels=False, lut=self.lut)
-            if update:
-                self.hist.setLevels(np.min(image) - np.std(image),
-                                    np.max(image) + np.std(image))
+        self.andor.start_acquisition()
+        time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
+        self.recWidget.readyToRecord = True
+        self.recWidget.recButton.setEnabled(True)
+
+        # Initial image
+        image = self.andor.most_recent_image16(self.shape)
+        self.img.setImage(image, autoLevels=False, lut=self.lut)
+        if update:
+            self.hist.setLevels(np.min(image) - np.std(image),
+                                np.max(image) + np.std(image))
 
             self.viewtimer.start(0)
 
-        else:
-            self.viewtimer.stop()
-            self.recWidget.readyToRecord = False
+        self.moleculeWidget.enableBox.setEnabled(True)
 
-            # Turn off camera, close shutter
-            idleMsg = 'Camera is idle, waiting for instructions.'
-            if self.andor.status != idleMsg:
-                self.andor.abort_acquisition()
+    def liveviewStop(self):
+        self.viewtimer.stop()
+        self.recWidget.readyToRecord = False
 
-            self.andor.shutter(0, 2, 0, 0, 0)
-            self.img.setImage(np.zeros(self.shape), autoLevels=False)
-            self.stabilizer.timer.start()
+        # Turn off camera, close shutter
+        idleMsg = 'Camera is idle, waiting for instructions.'
+        if self.andor.status != idleMsg:
+            self.andor.abort_acquisition()
+
+        self.andor.shutter(0, 2, 0, 0, 0)
+        self.img.setImage(np.zeros(self.shape), autoLevels=False)
+        self.stabilizer.timer.start()
 
     def updateView(self):
         """ Image update while in Liveview mode
@@ -991,6 +1028,9 @@ class TormentaGUI(QtGui.QMainWindow):
         try:
             image = self.andor.most_recent_image16(self.shape)
             self.img.setImage(image, autoLevels=False)
+
+            if self.moleculeWidget.enabled:
+                self.moleculeWidget.graph.update(image)
 
             if self.crosshair.showed:
                 ycoord = int(np.round(self.crosshair.hLine.pos()[1]))

@@ -56,11 +56,11 @@ class LaserWidget(QtGui.QFrame):
 
         self.controls = (self.redControl, self.blueControl, self.greenControl)
 
-        self.findTirfButton = QtGui.QPushButton('Find TIRF')
-        self.setEpiButton = QtGui.QPushButton('Set EPI')
-        self.tirfButton = QtGui.QPushButton('TIRF')
+        self.findTirfButton = QtGui.QPushButton('Find TIRF (no anda)')
+        self.setEpiButton = QtGui.QPushButton('Set EPI (no anda)')
+        self.tirfButton = QtGui.QPushButton('TIRF (no anda)')
         self.tirfButton.setCheckable(True)
-        self.epiButton = QtGui.QPushButton('EPI')
+        self.epiButton = QtGui.QPushButton('EPI (no anda)')
         self.epiButton.setCheckable(True)
         self.stagePosLabel = QtGui.QLabel('0 mm')
         self.stagePosLabel.setSizePolicy(QtGui.QSizePolicy.Preferred,
@@ -178,10 +178,12 @@ if __name__ == '__main__':
     app = QtGui.QApplication([])
 
     import tormenta.control.instruments as instruments
+    blueDriver = 'rgblasersystems.minilasevo.MiniLasEvo'
+    greenDriver = 'laserquantum.ventus.Ventus'
 
     with instruments.Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
-            instruments.Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
-            instruments.Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser:
+            instruments.Laser(blueDriver, 'COM7') as bluelaser, \
+            instruments.Laser(greenDriver, 'COM13') as greenlaser:
 
         print(redlaser.idn, bluelaser.idn, greenlaser.idn)
         win = LaserWidget((redlaser, bluelaser, greenlaser))
