@@ -12,9 +12,8 @@ from scipy.optimize import minimize
 from scipy.ndimage.filters import convolve
 from scipy.ndimage.measurements import center_of_mass
 
-from tormenta.analysis.stack import Stack
-from tormenta.analysis.tools import overlaps, dropOverlapping, gauss
-from tormenta.analysis.tools import kernel, xkernel
+import tormenta.analysis.stack as stack
+import tormenta.analysis.tools as tools
 
 
 # data-type definitions
@@ -91,7 +90,7 @@ def ll_hess(params, *args):
                           ((np.pi/4) * A * F**2 * (erfi * erfj + bkg)**2))
 
     # expr.diff(A, x0)
-    hess[0, 1] = np.sum(F*(np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))*(-1.23370055013617*A*F**2*pico*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg)**2 + 1.5707963267949*pico/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg) - 1.5707963267949)/np.sqrt(np.pi))
+    hess[0, 1] = (np.sum(F*(np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))*(-1.23370055013617*A*F**2*pico*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg)**2 + 1.5707963267949*pico/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg) - 1.5707963267949)/np.sqrt(np.pi)))
     hess[1, 0] = hess[0, 1]
 
     # expr.diff(A, y0)
@@ -142,16 +141,15 @@ def fit_area(area, fwhm, bkg):
 # TODO: get error of each parameter from the fit (see Powell?)
 
 
-class Maxima(object):
+class Maxima():
     """ Class defined as the local maxima in an image frame. """
 
     def __init__(self, image, fwhm):
-
         self.image = image
         self.fwhm = fwhm
         self.size = np.ceil(self.fwhm)
 
-    def find(self, kernel, xkernel, alpha=3, size=2):
+    def find(self, alpha=3, size=2):
         """Local maxima finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
@@ -160,20 +158,21 @@ class Maxima(object):
         """
         self.size = size
         self.alpha = alpha
+        self.kernel = tools.kernel(self.fwhm)
 
         # Image cropping to avoid border problems
         shape = self.image.shape
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        imageConv = convolve(self.image.astype(float), kernel)
+        imageConv = convolve(self.image.astype(float), self.kernel)
 
         imageMask = np.zeros(shape, dtype=bool)
 
         std = np.std(imageConv)
 
         # Estimate for the maximum number of maxima in a frame
-        mMax = np.ceil(self.image.size / (2*size + 1)**2)
+        nMax = np.ceil(self.image.size / (2*size + 1)**2)
         maxima = np.zeros((nMax, 2), dtype=int)
         nPeak = 0
 
@@ -223,12 +222,15 @@ class Maxima(object):
 
         # Drop overlapping
         total = len(maxima)
-        maxima = dropOverlapping(maxima, 2 * size)
+        maxima = tools.dropOverlapping(maxima, 2 * size)
         self.overlaps = len(maxima) - total
         self.positions = maxima
 
     def getParameters(self):
         """Calculate the roundness, brightness, sharpness"""
+
+        self.xkernel = tools.xkernel(self.fwhm)
+
         # Peak parameters
         roundness = np.zeros(len(self.positions))
         brightness = np.zeros(len(self.positions))
@@ -246,8 +248,8 @@ class Maxima(object):
             sharpness[i] = self.image[p] / (imageConv[p] * masked.mean())
 
             # Roundness
-            hx = np.dot(self.area(i)[2, :], xkernel)
-            hy = np.dot(self.area(i)[:, 2], xkernel)
+            hx = np.dot(self.area(i)[2, :], self.xkernel)
+            hy = np.dot(self.area(i)[:, 2], self.xkernel)
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
@@ -290,5 +292,5 @@ class Maxima(object):
 
 if __name__ == "__main__":
 
-    stack = Stack()
+    stack = stack.Stack()
     maxima = Maxima(stack.image[10], stack.fwhm)

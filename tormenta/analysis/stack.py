@@ -9,8 +9,8 @@ import numpy as np
 
 import h5py as hdf
 
-from airygauss import fwhm
-from tools import does_overlap
+from tormenta.analysis.airygauss import fwhm
+from tormenta.analysis.tools import overlaps
 
 # data-type definitions
 parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),

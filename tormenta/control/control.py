@@ -31,7 +31,6 @@ import tormenta.control.lasercontrol as lasercontrol
 import tormenta.control.focus as focus
 import tormenta.control.molecules_counter as moleculesCounter
 import tormenta.control.guitools as guitools
-#import tormenta.analysis.
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -1027,10 +1026,9 @@ class TormentaGUI(QtGui.QMainWindow):
         """
         try:
             image = self.andor.most_recent_image16(self.shape)
-            self.img.setImage(image, autoLevels=False)
-
             if self.moleculeWidget.enabled:
                 self.moleculeWidget.graph.update(image)
+            self.img.setImage(image, autoLevels=False)
 
             if self.crosshair.showed:
                 ycoord = int(np.round(self.crosshair.hLine.pos()[1]))

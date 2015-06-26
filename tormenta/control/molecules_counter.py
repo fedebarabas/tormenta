@@ -11,6 +11,8 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui
 import pyqtgraph.ptime as ptime
 
+import tormenta.analysis.maxima as maxima
+
 
 class MoleculeWidget(QtGui.QFrame):
 
@@ -69,17 +71,19 @@ class MoleculesGraph(pg.GraphicsWindow):
 
     def update(self, image):
 
-        self.nMolecules = np.int(np.random.rand() * 10)
+        maxima = maxima.Maxima(image, 3)
+        maxima.find()
+        nMaxima = len(maxima.positions)
 
         if self.ptr < self.npoints:
-            self.data[self.ptr] = self.nMolecules
+            self.data[self.ptr] = nMaxima
             self.time[self.ptr] = ptime.time() - self.startTime
             self.curve.setData(self.time[1:self.ptr + 1],
                                self.data[1:self.ptr + 1])
 
         else:
             self.data[:-1] = self.data[1:]
-            self.data[-1] = self.nMolecules
+            self.data[-1] = nMaxima
             self.time[:-1] = self.time[1:]
             self.time[-1] = ptime.time() - self.startTime
 

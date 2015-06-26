@@ -4,10 +4,10 @@ Created on Tue Feb 18 18:03:01 2014
 
 @author: fbaraba
 """
+import numpy as np
 
 
 def mode(array):
-
     hist, bin_edges = np.histogram(array, bins=array.max() - array.min())
     hist_max = hist.argmax()
     return (bin_edges[hist_max + 1] + bin_edges[hist_max]) / 2
