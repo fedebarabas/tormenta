@@ -13,11 +13,11 @@ def mode(array):
     return (bin_edges[hist_max + 1] + bin_edges[hist_max]) / 2
 
 
-def overlaps(p1, p2, minD):
-    return max(abs(p1[1] - p2[1]), abs(p1[0] - p2[0])) <= minD
+def overlaps(p1, p2, d):
+    return max(abs(p1[1] - p2[1]), abs(p1[0] - p2[0])) <= d
 
 
-def dropOverlapping(maxima, minD):
+def dropOverlapping(maxima, d):
     """We exclude from the analysis all the maxima that have their fitting
     windows overlapped, i.e., the distance between them is less than 'd'
     """
@@ -30,7 +30,7 @@ def dropOverlapping(maxima, minD):
         overlapsList = map(overlapFunction, np.delete(maxima, i, 0))
         if all(overlapsList):
             noOverlaps[n] = maxima[i]
-            nov_maxima += 1
+            n += 1
 
     return noOverlaps[:n]
 

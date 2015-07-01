@@ -12,6 +12,8 @@ from scipy.optimize import minimize
 from scipy.ndimage.filters import convolve
 from scipy.ndimage.measurements import center_of_mass
 
+import pyqtgraph.ptime as ptime
+
 import tormenta.analysis.stack as stack
 import tormenta.analysis.tools as tools
 
@@ -160,74 +162,61 @@ class Maxima():
         self.alpha = alpha
         self.kernel = tools.kernel(self.fwhm)
 
-        # Image cropping to avoid border problems
-        shape = self.image.shape
-
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
         imageConv = convolve(self.image.astype(float), self.kernel)
 
-        imageMask = np.zeros(shape, dtype=bool)
+        # Image mask. We leave the borders out
+        imageMask = np.ones(self.image.shape, dtype=bool)
+        imageMask[self.size:self.image.shape[0] - self.size,
+                  self.size:self.image.shape[1] - self.size] = False
+        maskedArray = np.ma.masked_array(imageConv, imageMask)
 
         std = np.std(imageConv)
+        mean = np.mean(imageConv)
+        self.threshold = self.alpha*std + mean
 
         # Estimate for the maximum number of maxima in a frame
-        nMax = np.ceil(self.image.size / (2*size + 1)**2)
+        nMax = np.ceil(self.image.size / (2*self.size + 1)**2)
         maxima = np.zeros((nMax, 2), dtype=int)
         nPeak = 0
 
         while 1:
-
             k = np.argmax(np.ma.masked_array(imageConv, imageMask))
 
             # index juggling
-            j, i = np.unravel_index(k, shape)
-            if(imageConv[j, i] >= self.alpha*std):
+            j, i = np.unravel_index(k, self.image.shape)
+            if(imageConv[j, i] >= self.threshold):
 
-                p = tuple([j, i])
-
-                # Keep in mind the 'border issue': some maxima, if they are
-                # at a distance equal to 'size' from the border of the
-                # image, won't be centered in the maximum value.
-
-                # Saving the peak relative to the original image
-                maxima[nPeak] = p
+                # Saving the peak
+                maxima[nPeak] = tuple([j, i])
 
                 # this is the part that masks already-found maxima
                 x = np.arange(i - size, i + size + 1)
                 y = np.arange(j - size, j + size + 1)
                 xv, yv = np.meshgrid(x, y)
                 # the clip handles cases where the peak is near the image edge
-                imageMask[yv.clip(0, shape[0] - 1),
-                          xv.clip(0, shape[1] - 1)] = True
+                imageMask[yv.clip(0, self.image.shape[0] - 1),
+                          xv.clip(0, self.image.shape[1] - 1)] = True
 
                 nPeak += 1
 
             else:
                 break
 
+        maxima = maxima[:nPeak]
+
+        # Drop overlapping spots
+        self.positions = tools.dropOverlapping(maxima, 2 * size)
+        self.overlaps = len(maxima) - len(self.positions)
+
+    def getParameters(self):
+        """Calculate the roundness, brightness, sharpness"""
+
         # Background estimation. Taking the mean counts of the molecule-free
         # area is good enough and ~10x faster than getting the mode
         # 215 µs vs 1.89 ms
         self.bkg = np.mean(np.ma.masked_array(self.image, imageMask))
-
-        maxima = maxima[:nPeak]
-
-        # Filter out values less than a distance 'size' from the edge
-        xcond = np.logical_and(maxima[:, 0] >= size,
-                               maxima[:, 0] < shape[0] - size)
-        ycond = np.logical_and(maxima[:, 1] >= size,
-                               maxima[:, 1] < shape[1] - size)
-        maxima = maxima[np.logical_and(xcond, ycond)]
-
-        # Drop overlapping
-        total = len(maxima)
-        maxima = tools.dropOverlapping(maxima, 2 * size)
-        self.overlaps = len(maxima) - total
-        self.positions = maxima
-
-    def getParameters(self):
-        """Calculate the roundness, brightness, sharpness"""
 
         self.xkernel = tools.xkernel(self.fwhm)
 
