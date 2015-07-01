@@ -9,7 +9,9 @@ import numpy as np
 
 from scipy.special import erf
 from scipy.optimize import minimize
-from scipy.ndimage.filters import convolve
+from scipy.ndimage import label
+from scipy.ndimage.filters import convolve, minimum_filter, maximum_filter
+from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
 from scipy.ndimage.measurements import center_of_mass
 
 import pyqtgraph.ptime as ptime
@@ -146,10 +148,12 @@ def fit_area(area, fwhm, bkg):
 class Maxima():
     """ Class defined as the local maxima in an image frame. """
 
-    def __init__(self, image, fwhm):
+    def __init__(self, image, fwhm, kernel=None):
         self.image = image
         self.fwhm = fwhm
         self.size = np.ceil(self.fwhm)
+        if kernel is None:
+            self.kernel = tools.kernel(self.fwhm)
 
     def find(self, alpha=3, size=2):
         """Local maxima finding routine.
@@ -160,17 +164,16 @@ class Maxima():
         """
         self.size = size
         self.alpha = alpha
-        self.kernel = tools.kernel(self.fwhm)
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
         imageConv = convolve(self.image.astype(float), self.kernel)
 
         # Image mask. We leave the borders out
-        imageMask = np.ones(self.image.shape, dtype=bool)
-        imageMask[self.size:self.image.shape[0] - self.size,
-                  self.size:self.image.shape[1] - self.size] = False
-        maskedArray = np.ma.masked_array(imageConv, imageMask)
+        self.imageMask = np.ones(self.image.shape, dtype=bool)
+        self.imageMask[self.size:self.image.shape[0] - self.size,
+                       self.size:self.image.shape[1] - self.size] = False
+        maskedArray = np.ma.masked_array(imageConv, self.imageMask)
 
         std = np.std(imageConv)
         mean = np.mean(imageConv)
@@ -182,7 +185,7 @@ class Maxima():
         nPeak = 0
 
         while 1:
-            k = np.argmax(np.ma.masked_array(imageConv, imageMask))
+            k = np.argmax(np.ma.masked_array(imageConv, self.imageMask))
 
             # index juggling
             j, i = np.unravel_index(k, self.image.shape)
@@ -196,8 +199,8 @@ class Maxima():
                 y = np.arange(j - size, j + size + 1)
                 xv, yv = np.meshgrid(x, y)
                 # the clip handles cases where the peak is near the image edge
-                imageMask[yv.clip(0, self.image.shape[0] - 1),
-                          xv.clip(0, self.image.shape[1] - 1)] = True
+                self.imageMask[yv.clip(0, self.image.shape[0] - 1),
+                               xv.clip(0, self.image.shape[1] - 1)] = True
 
                 nPeak += 1
 
@@ -209,6 +212,67 @@ class Maxima():
         # Drop overlapping spots
         self.positions = tools.dropOverlapping(maxima, 2 * size)
         self.overlaps = len(maxima) - len(self.positions)
+
+    def find2(self, alpha=3, size=2):
+        """
+        Takes an image and detect the peaks usingthe local maximum filter.
+        Returns a boolean mask of the peaks (i.e. 1 when
+        the pixel's value is the neighborhood maximum, 0 otherwise)
+        """
+        self.size = size
+        self.alpha = alpha
+
+        # Noise removal by convolving with a null sum gaussian. Its FWHM
+        # has to match the one of the objects we want to detect.
+        imageConv = convolve(self.image.astype(float), self.kernel)
+
+        std = np.std(imageConv)
+        self.threshold = self.alpha*std
+
+        data_max = maximum_filter(imageConv, 6)
+        maxima = (imageConv == data_max)
+        data_min = minimum_filter(imageConv, 6)
+        diff = ((data_max - data_min) > self.threshold)
+        maxima[diff == 0] = 0
+
+        labeled, num_objects = label(maxima)
+        xy = np.array(center_of_mass(self.image, labeled, range(1, num_objects+1)))
+
+        return xy
+
+#        plt.imshow(mm.image)
+#        plt.autoscale(False)
+#        plt.plot(xy[:, 1], xy[:, 0], 'ro')
+#        plt.plot(mm.positions[:, 1], mm.positions[:, 0], 'ro')
+
+
+
+#        # define an 8-connected neighborhood
+#        neighborhood = np.ones((5, 5), dtype=np.dtype(bool))
+#
+#        # apply the local maximum filter; all pixel of maximal value
+#        # in their neighborhood are set to 1
+#        local_max = maximum_filter(self.image, footprint=neighborhood) == self.image
+#        # local_max is a mask that contains the peaks we are
+#        # looking for, but also the background.
+#        # In order to isolate the peaks we must remove the background from the
+#        # mask.
+#
+#        # we create the mask of the background
+#        background = (self.image == 0)
+#
+#        # a little technicality: we must erode the background in order to
+#        # successfully subtract it form local_max, otherwise a line will
+#        # appear along the background border (artifact of the local maximum
+#        # filter)
+#        eroded_background = binary_erosion(background, structure=neighborhood,
+#                                           border_value=1)
+#
+#        # we obtain the final mask, containing only peaks,
+#        # by removing the background from the local_max mask
+#        detected_peaks = local_max - eroded_background
+#
+#        return detected_peaks
 
     def getParameters(self):
         """Calculate the roundness, brightness, sharpness"""
