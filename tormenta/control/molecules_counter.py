@@ -71,9 +71,9 @@ class MoleculesGraph(pg.GraphicsWindow):
 
     def update(self, image):
 
-        maxima = maxima.Maxima(image, 3)
-        maxima.find()
-        nMaxima = len(maxima.positions)
+        peaks = maxima.Maxima(image, 3)
+        peaks.find()
+        nMaxima = len(peaks.positions)
 
         if self.ptr < self.npoints:
             self.data[self.ptr] = nMaxima

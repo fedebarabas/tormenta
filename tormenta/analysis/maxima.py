@@ -151,11 +151,11 @@ class Maxima():
     def __init__(self, image, fwhm, kernel=None):
         self.image = image
         self.fwhm = fwhm
-        self.size = np.ceil(self.fwhm)
+        self.size = int(np.ceil(self.fwhm))
         if kernel is None:
             self.kernel = tools.kernel(self.fwhm)
 
-    def find(self, alpha=3):
+    def find_old(self, alpha=5):
         """Local maxima finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
@@ -174,9 +174,7 @@ class Maxima():
                        self.size:self.image.shape[1] - self.size] = False
         maskedArray = np.ma.masked_array(imageConv, self.imageMask)
 
-        std = np.std(imageConv)
-        mean = np.mean(imageConv)
-        self.threshold = self.alpha*std + mean
+        self.threshold = self.alpha*np.std(imageConv) + np.mean(imageConv)
 
         # Estimate for the maximum number of maxima in a frame
         nMax = np.ceil(self.image.size / (2*self.size + 1)**2)
@@ -194,8 +192,8 @@ class Maxima():
                 maxima[nPeak] = tuple([j, i])
 
                 # this is the part that masks already-found maxima
-                x = np.arange(i - size, i + size + 1)
-                y = np.arange(j - size, j + size + 1)
+                x = np.arange(i - self.size, i + self.size + 1, dtype=np.int)
+                y = np.arange(j - self.size, j + self.size + 1, dtype=np.int)
                 xv, yv = np.meshgrid(x, y)
                 # the clip handles cases where the peak is near the image edge
                 self.imageMask[yv.clip(0, self.image.shape[0] - 1),
@@ -209,10 +207,10 @@ class Maxima():
         maxima = maxima[:nPeak]
 
         # Drop overlapping spots
-        self.positions = tools.dropOverlapping(maxima, 2 * size)
+        self.positions = tools.dropOverlapping(maxima, 2 * self.size)
         self.overlaps = len(maxima) - len(self.positions)
 
-    def find2(self, alpha=3):
+    def find(self, alpha=5):
         """
         Takes an image and detect the peaks usingthe local maximum filter.
         Returns a boolean mask of the peaks (i.e. 1 when
@@ -226,57 +224,37 @@ class Maxima():
         # has to match the one of the objects we want to detect.
         image_conv = convolve(self.image.astype(float), self.kernel)
 
-        image_max = maximum_filter(image_conv, self.kernel.shape[0])
-        maxima = (image_conv == data_max)
-#        image_min = minimum_filter(image_conv, self.kernel.shape[0])
-        mean = np.mean(image_conv)
-#        diff = ((image_max - image_min) > self.threshold)
+        image_max = maximum_filter(image_conv, self.size)
+        maxima = (image_conv == image_max)
         self.threshold = self.alpha*np.std(image_conv) + np.mean(image_conv)
         diff = (image_max > self.threshold)
 
         maxima[diff == 0] = 0
+        # Filter out close to the border maxima
+        borders = np.ones(self.image.shape, dtype=bool)
+        borders[self.size:self.image.shape[0] - self.size,
+                self.size:self.image.shape[1] - self.size] = False
+        maxima[borders] = 0
 
-        labeled, num_objects = label(maxima)
-        xy = np.array(center_of_mass(self.image, labeled, range(1, num_objects+1)))
+#       Cuidado porque voy a necesitar áreas más grandes
+#        labeled, num_objects = label(maxima)
+#        xy = np.array(center_of_mass(self.image, labeled,
+#                                     range(1, num_objects + 1)))
+        maxima = np.dstack(np.where(maxima == 1))[0]
 
-        return xy
+        # Drop overlapping spots
+        self.positions = tools.dropOverlapping(maxima, 2 * self.size)
+        self.overlaps = len(maxima) - len(self.positions)
 
 #        plt.imshow(mm.image)
 #        plt.autoscale(False)
-#        plt.plot(xy[:, 1], xy[:, 0], 'ro')
+#        plt.plot(maxima[:, 1], maxima[:, 0], 'ro')
 #        plt.plot(mm.positions[:, 1], mm.positions[:, 0], 'ro')
-
-
-
-#        # define an 8-connected neighborhood
-#        neighborhood = np.ones((5, 5), dtype=np.dtype(bool))
-#
-#        # apply the local maximum filter; all pixel of maximal value
-#        # in their neighborhood are set to 1
-#        local_max = maximum_filter(self.image, footprint=neighborhood) == self.image
-#        # local_max is a mask that contains the peaks we are
-#        # looking for, but also the background.
-#        # In order to isolate the peaks we must remove the background from the
-#        # mask.
-#
-#        # we create the mask of the background
-#        background = (self.image == 0)
-#
-#        # a little technicality: we must erode the background in order to
-#        # successfully subtract it form local_max, otherwise a line will
-#        # appear along the background border (artifact of the local maximum
-#        # filter)
-#        eroded_background = binary_erosion(background, structure=neighborhood,
-#                                           border_value=1)
-#
-#        # we obtain the final mask, containing only peaks,
-#        # by removing the background from the local_max mask
-#        detected_peaks = local_max - eroded_background
-#
-#        return detected_peaks
 
     def getParameters(self):
         """Calculate the roundness, brightness, sharpness"""
+
+#        slices = ndimage.find_objects(labeled)
 
         # Background estimation. Taking the mean counts of the molecule-free
         # area is good enough and ~10x faster than getting the mode

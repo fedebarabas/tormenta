@@ -44,7 +44,8 @@ def gauss(x, x0, fwhm):
 def kernel(fwhm):
     """ Returns the kernel of a convolution used for finding objects of a
     full width half maximum fwhm in an image."""
-    window = np.ceil(fwhm) + 3
+#    window = np.ceil(fwhm) + 3
+    window = int(np.ceil(fwhm)) + 2
     x = np.arange(0, window)
     y = x
     xx, yy = np.meshgrid(x, y, sparse=True)
