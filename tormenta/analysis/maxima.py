@@ -155,14 +155,13 @@ class Maxima():
         if kernel is None:
             self.kernel = tools.kernel(self.fwhm)
 
-    def find(self, alpha=3, size=2):
+    def find(self, alpha=3):
         """Local maxima finding routine.
         Alpha is the amount of standard deviations used as a threshold of the
         local maxima search. Size is the semiwidth of the fitting window.
         Adapted from http://stackoverflow.com/questions/16842823/
                             peak-detection-in-a-noisy-2d-array
         """
-        self.size = size
         self.alpha = alpha
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
@@ -213,26 +212,28 @@ class Maxima():
         self.positions = tools.dropOverlapping(maxima, 2 * size)
         self.overlaps = len(maxima) - len(self.positions)
 
-    def find2(self, alpha=3, size=2):
+    def find2(self, alpha=3):
         """
         Takes an image and detect the peaks usingthe local maximum filter.
         Returns a boolean mask of the peaks (i.e. 1 when
-        the pixel's value is the neighborhood maximum, 0 otherwise)
+        the pixel's value is the neighborhood maximum, 0 otherwise). Taken from
+        http://stackoverflow.com/questions/9111711/
+        get-coordinates-of-local-maxima-in-2d-array-above-certain-value
         """
-        self.size = size
         self.alpha = alpha
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        imageConv = convolve(self.image.astype(float), self.kernel)
+        image_conv = convolve(self.image.astype(float), self.kernel)
 
-        std = np.std(imageConv)
-        self.threshold = self.alpha*std
+        image_max = maximum_filter(image_conv, self.kernel.shape[0])
+        maxima = (image_conv == data_max)
+#        image_min = minimum_filter(image_conv, self.kernel.shape[0])
+        mean = np.mean(image_conv)
+#        diff = ((image_max - image_min) > self.threshold)
+        self.threshold = self.alpha*np.std(image_conv) + np.mean(image_conv)
+        diff = (image_max > self.threshold)
 
-        data_max = maximum_filter(imageConv, 6)
-        maxima = (imageConv == data_max)
-        data_min = minimum_filter(imageConv, 6)
-        diff = ((data_max - data_min) > self.threshold)
         maxima[diff == 0] = 0
 
         labeled, num_objects = label(maxima)

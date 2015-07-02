@@ -209,7 +209,7 @@ class RecordingWidget(QtGui.QFrame):
 
             image = self.main.andor.most_recent_image16(self.shape)
 
-            name = os.path.join(folder, self.filename())
+            name = os.path.join(folder, self.filenameEdit.text())
             savename = guitools.getUniqueName(name + '_snap.hdf5')
             store_file = hdf.File(savename)
             store_file.create_dataset(name=self.dataname, data=image)
@@ -228,7 +228,8 @@ class RecordingWidget(QtGui.QFrame):
 
             image = self.main.andor.most_recent_image16(self.shape)
 
-            savename = (os.path.join(folder, self.filename()) + '_snap.tiff')
+            savename = (os.path.join(folder, self.filenameEdit.text()) +
+                        '_snap.tiff')
             savename = guitools.getUniqueName(savename)
             tiff.imsave(savename, image, description=self.dataname,
                         software='Tormenta')
@@ -279,7 +280,7 @@ class RecordingWidget(QtGui.QFrame):
                 self.main.liveviewButton.setEnabled(False)
                 self.main.viewtimer.stop()
 
-                self.savename = (os.path.join(folder, self.filename())
+                self.savename = (os.path.join(folder, self.filenameEdit.text())
                                  + '.hdf5')
                 self.savename = guitools.getUniqueName(self.savename)
                 self.startTime = ptime.time()
