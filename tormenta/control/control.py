@@ -30,6 +30,7 @@ import tormenta.control.instruments as instruments
 import tormenta.control.lasercontrol as lasercontrol
 import tormenta.control.focus as focus
 import tormenta.control.molecules_counter as moleculesCounter
+import tormenta.control.ontime as ontime
 import tormenta.control.guitools as guitools
 
 
@@ -227,6 +228,7 @@ class RecordingWidget(QtGui.QFrame):
         if os.path.exists(folder):
 
             image = self.main.andor.most_recent_image16(self.shape)
+            time.sleep(0.01)
 
             savename = (os.path.join(folder, self.filenameEdit.text()) +
                         '_snap.tiff')
@@ -759,11 +761,17 @@ class TormentaGUI(QtGui.QMainWindow):
         wheelDock.addWidget(tableWidget)
         dockArea.addDock(wheelDock, 'top', consoleDock)
 
+        # On time widget
+        ontimeDock = Dock('On time histogram', size=(1, 1))
+        self.ontimeWidget = ontime.OntimeWidget()
+        ontimeDock.addWidget(self.ontimeWidget)
+        dockArea.addDock(ontimeDock, 'above', wheelDock)
+
         # Molecule counting widget
         moleculesDock = Dock('Molecule counting', size=(1, 1))
         self.moleculeWidget = moleculesCounter.MoleculeWidget()
         moleculesDock.addWidget(self.moleculeWidget)
-        dockArea.addDock(moleculesDock, 'above', wheelDock)
+        dockArea.addDock(moleculesDock, 'above', ontimeDock)
 
         # Focus lock widget
         focusDock = Dock("Focus Control", size=(1, 1))

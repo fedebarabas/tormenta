@@ -8,7 +8,7 @@ Created on Thu Jun 25 09:47:28 2015
 import numpy as np
 
 import pyqtgraph as pg
-from pyqtgraph.Qt import QtGui
+from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph.ptime as ptime
 
 import tormenta.analysis.maxima as maxima
@@ -23,21 +23,28 @@ class MoleculeWidget(QtGui.QFrame):
 
         # Widgets
         self.graph = MoleculesGraph(self)
+        self.enableBox = QtGui.QCheckBox('Enable')
+        self.enableBox.setEnabled(False)
+        self.enableBox.stateChanged.connect(self.graph.getTime)
         self.lockButton = QtGui.QPushButton('Lock (no anda)')
         self.lockButton.setCheckable(True)
         self.lockButton.clicked.connect(self.toggleLock)
         self.lockButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
-        self.enableBox = QtGui.QCheckBox('Enable')
-        self.enableBox.setEnabled(False)
-        self.enableBox.stateChanged.connect(self.graph.getTime)
+        self.alphaLabel = QtGui.QLabel('Alpha')
+        self.alphaLabel.setAlignment((QtCore.Qt.AlignRight |
+                                      QtCore.Qt.AlignVCenter))
+        self.alphaEdit = QtGui.QLineEdit('5')
+        self.alphaEdit.setFixedWidth(40)
 
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(self.graph, 0, 0, 1, 3)
+        grid.addWidget(self.graph, 0, 0, 1, 5)
         grid.addWidget(self.enableBox, 1, 0)
-        grid.addWidget(self.lockButton, 1, 1)
+        grid.addWidget(self.alphaLabel, 1, 1)
+        grid.addWidget(self.alphaEdit, 1, 2)
+        grid.addWidget(self.lockButton, 1, 3, 1, 2)
 
     @property
     def enabled(self):
@@ -53,6 +60,7 @@ class MoleculesGraph(pg.PlotWidget):
         super().__init__(*args, **kwargs)
 
         self.main = mainWidget
+        self.npoints = 200
 
         self.setAntialiasing(True)
 
@@ -62,6 +70,7 @@ class MoleculesGraph(pg.PlotWidget):
                              left=('Number of single molecules'))
         self.plot1.showGrid(x=True, y=True)
         self.curve1 = self.plot1.plot(pen='y')
+        self.plot1.vb.setLimits(yMin=-0.5)
 
         # Second plot for the number of overlaps
         self.plot2 = pg.ViewBox()
@@ -73,6 +82,7 @@ class MoleculesGraph(pg.PlotWidget):
         self.ax2.setLabel('Number of overlaps')
         self.curve2 = pg.PlotCurveItem(pen='r')
         self.plot2.addItem(self.curve2)
+        self.plot2.setLimits(yMin=-0.5)
 
         # Handle view resizing
         self.updateViews()
@@ -85,7 +95,6 @@ class MoleculesGraph(pg.PlotWidget):
     def getTime(self):
         if self.main.enabled:
             self.ptr = 0
-            self.npoints = 200
             self.dataN = np.zeros(self.npoints, dtype=np.int)
             self.dataOverlaps = np.zeros(self.npoints, dtype=np.int)
             self.time = np.zeros(self.npoints)
@@ -93,7 +102,7 @@ class MoleculesGraph(pg.PlotWidget):
 
     def update(self, image):
 
-        peaks = maxima.Maxima(image, 3)
+        peaks = maxima.Maxima(image, float(self.main.alphaEdit.text()))
         peaks.find()
         nMaxima = len(peaks.positions)
         overlaps = peaks.overlaps
