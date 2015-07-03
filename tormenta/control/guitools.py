@@ -80,11 +80,17 @@ def getFilenames(title, filetypes):
     except OSError:
         print("No files selected!")
 
+def saveConfigs(main):
+
+
+def loadConfigs(main, filename=None):
+
 
 class TiffConverterThread(QtCore.QThread):
 
     def __init__(self, filename=None):
         super().__init__()
+
         self.converter = TiffConverter(filename, self)
         self.converter.moveToThread(self)
         self.started.connect(self.converter.run)
