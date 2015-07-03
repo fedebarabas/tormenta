@@ -47,7 +47,7 @@ class MoleculeWidget(QtGui.QFrame):
         pass
 
 
-class MoleculesGraph(pg.GraphicsWindow):
+class MoleculesGraph(pg.PlotWidget):
 
     def __init__(self, mainWidget, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -55,17 +55,39 @@ class MoleculesGraph(pg.GraphicsWindow):
         self.main = mainWidget
 
         self.setAntialiasing(True)
-        self.plot = self.addPlot(row=1, col=0)
-        self.plot.setLabels(bottom=('Tiempo', 's'),
-                            left=('Number of single molecules'))
-        self.plot.showGrid(x=True, y=True)
-        self.curve = self.plot.plot(pen='y')
+
+        # First plot for the number of molecules
+        self.plot1 = self.plotItem
+        self.plot1.setLabels(bottom=('Tiempo', 's'),
+                             left=('Number of single molecules'))
+        self.plot1.showGrid(x=True, y=True)
+        self.curve1 = self.plot1.plot(pen='y')
+
+        # Second plot for the number of overlaps
+        self.plot2 = pg.ViewBox()
+        self.ax2 = pg.AxisItem('right')
+        self.plot1.layout.addItem(self.ax2, 2, 3)
+        self.plot1.scene().addItem(self.plot2)
+        self.ax2.linkToView(self.plot2)
+        self.plot2.setXLink(self.plot1)
+        self.ax2.setLabel('Number of overlaps')
+        self.curve2 = pg.PlotCurveItem(pen='r')
+        self.plot2.addItem(self.curve2)
+
+        # Handle view resizing
+        self.updateViews()
+        self.plot1.vb.sigResized.connect(self.updateViews)
+
+    def updateViews(self):
+        self.plot2.setGeometry(self.plot1.vb.sceneBoundingRect())
+        self.plot2.linkedViewChanged(self.plot1.vb, self.plot2.XAxis)
 
     def getTime(self):
         if self.main.enabled:
             self.ptr = 0
             self.npoints = 200
-            self.data = np.zeros(self.npoints, dtype=np.int)
+            self.dataN = np.zeros(self.npoints, dtype=np.int)
+            self.dataOverlaps = np.zeros(self.npoints, dtype=np.int)
             self.time = np.zeros(self.npoints)
             self.startTime = ptime.time()
 
@@ -74,19 +96,26 @@ class MoleculesGraph(pg.GraphicsWindow):
         peaks = maxima.Maxima(image, 3)
         peaks.find()
         nMaxima = len(peaks.positions)
+        overlaps = peaks.overlaps
 
         if self.ptr < self.npoints:
-            self.data[self.ptr] = nMaxima
+            self.dataN[self.ptr] = nMaxima
+            self.dataOverlaps[self.ptr] = overlaps
             self.time[self.ptr] = ptime.time() - self.startTime
-            self.curve.setData(self.time[1:self.ptr + 1],
-                               self.data[1:self.ptr + 1])
+            self.curve1.setData(self.time[1:self.ptr + 1],
+                                self.dataN[1:self.ptr + 1])
+            self.curve2.setData(self.time[1:self.ptr + 1],
+                                self.dataOverlaps[1:self.ptr + 1])
 
         else:
-            self.data[:-1] = self.data[1:]
-            self.data[-1] = nMaxima
+            self.dataN[:-1] = self.dataN[1:]
+            self.dataN[-1] = nMaxima
+            self.dataOverlaps[:-1] = self.dataOverlaps[1:]
+            self.dataOverlaps[-1] = overlaps
             self.time[:-1] = self.time[1:]
             self.time[-1] = ptime.time() - self.startTime
 
-            self.curve.setData(self.time, self.data)
+            self.curve1.setData(self.time, self.dataN)
+            self.curve2.setData(self.time, self.dataOverlaps)
 
         self.ptr += 1
