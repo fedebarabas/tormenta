@@ -10,6 +10,7 @@ import pyqtgraph as pg
 import numpy as np
 import h5py as hdf
 import tifffile as tiff
+import configparser
 
 from PyQt4 import QtCore, QtGui
 from tkinter import Tk, filedialog
@@ -80,7 +81,12 @@ def getFilenames(title, filetypes):
     except OSError:
         print("No files selected!")
 
-def saveConfigs(main):
+
+def saveConfigs(main, filename=None):
+    config = configparser.ConfigParser()
+    config['Camera'] = {'FrameStart': main.frameStart,
+                        'Shape': main.shape,
+                        }
 
 
 def loadConfigs(main, filename=None):

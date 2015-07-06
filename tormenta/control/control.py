@@ -586,6 +586,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.andor = andor
         self.shape = self.andor.detector_shape
+        self.frameStart = (0, 0)
         self.redlaser = redlaser
         self.greenlaser = greenlaser
         self.bluelaser = bluelaser
@@ -933,14 +934,16 @@ class TormentaGUI(QtGui.QMainWindow):
 
         elif frameParam.param('Size').value() == 'Full chip':
             self.shape = self.andor.detector_shape
+            self.frameStart = (0, 0)
             self.changeParameter(self.adjustFrame)
 
         else:
             side = int(frameParam.param('Size').value().split('x')[0])
-            start = (int(0.5 * (self.andor.detector_shape[0] - side)),
-                     int(0.5 * (self.andor.detector_shape[1] - side)))
+            self.frameStart = (int(0.5*(self.andor.detector_shape[0] - side)),
+                               int(0.5*(self.andor.detector_shape[1] - side)))
             self.shape = (side, side)
-            self.changeParameter(lambda: self.adjustFrame(self.shape, start))
+            self.changeParameter(lambda: self.adjustFrame(self.shape,
+                                                          self.frameStart))
 
         self.grid.update(self.shape)
         self.recWidget.shape = self.shape
@@ -949,10 +952,11 @@ class TormentaGUI(QtGui.QMainWindow):
 
         ROISize = self.ROI.size()
         self.shape = (int(ROISize[1]), int(ROISize[0]))
-        startROI = self.ROI.pos()
-        startROI = (int(startROI[1]), int(startROI[0]))
+        self.frameStart = self.ROI.pos()
+        self.frameStart = (int(self.frameStart[1]), int(self.frameStart[0]))
 
-        self.changeParameter(lambda: self.adjustFrame(self.shape, startROI))
+        self.changeParameter(lambda: self.adjustFrame(self.shape,
+                                                      self.frameStart))
         self.ROI.hide()
         self.grid.update(self.shape)
         self.recWidget.shape = self.shape
