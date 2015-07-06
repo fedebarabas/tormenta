@@ -247,6 +247,10 @@ class RecordingWidget(QtGui.QFrame):
 
     def updateGUI(self, image):
         self.main.img.setImage(image, autoLevels=False)
+
+        if self.main.moleculeWidget.enabled:
+            self.main.moleculeWidget.graph.update(image)
+
         if self.main.crosshair.showed:
                 ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
                 xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
@@ -327,7 +331,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setChecked(False)
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
-        self.main.liveview(update=False)
+        self.main.liveviewStart(update=False)
 
 
 class RecWorker(QtCore.QObject):
@@ -601,6 +605,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.fps = None
 
         # Actions and menubar
+        self.savePresetAction = QtGui.QAction('Save configuration...', self)
+        self.savePresetAction.setShortcut('Ctrl+S')
+        self.savePresetAction.setStatusTip('Save camera & recording settings')
+        savePresetFunction = lambda: guitools.savePreset(self)
+        self.savePresetAction.triggered.connect(savePresetFunction)
         self.liveviewAction = QtGui.QAction(self)
         self.liveviewAction.setShortcut('Ctrl+Space')
         self.liveviewAction.triggered.connect(self.liveviewKey)
@@ -622,6 +631,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
+        fileMenu.addAction(self.savePresetAction)
         fileMenu.addAction(self.exportTiffAction)
         fileMenu.addAction(self.exportlastAction)
         fileMenu.addAction(exitAction)
@@ -687,6 +697,13 @@ class TormentaGUI(QtGui.QMainWindow):
         self.liveviewButton.setEnabled(False)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
+
+        self.loadPresetButton = QtGui.QPushButton('Load preset')
+        self.presetsMenu = QtGui.QComboBox()
+        presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
+        if os.path.isdir(presetDir):
+            for preset in os.listdir(presetDir):
+                self.presetsMenu.addItem(preset)
 
         # Recording settings widget
         self.recWidget = RecordingWidget(self)
@@ -795,21 +812,23 @@ class TormentaGUI(QtGui.QMainWindow):
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
         layout.setColumnMinimumWidth(0, 380)
-        layout.setColumnMinimumWidth(1, 600)
-        layout.setColumnMinimumWidth(2, 200)
-        layout.setRowMinimumHeight(0, 220)
-        layout.setRowMinimumHeight(1, 510)
-        layout.setRowMinimumHeight(2, 20)
-        layout.setRowMinimumHeight(3, 180)
-        layout.setRowMinimumHeight(4, 20)
-        layout.addWidget(cameraWidget, 0, 0, 2, 1)
-        layout.addWidget(self.liveviewButton, 2, 0)
-        layout.addWidget(self.recWidget, 3, 0, 2, 1)
-        layout.addWidget(imageWidget, 0, 1, 4, 4)
-        layout.addWidget(self.fpsBox, 4, 1)
-        layout.addWidget(self.gridButton, 4, 3)
-        layout.addWidget(self.crosshairButton, 4, 4)
-        layout.addWidget(dockArea, 0, 5, 5, 1)
+        layout.setColumnMinimumWidth(2, 600)
+        layout.setColumnMinimumWidth(3, 200)
+        layout.setRowMinimumHeight(1, 720)
+        layout.setRowMinimumHeight(2, 910)
+#        layout.setRowMinimumHeight(3, 200)
+#        layout.setRowMinimumHeight(3, 180)
+        layout.setRowMinimumHeight(3, 30)
+        layout.addWidget(self.presetsMenu, 0, 0)
+        layout.addWidget(self.loadPresetButton, 0, 1)
+        layout.addWidget(cameraWidget, 1, 0, 2, 2)
+        layout.addWidget(self.liveviewButton, 3, 0, 1, 2)
+        layout.addWidget(self.recWidget, 4, 0, 2, 2)
+        layout.addWidget(imageWidget, 0, 2, 5, 4)
+        layout.addWidget(self.fpsBox, 5, 2)
+        layout.addWidget(self.gridButton, 5, 4)
+        layout.addWidget(self.crosshairButton, 5, 5)
+        layout.addWidget(dockArea, 0, 6, 6, 1)
 
         layout.setRowMinimumHeight(2, 40)
 

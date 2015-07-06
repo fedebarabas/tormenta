@@ -82,14 +82,39 @@ def getFilenames(title, filetypes):
         print("No files selected!")
 
 
-def saveConfigs(main, filename=None):
+def savePreset(main, filename=None):
+
+    if filename is None:
+        root = Tk()
+        filename = filedialog.asksaveasfilename(title='Save config file as...')
+        root.destroy()
+
+    if filename is None:
+        return
+
     config = configparser.ConfigParser()
     config['Camera'] = {'FrameStart': main.frameStart,
                         'Shape': main.shape,
-                        }
+                        'Horizontal readout rate': main.HRRatePar.value,
+                        'Vertical shift speed': main.vertShiftSpeedPar.value,
+                        'Vertical shift voltage': main.vertShiftAmpPar.value,
+                        'Frame transfer mode': main.FTMPar.value,
+                        'Cropped sensor mode': main.cropParam.value,
+                        'Exposure time': main.expPar.value,
+                        'Pre-amp gain': main.PreGainPar.value,
+                        'EM gain': main.GainPar.value}
+    config['Recording'] = {'Folder': main.recWidget.folderEdit.text(),
+                           'Filename': main.recWidget.filenameEdit.text(),
+                           'n': main.recWidget.numExpositionsEdit.text()}
+
+    with open(filename, 'w') as configfile:
+        config.write(configfile)
+
+    main.presetsMenu.addItem(filename)
 
 
-def loadConfigs(main, filename=None):
+def loadPreset(main, filename=None):
+    pass
 
 
 class TiffConverterThread(QtCore.QThread):

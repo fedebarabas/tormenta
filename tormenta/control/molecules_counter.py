@@ -46,6 +46,9 @@ class MoleculeWidget(QtGui.QFrame):
         grid.addWidget(self.alphaEdit, 1, 2)
         grid.addWidget(self.lockButton, 1, 3, 1, 2)
 
+        grid.setColumnMinimumWidth(0, 200)
+        grid.setColumnMinimumWidth(4, 170)
+
     @property
     def enabled(self):
         return self.enableBox.isChecked()
