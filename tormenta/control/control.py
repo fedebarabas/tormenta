@@ -592,7 +592,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.andor = andor
         self.shape = self.andor.detector_shape
-        self.frameStart = (0, 0)
+        self.frameStart = (1, 1)
         self.redlaser = redlaser
         self.greenlaser = greenlaser
         self.bluelaser = bluelaser
@@ -876,7 +876,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.shape = (int(ROISize[0]), int(ROISize[1]))
             self.cropROI.hide()
 
-        self.frameStart = (0, 0)
+        self.frameStart = (1, 1)
         self.andor.crop_mode_shape = self.shape
         self.changeParameter(lambda: self.setCropMode(True))
         self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5,
@@ -945,7 +945,6 @@ class TormentaGUI(QtGui.QMainWindow):
         image widget accordingly. It needs a previous change in self.shape
         and self.frameStart)
         """
-
         self.andor.set_image(shape=self.shape, p_0=self.frameStart)
         self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5, minXRange=4,
                           yMin=-0.5, yMax=self.shape[1] - 0.5, minYRange=4)
@@ -972,14 +971,15 @@ class TormentaGUI(QtGui.QMainWindow):
 
         elif frameParam.param('Shape').value() == 'Full chip':
             self.shape = self.andor.detector_shape
-            self.frameStart = (0, 0)
+            self.frameStart = (1, 1)
             self.changeParameter(self.adjustFrame)
 
         else:
             side = int(frameParam.param('Shape').value().split('x')[0])
-            self.frameStart = (int(0.5*(self.andor.detector_shape[0] - side)),
-                               int(0.5*(self.andor.detector_shape[1] - side)))
             self.shape = (side, side)
+            start = int(0.5*(self.andor.detector_shape[0] - side) + 1)
+            self.frameStart = (start, start)
+
             self.changeParameter(self.adjustFrame)
 
     def customFrame(self):
