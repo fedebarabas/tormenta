@@ -11,9 +11,12 @@ import numpy as np
 import h5py as hdf
 import tifffile as tiff
 import configparser
+from ast import literal_eval
 
 from PyQt4 import QtCore, QtGui
-from tkinter import Tk, filedialog
+from tkinter import Tk, filedialog, simpledialog
+
+from lantz import Q_
 
 
 # taken from https://www.mrao.cam.ac.uk/~dag/CUBEHELIX/cubehelix.py
@@ -74,6 +77,7 @@ def nFramesPerChunk(shape):
 def getFilenames(title, filetypes):
     try:
         root = Tk()
+        root.withdraw()
         filenames = filedialog.askopenfilenames(title=title,
                                                 filetypes=filetypes)
         root.destroy()
@@ -86,35 +90,94 @@ def savePreset(main, filename=None):
 
     if filename is None:
         root = Tk()
-        filename = filedialog.asksaveasfilename(title='Save config file as...')
+        root.withdraw()
+        filename = simpledialog.askstring(title='Save preset',
+                                          prompt='Save config file as...')
         root.destroy()
 
     if filename is None:
         return
 
     config = configparser.ConfigParser()
-    config['Camera'] = {'FrameStart': main.frameStart,
-                        'Shape': main.shape,
-                        'Horizontal readout rate': main.HRRatePar.value,
-                        'Vertical shift speed': main.vertShiftSpeedPar.value,
-                        'Vertical shift voltage': main.vertShiftAmpPar.value,
-                        'Frame transfer mode': main.FTMPar.value,
-                        'Cropped sensor mode': main.cropParam.value,
-                        'Exposure time': main.expPar.value,
-                        'Pre-amp gain': main.PreGainPar.value,
-                        'EM gain': main.GainPar.value}
-    config['Recording'] = {'Folder': main.recWidget.folderEdit.text(),
-                           'Filename': main.recWidget.filenameEdit.text(),
-                           'n': main.recWidget.numExpositionsEdit.text()}
 
-    with open(filename, 'w') as configfile:
+    config['Camera'] = {
+        'Frame Start': main.frameStart,
+        'Shape': main.shape,
+        'Shape name': main.tree.p.param('Image frame').param('Shape').value(),
+        'Horizontal readout rate': str(main.HRRatePar.value()),
+        'Vertical shift speed': str(main.vertShiftSpeedPar.value()),
+        'Clock voltage amplitude': str(main.vertShiftAmpPar.value()),
+        'Frame Transfer Mode': str(main.FTMPar.value()),
+        'Cropped sensor mode': str(main.cropParam.value()),
+        'Set exposure time': str(main.expPar.value()),
+        'Pre-amp gain': str(main.PreGainPar.value()),
+        'EM gain': str(main.GainPar.value())}
+
+    config['Recording'] = {
+        'Folder': main.recWidget.folderEdit.text(),
+        'Filename': main.recWidget.filenameEdit.text(),
+        'n': main.recWidget.numExpositionsEdit.text()}
+
+    with open(os.path.join(main.presetDir, filename), 'w') as configfile:
         config.write(configfile)
 
     main.presetsMenu.addItem(filename)
 
 
 def loadPreset(main, filename=None):
-    pass
+
+    tree = main.tree.p
+    timings = tree.param('Timings')
+
+    if filename is None:
+        preset = main.presetsMenu.currentText()
+
+    config = configparser.ConfigParser()
+    config.read(os.path.join(main.presetDir, preset))
+
+    configCam = config['Camera']
+    shape = configCam['Shape']
+
+    main.shape = literal_eval(shape)
+    main.frameStart = literal_eval(configCam['Frame Start'])
+
+    # Frame size handling
+    shapeName = configCam['Shape Name']
+    if shapeName == 'Custom':
+        main.customFrameLoaded = True
+        tree.param('Image frame').param('Shape').setValue(shapeName)
+        main.frameStart = literal_eval(configCam['Frame Start'])
+        main.adjustFrame()
+        main.customFrameLoaded = False
+    else:
+        tree.param('Image frame').param('Shape').setValue(shapeName)
+
+    vps = timings.param('Vertical pixel shift')
+    vps.param('Speed').setValue(Q_(configCam['Vertical shift speed']))
+
+    cva = 'Clock voltage amplitude'
+    vps.param(cva).setValue(configCam[cva])
+
+    ftm = 'Frame Transfer Mode'
+    timings.param(ftm).setValue(configCam.getboolean(ftm))
+
+    csm = 'Cropped sensor mode'
+    if literal_eval(configCam[csm]) is None:
+        timings.param(ftm).setValue(False)
+    else:
+        main.cropLoaded = True
+        timings.param(csm).param('Enable').setValue(configCam.getboolean(csm))
+        main.cropLoaded = False
+
+    for setting in ['Horizontal readout rate', 'Set exposure time']:
+        timings.param(setting).setValue(Q_(configCam[setting]))
+
+    for setting in ['Pre-amp gain', 'EM gain']:
+        tree.param('Gain').param(setting).setValue(float(configCam[setting]))
+
+    main.recWidget.folderEdit.setText(config['Recording']['folder'])
+    main.recWidget.filenameEdit.setText(config['Recording']['filename'])
+    main.recWidget.numExpositionsEdit.setText(config['Recording']['n'])
 
 
 class TiffConverterThread(QtCore.QThread):

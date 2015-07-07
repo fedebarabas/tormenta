@@ -182,6 +182,7 @@ class RecordingWidget(QtGui.QFrame):
     def loadFolder(self):
         try:
             root = Tk()
+            root.withdraw()
             folder = filedialog.askdirectory(parent=root,
                                              initialdir=self.initialDir)
             root.destroy()
@@ -242,6 +243,7 @@ class RecordingWidget(QtGui.QFrame):
 
     def folderWarning(self):
         root = Tk()
+        root.withdraw()
         messagebox.showwarning(title='Warning', message="Folder doesn't exist")
         root.destroy()
 
@@ -474,7 +476,7 @@ class CamParamTree(ParameterTree):
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
                   {'name': 'Image frame', 'type': 'group', 'children': [
-                      {'name': 'Size', 'type': 'list',
+                      {'name': 'Shape', 'type': 'list',
                        'values': ['Full chip', '256x256', '128x128', '64x64',
                                   'Custom']},
                       {'name': 'Apply', 'type': 'action'}]},
@@ -550,7 +552,7 @@ class CamParamTree(ParameterTree):
     @writable.setter
     def writable(self, value):
         self._writable = value
-        self.p.param('Image frame').param('Size').setWritable(value)
+        self.p.param('Image frame').param('Shape').setWritable(value)
         self.timeParams.param('Frame Transfer Mode').setWritable(value)
         croppedParam = self.timeParams.param('Cropped sensor mode')
         croppedParam.param('Enable').setWritable(value)
@@ -641,7 +643,10 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Frame signals
         frameParam = self.tree.p.param('Image frame')
-        frameParam.param('Size').sigValueChanged.connect(self.updateFrame)
+        frameParam.param('Shape').sigValueChanged.connect(self.updateFrame)
+        # Indicator for loading frame shape from a preset setting
+        self.customFrameLoaded = False
+        self.cropLoaded = False
 
         # Exposition signals
         changeExposure = lambda: self.changeParameter(self.setExposure)
@@ -698,12 +703,15 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
 
-        self.loadPresetButton = QtGui.QPushButton('Load preset')
         self.presetsMenu = QtGui.QComboBox()
-        presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
-        if os.path.isdir(presetDir):
-            for preset in os.listdir(presetDir):
-                self.presetsMenu.addItem(preset)
+        self.presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
+        if not(os.path.isdir(self.presetDir)):
+            self.presetDir = os.path.join(os.getcwd(), 'Presets')
+        for preset in os.listdir(self.presetDir):
+            self.presetsMenu.addItem(preset)
+        self.loadPresetButton = QtGui.QPushButton('Load preset')
+        loadPresetFunction = lambda: guitools.loadPreset(self)
+        self.loadPresetButton.pressed.connect(loadPresetFunction)
 
         # Recording settings widget
         self.recWidget = RecordingWidget(self)
@@ -722,10 +730,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist = pg.HistogramLUTItem(image=self.img)
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imageWidget.addItem(self.hist, row=1, col=2)
-
-        # Initial camera configuration taken from the parameter tree
-        self.andor.set_exposure_time(self.expPar.value() * self.s)
-        self.adjustFrame()
 
         # x and y profiles
         xPlot = imageWidget.addPlot(row=0, col=1)
@@ -751,6 +755,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.crosshairButton.setCheckable(True)
         self.crosshair = guitools.Crosshair(self.vb)
         self.crosshairButton.clicked.connect(self.crosshair.toggle)
+
+        # Initial camera configuration taken from the parameter tree
+        self.andor.set_exposure_time(self.expPar.value() * self.s)
+        self.adjustFrame()
 
         # Dock widget
         dockArea = DockArea()
@@ -833,22 +841,27 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setRowMinimumHeight(2, 40)
 
     def cropCCD(self):
+
         if self.cropParam.param('Enable').value():
 
-            self.FTMPar.setWritable()
-            if self.shape != self.andor.detector_shape:
-                self.shape = self.andor.detector_shape
-                self.changeParameter(self.adjustFrame)
+            # Used when cropmode is loaded from a config file
+            if self.cropLoaded:
+                self.startCropMode()
 
-            ROIpos = (0, 0)
-            self.cropROI = guitools.ROI(self.shape, self.vb, ROIpos,
-                                        handlePos=(1, 1), handleCenter=(0, 0),
-                                        scaleSnap=True, translateSnap=True,
-                                        movable=False)
+            else:
+                self.FTMPar.setWritable()
+                if self.shape != self.andor.detector_shape:
+                    self.shape = self.andor.detector_shape
+                    self.changeParameter(self.adjustFrame)
 
-            # Signals
-            applyParam = self.cropParam.param('Apply')
-            applyParam.sigStateChanged.connect(self.startCropMode)
+                ROIpos = (0, 0)
+                self.cropROI = guitools.ROI(self.shape, self.vb, ROIpos,
+                                            handlePos=(1, 1), movable=False,
+                                            handleCenter=(0, 0),
+                                            scaleSnap=True, translateSnap=True)
+                # Signals
+                applyParam = self.cropParam.param('Apply')
+                applyParam.sigStateChanged.connect(self.startCropMode)
 
         else:
             self.cropROI.hide()
@@ -856,16 +869,21 @@ class TormentaGUI(QtGui.QMainWindow):
             self.changeParameter(lambda: self.setCropMode(False))
 
     def startCropMode(self):
-        ROISize = self.cropROI.size()
-        self.shape = (int(ROISize[0]), int(ROISize[1]))
-        self.andor.crop_mode_shape = self.shape
 
+        # Used when cropmode is loaded from a config file
+        if self.cropLoaded:
+            ROISize = self.cropROI.size()
+            self.shape = (int(ROISize[0]), int(ROISize[1]))
+            self.cropROI.hide()
+
+        self.frameStart = (0, 0)
+        self.andor.crop_mode_shape = self.shape
         self.changeParameter(lambda: self.setCropMode(True))
         self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5,
                           yMin=-0.5, yMax=self.shape[1] - 0.5,
                           minXRange=4, minYRange=4)
         self.updateTimings()
-        self.cropROI.hide()
+
         self.grid.update(self.shape)
 
     def setCropMode(self, state):
@@ -922,60 +940,55 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.updateTimings()
 
-    def adjustFrame(self, shape=None, start=(1, 1)):
+    def adjustFrame(self):
         """ Method to change the area of the CCD to be used and adjust the
-        image widget accordingly.
+        image widget accordingly. It needs a previous change in self.shape
+        and self.frameStart)
         """
-        if shape is None:
-            shape = self.shape
 
-        self.andor.set_image(shape=shape, p_0=start)
-        self.vb.setLimits(xMin=-0.5, xMax=shape[0] - 0.5,
-                          yMin=-0.5, yMax=shape[1] - 0.5,
-                          minXRange=4, minYRange=4)
+        self.andor.set_image(shape=self.shape, p_0=self.frameStart)
+        self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5, minXRange=4,
+                          yMin=-0.5, yMax=self.shape[1] - 0.5, minYRange=4)
 
         self.updateTimings()
+
+        self.grid.update(self.shape)
+        self.recWidget.shape = self.shape
 
     def updateFrame(self):
         """ Method to change the image frame size and position in the sensor
         """
         frameParam = self.tree.p.param('Image frame')
-        if frameParam.param('Size').value() == 'Custom':
+        if frameParam.param('Shape').value() == 'Custom':
 
-            ROIpos = (0.5 * self.shape[0] - 64, 0.5 * self.shape[1] - 64)
-            self.ROI = guitools.ROI(self.shape, self.vb, ROIpos,
-                                    handlePos=(1, 0), handleCenter=(0, 1),
-                                    scaleSnap=True, translateSnap=True)
+            if not(self.customFrameLoaded):
+                ROIpos = (0.5 * self.shape[0] - 64, 0.5 * self.shape[1] - 64)
+                self.ROI = guitools.ROI(self.shape, self.vb, ROIpos,
+                                        handlePos=(1, 0), handleCenter=(0, 1),
+                                        scaleSnap=True, translateSnap=True)
+                # Signals
+                applyParam = frameParam.param('Apply')
+                applyParam.sigStateChanged.connect(self.customFrame)
 
-            # Signals
-            applyParam = frameParam.param('Apply')
-            applyParam.sigStateChanged.connect(self.customFrame)
-
-        elif frameParam.param('Size').value() == 'Full chip':
+        elif frameParam.param('Shape').value() == 'Full chip':
             self.shape = self.andor.detector_shape
             self.frameStart = (0, 0)
             self.changeParameter(self.adjustFrame)
 
         else:
-            side = int(frameParam.param('Size').value().split('x')[0])
+            side = int(frameParam.param('Shape').value().split('x')[0])
             self.frameStart = (int(0.5*(self.andor.detector_shape[0] - side)),
                                int(0.5*(self.andor.detector_shape[1] - side)))
             self.shape = (side, side)
-            self.changeParameter(lambda: self.adjustFrame(self.shape,
-                                                          self.frameStart))
-
-        self.grid.update(self.shape)
-        self.recWidget.shape = self.shape
+            self.changeParameter(self.adjustFrame)
 
     def customFrame(self):
 
         ROISize = self.ROI.size()
         self.shape = (int(ROISize[1]), int(ROISize[0]))
-        self.frameStart = self.ROI.pos()
-        self.frameStart = (int(self.frameStart[1]), int(self.frameStart[0]))
+        self.frameStart = (int(self.ROI.pos()[1]), int(self.ROI.pos()[0]))
 
-        self.changeParameter(lambda: self.adjustFrame(self.shape,
-                                                      self.frameStart))
+        self.changeParameter(self.adjustFrame)
         self.ROI.hide()
         self.grid.update(self.shape)
         self.recWidget.shape = self.shape
