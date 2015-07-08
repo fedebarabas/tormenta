@@ -824,8 +824,6 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.setColumnMinimumWidth(3, 200)
         layout.setRowMinimumHeight(1, 720)
         layout.setRowMinimumHeight(2, 910)
-#        layout.setRowMinimumHeight(3, 200)
-#        layout.setRowMinimumHeight(3, 180)
         layout.setRowMinimumHeight(3, 30)
         layout.addWidget(self.presetsMenu, 0, 0)
         layout.addWidget(self.loadPresetButton, 0, 1)

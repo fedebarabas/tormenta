@@ -162,15 +162,16 @@ def loadPreset(main, filename=None):
     timings.param(ftm).setValue(configCam.getboolean(ftm))
 
     csm = 'Cropped sensor mode'
-    if literal_eval(configCam[csm]) is None:
-        timings.param(ftm).setValue(False)
-    else:
+    if literal_eval(configCam[csm]) is not(None):
         main.cropLoaded = True
         timings.param(csm).param('Enable').setValue(configCam.getboolean(csm))
         main.cropLoaded = False
 
-    for setting in ['Horizontal readout rate', 'Set exposure time']:
-        timings.param(setting).setValue(Q_(configCam[setting]))
+    hrr = 'Horizontal readout rate'
+    timings.param(hrr).setValue(Q_(configCam[hrr]))
+
+    expt = 'Set exposure time'
+    timings.param(expt).setValue(float(configCam[expt]))
 
     for setting in ['Pre-amp gain', 'EM gain']:
         tree.param('Gain').param(setting).setValue(float(configCam[setting]))
@@ -178,6 +179,8 @@ def loadPreset(main, filename=None):
     main.recWidget.folderEdit.setText(config['Recording']['folder'])
     main.recWidget.filenameEdit.setText(config['Recording']['filename'])
     main.recWidget.numExpositionsEdit.setText(config['Recording']['n'])
+
+    # TODO: Apply all settings at once
 
 
 class TiffConverterThread(QtCore.QThread):
