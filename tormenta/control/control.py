@@ -422,19 +422,20 @@ class TemperatureStabilizer(QtCore.QObject):
         self.timer.start(1)
 
     def update(self):
+        tempStatus = self.main.andor.temperature_status
+        self.parameter.param('Status').setValue(tempStatus)
+
         stable = 'Temperature has stabilized at set point.'
-        if self.main.andor.temperature_status != stable:
+        if tempStatus != stable:
             temperature = self.main.andor.temperature
             self.currTempPar.setValue(np.round(temperature.magnitude, 1))
-            tempStatus = self.main.andor.temperature_status
-            self.parameter.param('Status').setValue(tempStatus)
             tempSetPoint = self.main.andor.temperature_setpoint.magnitude
             threshold = Q_(0.8 * tempSetPoint, 'degC')
             if temperature <= threshold or self.main.andor.mock:
                 self.main.liveviewButton.setEnabled(True)
                 self.main.liveviewAction.setEnabled(True)
-
             time.sleep(10)
+
         else:
             self.timer.stop()
 
