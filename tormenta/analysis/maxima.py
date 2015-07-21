@@ -12,13 +12,13 @@ from scipy.optimize import minimize
 from scipy.ndimage import label
 from scipy.ndimage.filters import convolve, minimum_filter, maximum_filter
 from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
-from scipy.ndimage.measurements import center_of_mass
+from scipy.ndimage.measurements import maximum_position, center_of_mass
 
 import pyqtgraph.ptime as ptime
 
 import tormenta.analysis.stack as stack
 import tormenta.analysis.tools as tools
-
+from tormenta.analysis.airygauss import fwhm
 
 # data-type definitions
 parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
@@ -148,9 +148,12 @@ def fit_area(area, fwhm, bkg):
 class Maxima():
     """ Class defined as the local maxima in an image frame. """
 
-    def __init__(self, image, fwhm, kernel=None):
+    def __init__(self, image, fw=None, kernel=None):
         self.image = image
-        self.fwhm = fwhm
+        if fw is None:
+            self.fwhm = fwhm(670, 1.42) / 140
+        else:
+            self.fwhm = fwhm
         self.size = int(np.ceil(self.fwhm))
         if kernel is None:
             self.kernel = tools.kernel(self.fwhm)
@@ -166,15 +169,15 @@ class Maxima():
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        imageConv = convolve(self.image.astype(float), self.kernel)
+        self.image_conv = convolve(self.image.astype(float), self.kernel)
 
-        # Image mask. We leave the borders out
-        self.imageMask = np.ones(self.image.shape, dtype=bool)
-        self.imageMask[self.size:self.image.shape[0] - self.size,
-                       self.size:self.image.shape[1] - self.size] = False
-        maskedArray = np.ma.masked_array(imageConv, self.imageMask)
+        # Image mask
+        self.imageMask = np.zeros(self.image.shape, dtype=bool)
+        maskedArray = np.ma.masked_array(self.image_conv, self.imageMask)
 
-        self.threshold = self.alpha*np.std(imageConv) + np.mean(imageConv)
+        self.mean = np.mean(self.image_conv)
+        self.std = np.mean((self.image_conv - self.mean)**2)
+        self.threshold = self.alpha*self.std + self.mean
 
         # Estimate for the maximum number of maxima in a frame
         nMax = np.ceil(self.image.size / (2*self.size + 1)**2)
@@ -182,11 +185,11 @@ class Maxima():
         nPeak = 0
 
         while 1:
-            k = np.argmax(np.ma.masked_array(imageConv, self.imageMask))
+            k = np.argmax(np.ma.masked_array(self.image_conv, self.imageMask))
 
             # index juggling
             j, i = np.unravel_index(k, self.image.shape)
-            if(imageConv[j, i] >= self.threshold):
+            if(self.image_conv[j, i] >= self.threshold):
 
                 # Saving the peak
                 maxima[nPeak] = tuple([j, i])
@@ -204,11 +207,9 @@ class Maxima():
             else:
                 break
 
-        maxima = maxima[:nPeak]
-
-        # Drop overlapping spots
-        self.positions = tools.dropOverlapping(maxima, 2 * self.size)
-        self.overlaps = len(maxima) - len(self.positions)
+        self.positions = maxima[:nPeak]
+        self.drop_overlapping()
+        self.drop_border()
 
     def find(self, alpha=5):
         """
@@ -222,34 +223,43 @@ class Maxima():
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        image_conv = convolve(self.image.astype(float), self.kernel)
+        self.image_conv = convolve(self.image.astype(float), self.kernel)
 
-        image_max = maximum_filter(image_conv, self.size)
-        maxima = (image_conv == image_max)
-        self.threshold = self.alpha*np.std(image_conv) + np.mean(image_conv)
+        image_max = maximum_filter(self.image_conv, self.size)
+        maxima = (self.image_conv == image_max)
+
+        self.mean = np.mean(self.image_conv)
+        self.std = np.sqrt(np.mean((self.image_conv - self.mean)**2))
+        self.threshold = self.alpha*self.std + self.mean
+
         diff = (image_max > self.threshold)
 
         maxima[diff == 0] = 0
-        # Filter out close to the border maxima
-        borders = np.ones(self.image.shape, dtype=bool)
-        borders[self.size:self.image.shape[0] - self.size,
-                self.size:self.image.shape[1] - self.size] = False
-        maxima[borders] = 0
 
-#       Cuidado porque voy a necesitar áreas más grandes
-#        labeled, num_objects = label(maxima)
-#        xy = np.array(center_of_mass(self.image, labeled,
-#                                     range(1, num_objects + 1)))
-        maxima = np.dstack(np.where(maxima == 1))[0]
+        labeled, num_objects = label(maxima)
+        self.positions = np.array(maximum_position(self.image, labeled,
+                                                   range(1, num_objects + 1)))
 
-        # Drop overlapping spots
-        self.positions = tools.dropOverlapping(maxima, 2 * self.size)
-        self.overlaps = len(maxima) - len(self.positions)
+        self.drop_overlapping()
+        self.drop_border()
 
-#        plt.imshow(mm.image)
+#        plt.imshow(mm.image, interpolation='None')
 #        plt.autoscale(False)
 #        plt.plot(maxima[:, 1], maxima[:, 0], 'ro')
 #        plt.plot(mm.positions[:, 1], mm.positions[:, 0], 'ro')
+
+    def drop_overlapping(self):
+        """Drop overlapping spots."""
+        n = len(self.positions)
+        self.positions = tools.dropOverlapping(self.positions,
+                                               2 * self.size + 1)
+        self.overlaps = n - len(self.positions)
+
+    def drop_border(self):
+        """ Drop near-the-edge spots. """
+        keep = ((self.positions[:, 0] < 126) & (self.positions[:, 0] > 1) &
+                (self.positions[:, 1] < 126) & (self.positions[:, 1] > 1))
+        self.positions = self.positions[keep]
 
     def getParameters(self):
         """Calculate the roundness, brightness, sharpness"""
@@ -259,8 +269,16 @@ class Maxima():
         # Background estimation. Taking the mean counts of the molecule-free
         # area is good enough and ~10x faster than getting the mode
         # 215 µs vs 1.89 ms
-        self.bkg = np.mean(np.ma.masked_array(self.image, imageMask))
+        try:
+            self.imageMask
+        except:
+            self.imageMask = np.zeros(self.image.shape, dtype=bool)
+            for p in self.positions:
+                self.imageMask[p[0] - self.size:p[0] + self.size + 1,
+                               p[1] - self.size:p[1] + self.size + 1] = True
 
+        self.imageMask[self.image == 0] = True
+        self.bkg = np.mean(np.ma.masked_array(self.image, self.imageMask))
         self.xkernel = tools.xkernel(self.fwhm)
 
         # Peak parameters
@@ -268,8 +286,8 @@ class Maxima():
         brightness = np.zeros(len(self.positions))
 
         sharpness = np.zeros(len(self.positions))
-        mask = np.zeros((2*size + 1, 2*size + 1), dtype=bool)
-        mask[size, size] = True
+        mask = np.zeros((2*self.size + 1, 2*self.size + 1), dtype=bool)
+        mask[self.size, self.size] = True
 
         for i in np.arange(len(self.positions)):
             # tuples make indexing easier (see below)
@@ -277,7 +295,7 @@ class Maxima():
 
             # Sharpness
             masked = np.ma.masked_array(self.area(i), mask)
-            sharpness[i] = self.image[p] / (imageConv[p] * masked.mean())
+            sharpness[i] = self.image[p] / (self.image_conv[p] * masked.mean())
 
             # Roundness
             hx = np.dot(self.area(i)[2, :], self.xkernel)
@@ -285,7 +303,8 @@ class Maxima():
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
-            brightness[i] = 2.5 * np.log(imageConv[p] / self.alpha*std)
+            brightness[i] = 2.5 * np.log(self.image_conv[p] /
+                                         self.alpha*self.std)
 
         self.sharpness = sharpness
         self.roundness = roundness
@@ -294,6 +313,11 @@ class Maxima():
     def area(self, n):
         """Returns the area around the local maximum number n."""
         coord = self.positions[n]
+        return self.image[coord[0] - self.size:coord[0] + self.size + 1,
+                          coord[1] - self.size:coord[1] + self.size + 1]
+
+    def radius(self, coord):
+        """Returns the area around the entered point."""
         return self.image[coord[0] - self.size:coord[0] + self.size + 1,
                           coord[1] - self.size:coord[1] + self.size + 1]
 
