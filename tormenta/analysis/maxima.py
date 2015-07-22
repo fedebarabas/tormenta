@@ -20,13 +20,18 @@ import tormenta.analysis.stack as stack
 import tormenta.analysis.tools as tools
 from tormenta.analysis.airygauss import fwhm
 
+
 # data-type definitions
-parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
-                 ('background', float)]
-parameters = [('frame', int), ('maxima', np.int, (2,)), ('photons', float),
-              ('sharpness', float), ('roundness', float),
-              ('brightness', float)]
-dt_2d = np.dtype(parameters + parameters_2d)
+def results_dt(fit_model, psf_shape):
+    if fit_model is '2d':
+        fit_parameters = [('amplitude', float), ('maxima_fit', np.float, (2,)),
+                          ('background', float)]
+        n_fit_par = len(fit_parameters)
+    parameters = [('frame', int), ('maxima_px', np.int, (2,)),
+                  ('photons', float), ('sharpness', float),
+                  ('roundness', float), ('brightness', float),
+                  ('mean_psf', np.float, psf_shape)]
+    return n_fit_par, np.dtype(parameters + fit_parameters)
 
 
 def logll(params, *args):
@@ -139,8 +144,10 @@ def fit_area(area, fwhm, bkg):
 
 #    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F), jac=False,
 #                    method='Newton-CG')
-    return minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
-                    method='Powell')
+    results = minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
+                       method='Powell')
+
+    return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
 
 # TODO: get error of each parameter from the fit (see Powell?)
 
@@ -323,24 +330,27 @@ class Maxima():
 
     def fit(self, fit_model='2d'):
 
-        if fit_model is '2d':
-            fit_par = [x[0] for x in parameters_2d]
-            self.results = np.zeros(len(self.positions), dtype=dt_2d)
+        npar, self.results_dt = results_dt(fit_model, self.area(0).shape)
 
+        fit_par = [x[0] for x in npar]
+        self.results = np.zeros(len(self.positions), dtype=self.results_dt)
+
+        # TODO: all in one step?
         for i in np.arange(len(self.positions)):
 
             # Fit and store fitting results
             area = self.area(i)
-            res = fit_area(area, self.fwhm, self.bkg)
-            res.x[1:3] = (res.x[1:3] - self.size - 0.5 + self.positions[i])
+            fit = fit_area(area, self.fwhm, self.bkg)
+            fit[1] += self.positions[i] - self.size - 0.5
             for p in np.arange(len(fit_par)):
-                self.results[fit_par[p]][i] = res.x[p]
+                self.results[fit_par[p]][i] = fit[p]
 
             # photons from molecule calculation
-            self.results['photons'][i] = (np.sum(area)
-                                          - area.size * res.x[-1])
+            bkg_subtract = area - fit[-1]
+            self.results['photons'][i] = np.sum(bkg_subtract)
+            self.results['mean_psf'] += bkg_subtract/self.results['photons'][i]
 
-        self.results['maxima'] = self.positions
+        self.results['maxima_px'] = self.positions
         self.results['sharpness'] = self.sharpness
         self.results['roundness'] = self.roundness
         self.results['brightness'] = self.brightness
