@@ -22,16 +22,23 @@ from tormenta.analysis.airygauss import fwhm
 
 
 # data-type definitions
-def results_dt(fit_model, psf_shape):
+def results_dt(fit_model):
     if fit_model is '2d':
         fit_parameters = [('amplitude', float), ('maxima_fit', np.float, (2,)),
                           ('background', float)]
         n_fit_par = len(fit_parameters)
     parameters = [('frame', int), ('maxima_px', np.int, (2,)),
                   ('photons', float), ('sharpness', float),
-                  ('roundness', float), ('brightness', float),
-                  ('mean_psf', np.float, psf_shape)]
+                  ('roundness', float), ('brightness', float)]
     return n_fit_par, np.dtype(parameters + fit_parameters)
+
+
+def ex(x, x0, sigma):
+    return np.exp(-(x - x0)**2/sigma**2)
+
+
+def derf(x, x0, sigma):
+    return erf((x + 1 - x0) / sigma) - erf((x - x0) / sigma)
 
 
 def logll(params, *args):
@@ -41,10 +48,9 @@ def logll(params, *args):
 
     x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-    erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
-    erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
-
-    lambda_p = A * F**2 * np.pi * erfi[:, np.newaxis] * erfj / 4 + bkg
+    derfx = derf(x, x0, F)
+    derfy = derf(y, y0, F)
+    lambda_p = A*F**2*np.pi*derfx[:, np.newaxis]*derfy/4 + bkg
 
     return - np.sum(pico * np.log(lambda_p) - lambda_p)
 
@@ -56,24 +62,25 @@ def ll_jac(params, *args):
 
     x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-    erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
-    erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
-    expi = np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2)
-    expj = np.exp(-(y - y0 + 1)**2/F**2) - np.exp(-(y - y0)**2/F**2)
+    erfi = derf(x, x0, F)
+    erfj = derf(y, y0, F)
+    expi = ex(x, x0 - 1, F) - ex(x, x0, F)
+    expj = ex(y, y0 - 1, F) - ex(y, y0, F)
 
     jac = np.zeros(4)
 
     # Some derivatives made with sympy
 
     # expr.diff(A)
-    jac[0] = np.sum((np.pi/4)*F**2*pico*erfi[:, np.newaxis] * erfj/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - (np.pi/4)*F**2*erfi[:, np.newaxis] * erfj)
+    jaci0 = (np.pi/4)*F**2*pico*erfi[:, np.newaxis] * erfj/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - (np.pi/4)*F**2*erfi[:, np.newaxis] * erfj
+    jac[0] = np.sum(jaci0)
 
-    jac[1] = np.sum(- 0.5 * A * F * np.sqrt(np.pi) * expi[:, np.newaxis] * erfj)
+    jac[1] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*expi[:, np.newaxis] * erfj)
 
-    jac[2] = np.sum(- 0.5 * A * F * np.sqrt(np.pi) * erfi[:, np.newaxis] * expj)
+    jac[2] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*erfi[:, np.newaxis] * expj)
 
     # expr.diff(y0)
-    jac[3] = np.sum(pico/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - 1)
+    jac[3] = np.sum(pico/((np.pi/4)*A*F**2*erfi[:, np.newaxis]*erfj + bkg) - 1)
 
     return jac
 
@@ -85,10 +92,11 @@ def ll_hess(params, *args):
 
     x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-    erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
-    erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
-    expi = np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2)
-    expj = np.exp(-(y - y0 + 1)**2/F**2) - np.exp(-(y - y0)**2/F**2)
+    erfi = derf(x, x0, F)
+    erfj = derf(y, y0, F)
+    erfij = erfi*erfj
+    expi = ex(x, x0 - 1, F) - ex(x, x0, F)
+    expj = ex(y, y0 - 1, F) - ex(y, y0, F)
 
     hess = np.zeros((4, 4))
 
@@ -99,37 +107,39 @@ def ll_hess(params, *args):
                           ((np.pi/4) * A * F**2 * (erfi * erfj + bkg)**2))
 
     # expr.diff(A, x0)
-    hess[0, 1] = (np.sum(F*(np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))*(-1.23370055013617*A*F**2*pico*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg)**2 + 1.5707963267949*pico/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg) - 1.5707963267949)/np.sqrt(np.pi)))
+    hessi01 = F*expi*erfj*(-1.23370055013617*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + 1.5707963267949*pico/((np.pi/4)*A*F**2*erfij + bkg) - 1.5707963267949)/np.sqrt(np.pi)
+    hess[0, 1] = np.sum(hessi01)
     hess[1, 0] = hess[0, 1]
 
     # expr.diff(A, y0)
-    hess[0, 2] = np.sum(F*(expj)*(-erfi)*(-1.23370055013617*A*F**2*pico*(-erfi)*(-erfj)/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2 + (np.pi/2)*pico/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg) - (np.pi/2))/np.sqrt(np.pi))
+    hess[0, 2] = np.sum(F*expj*(-erfi)*(-1.23370055013617*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + (np.pi/2)*pico/((np.pi/4)*A*F**2*erfij + bkg) - (np.pi/2))/np.sqrt(np.pi))
     hess[2, 0] = hess[0, 2]
 
     # expr.diff(A, bkg)
-    hess[0, 3] = np.sum(-(np.pi/4)*F**2*pico*(-erfi)*(-erfj)/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2)
+    hessi03 = -(np.pi/4)*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2
+    hess[0, 3] = np.sum(hessi03)
     hess[3, 0] = hess[0, 3]
 
     # expr.diff(x0, x0)
-    hess[1, 1] = np.sum(A*(-erfj)*(-2.46740110027234*A*F**2*pico*(expi)**2*(-erfj)/(np.pi*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2) - np.pi*pico*((x - x0)*np.exp(-(x - x0)**2/F**2) - (x - x0 + 1)*np.exp(-(x - x0 + 1)**2/F**2))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)) + (np.pi*(x - x0)*np.exp(-(x - x0)**2/F**2) - np.pi*(x - x0 + 1)*np.exp(-(x - x0 + 1)**2/F**2))/(np.sqrt(np.pi)*F)))
+    hess[1, 1] = np.sum(A*erfj*(2.46740110027234*A*F**2*pico*expi**2*(-erfj)/(np.pi*((np.pi/4)*A*F**2*erfij + bkg)**2) - np.pi*pico*((x - x0)*ex(x, x0, F) - (x - x0 + 1)*ex(x, x0 - 1, F))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*erfij + bkg)) + (np.pi*(x - x0)*ex(x, x0, F) - np.pi*(x - x0 + 1)*ex(x, x0 - 1, F))/(np.sqrt(np.pi)*F)))
 
     # expr.diff(x0, y0)
-    hess[1, 2] = np.sum(A*(expi)*(expj)*(-2.46740110027234*A*F**2*pico*(-erfi)*(-erfj)/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2 + np.pi*pico/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg) - np.pi)/np.pi)
+    hess[1, 2] = np.sum(A*expi*expj*(-2.46740110027234*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + np.pi*pico/((np.pi/4)*A*F**2*erfij + bkg) - np.pi)/np.pi)
     hess[2, 1] = hess[1, 2]
 
     # expr.diff(x0, bkg)
-    hess[1, 3] = np.sum(-(np.pi/2)*A*F*pico*(expi)*(-erfj)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2))
+    hess[1, 3] = np.sum(-(np.pi/2)*A*F*pico*expi*(-erfj)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*erfij + bkg)**2))
     hess[3, 1] = hess[1, 3]
 
     # expr.diff(y0, y0)
-    hess[2, 2] = np.sum(A*(-erfi)*(-2.46740110027234*A*F**2*pico*(expj)**2*(-erfi)/(np.pi*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2) - np.pi*pico*((y - y0)*np.exp(-(y - y0)**2/F**2) - (y - y0 + 1)*np.exp(-(y - y0 + 1)**2/F**2))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)) + (np.pi*(y - y0)*np.exp(-(y - y0)**2/F**2) - np.pi*(y - y0 + 1)*np.exp(-(y - y0 + 1)**2/F**2))/(np.sqrt(np.pi)*F)))
+    hess[2, 2] = np.sum(A*(-erfi)*(-2.46740110027234*A*F**2*pico*expj**2*(-erfi)/(np.pi*((np.pi/4)*A*F**2*erfij + bkg)**2) - np.pi*pico*((y - y0)*ex(y, y0, F) - (y - y0 + 1)*ex(y, y0 -1, F))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*erfij + bkg)) + (np.pi*(y - y0)*ex(y, y0, F) - np.pi*(y - y0 + 1)*ex(y, y0 -1, F))/(np.sqrt(np.pi)*F)))
 
     # expr.diff(y0, bkg)
-    hess[2, 3] = np.sum(-(np.pi/2)*A*F*pico*(expj)*(-erfi)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2))
+    hess[2, 3] = np.sum(-(np.pi/2)*A*F*pico*expj*(-erfi)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*erfij + bkg)**2))
     hess[3, 2] = hess[2, 3]
 
     # expr.diff(bkg, bkg)
-    hess[3, 3] = np.sum(-pico/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2)
+    hess[3, 3] = np.sum(-pico/((np.pi/4)*A*F**2*erfij + bkg)**2)
 
     return hess
 
@@ -330,10 +340,11 @@ class Maxima():
 
     def fit(self, fit_model='2d'):
 
-        npar, self.results_dt = results_dt(fit_model, self.area(0).shape)
+        npar, self.dt = results_dt(fit_model)
 
-        fit_par = [x[0] for x in npar]
-        self.results = np.zeros(len(self.positions), dtype=self.results_dt)
+#        fit_par = [x[0] for x in npar]
+        self.results = np.zeros(len(self.positions), dtype=self.dt)
+        self.mean_psf = np.zeros(self.area(0).shape)
 
         # TODO: all in one step?
         for i in np.arange(len(self.positions)):
@@ -342,13 +353,14 @@ class Maxima():
             area = self.area(i)
             fit = fit_area(area, self.fwhm, self.bkg)
             fit[1] += self.positions[i] - self.size - 0.5
-            for p in np.arange(len(fit_par)):
-                self.results[fit_par[p]][i] = fit[p]
+            for p in np.arange(npar):
+                self.results[self.dt.names[-npar + p]][i] = fit[p]
 
-            # photons from molecule calculation
+            # Background-sustracted measured PSF
             bkg_subtract = area - fit[-1]
+            # photons from molecule calculation
             self.results['photons'][i] = np.sum(bkg_subtract)
-            self.results['mean_psf'] += bkg_subtract/self.results['photons'][i]
+            self.mean_psf += bkg_subtract/self.results['photons'][i]
 
         self.results['maxima_px'] = self.positions
         self.results['sharpness'] = self.sharpness
