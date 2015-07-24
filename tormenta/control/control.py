@@ -234,8 +234,8 @@ class RecordingWidget(QtGui.QFrame):
             savename = (os.path.join(folder, self.filenameEdit.text()) +
                         '_snap.tiff')
             savename = guitools.getUniqueName(savename)
-            tiff.imsave(savename, image, description=self.dataname,
-                        software='Tormenta')
+            tiff.imsave(savename, image.astype(np.uint16),
+                        description=self.dataname, software='Tormenta')
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
         else:
