@@ -12,21 +12,33 @@ from scipy.optimize import minimize
 from scipy.ndimage import label
 from scipy.ndimage.filters import convolve, minimum_filter, maximum_filter
 from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
-from scipy.ndimage.measurements import center_of_mass
+from scipy.ndimage.measurements import maximum_position, center_of_mass
 
 import pyqtgraph.ptime as ptime
 
 import tormenta.analysis.stack as stack
 import tormenta.analysis.tools as tools
+from tormenta.analysis.airygauss import fwhm
 
 
 # data-type definitions
-parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
-                 ('background', float)]
-parameters = [('frame', int), ('maxima', np.int, (2,)), ('photons', float),
-              ('sharpness', float), ('roundness', float),
-              ('brightness', float)]
-dt_2d = np.dtype(parameters + parameters_2d)
+def results_dt(fit_model):
+    if fit_model is '2d':
+        fit_parameters = [('amplitude', float), ('maxima_fit', np.float, (2,)),
+                          ('background', float)]
+        n_fit_par = len(fit_parameters)
+    parameters = [('frame', int), ('maxima_px', np.int, (2,)),
+                  ('photons', float), ('sharpness', float),
+                  ('roundness', float), ('brightness', float)]
+    return n_fit_par, np.dtype(parameters + fit_parameters)
+
+
+def ex(x, x0, sigma):
+    return np.exp(-(x - x0)**2/sigma**2)
+
+
+def derf(x, x0, sigma):
+    return erf((x + 1 - x0) / sigma) - erf((x - x0) / sigma)
 
 
 def logll(params, *args):
@@ -36,10 +48,9 @@ def logll(params, *args):
 
     x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-    erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
-    erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
-
-    lambda_p = A * F**2 * np.pi * erfi[:, np.newaxis] * erfj / 4 + bkg
+    derfx = derf(x, x0, F)
+    derfy = derf(y, y0, F)
+    lambda_p = A*F**2*np.pi*derfx[:, np.newaxis]*derfy/4 + bkg
 
     return - np.sum(pico * np.log(lambda_p) - lambda_p)
 
@@ -51,24 +62,25 @@ def ll_jac(params, *args):
 
     x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-    erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
-    erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
-    expi = np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2)
-    expj = np.exp(-(y - y0 + 1)**2/F**2) - np.exp(-(y - y0)**2/F**2)
+    erfi = derf(x, x0, F)
+    erfj = derf(y, y0, F)
+    expi = ex(x, x0 - 1, F) - ex(x, x0, F)
+    expj = ex(y, y0 - 1, F) - ex(y, y0, F)
 
     jac = np.zeros(4)
 
     # Some derivatives made with sympy
 
     # expr.diff(A)
-    jac[0] = np.sum((np.pi/4)*F**2*pico*erfi[:, np.newaxis] * erfj/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - (np.pi/4)*F**2*erfi[:, np.newaxis] * erfj)
+    jaci0 = (np.pi/4)*F**2*pico*erfi[:, np.newaxis] * erfj/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - (np.pi/4)*F**2*erfi[:, np.newaxis] * erfj
+    jac[0] = np.sum(jaci0)
 
-    jac[1] = np.sum(- 0.5 * A * F * np.sqrt(np.pi) * expi[:, np.newaxis] * erfj)
+    jac[1] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*expi[:, np.newaxis] * erfj)
 
-    jac[2] = np.sum(- 0.5 * A * F * np.sqrt(np.pi) * erfi[:, np.newaxis] * expj)
+    jac[2] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*erfi[:, np.newaxis] * expj)
 
     # expr.diff(y0)
-    jac[3] = np.sum(pico/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - 1)
+    jac[3] = np.sum(pico/((np.pi/4)*A*F**2*erfi[:, np.newaxis]*erfj + bkg) - 1)
 
     return jac
 
@@ -80,10 +92,11 @@ def ll_hess(params, *args):
 
     x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-    erfi = erf((x + 1 - x0) / F) - erf((x - x0) / F)
-    erfj = erf((y + 1 - y0) / F) - erf((y - y0) / F)
-    expi = np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2)
-    expj = np.exp(-(y - y0 + 1)**2/F**2) - np.exp(-(y - y0)**2/F**2)
+    erfi = derf(x, x0, F)
+    erfj = derf(y, y0, F)
+    erfij = erfi*erfj
+    expi = ex(x, x0 - 1, F) - ex(x, x0, F)
+    expj = ex(y, y0 - 1, F) - ex(y, y0, F)
 
     hess = np.zeros((4, 4))
 
@@ -94,37 +107,39 @@ def ll_hess(params, *args):
                           ((np.pi/4) * A * F**2 * (erfi * erfj + bkg)**2))
 
     # expr.diff(A, x0)
-    hess[0, 1] = (np.sum(F*(np.exp(-(x - x0 + 1)**2/F**2) - np.exp(-(x - x0)**2/F**2))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))*(-1.23370055013617*A*F**2*pico*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F))/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg)**2 + 1.5707963267949*pico/((np.pi/4)*A*F**2*(erf((x - x0)/F) - erf((x - x0 + 1)/F))*(erf((y - y0)/F) - erf((y - y0 + 1)/F)) + bkg) - 1.5707963267949)/np.sqrt(np.pi)))
+    hessi01 = F*expi*erfj*(-1.23370055013617*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + 1.5707963267949*pico/((np.pi/4)*A*F**2*erfij + bkg) - 1.5707963267949)/np.sqrt(np.pi)
+    hess[0, 1] = np.sum(hessi01)
     hess[1, 0] = hess[0, 1]
 
     # expr.diff(A, y0)
-    hess[0, 2] = np.sum(F*(expj)*(-erfi)*(-1.23370055013617*A*F**2*pico*(-erfi)*(-erfj)/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2 + (np.pi/2)*pico/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg) - (np.pi/2))/np.sqrt(np.pi))
+    hess[0, 2] = np.sum(F*expj*(-erfi)*(-1.23370055013617*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + (np.pi/2)*pico/((np.pi/4)*A*F**2*erfij + bkg) - (np.pi/2))/np.sqrt(np.pi))
     hess[2, 0] = hess[0, 2]
 
     # expr.diff(A, bkg)
-    hess[0, 3] = np.sum(-(np.pi/4)*F**2*pico*(-erfi)*(-erfj)/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2)
+    hessi03 = -(np.pi/4)*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2
+    hess[0, 3] = np.sum(hessi03)
     hess[3, 0] = hess[0, 3]
 
     # expr.diff(x0, x0)
-    hess[1, 1] = np.sum(A*(-erfj)*(-2.46740110027234*A*F**2*pico*(expi)**2*(-erfj)/(np.pi*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2) - np.pi*pico*((x - x0)*np.exp(-(x - x0)**2/F**2) - (x - x0 + 1)*np.exp(-(x - x0 + 1)**2/F**2))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)) + (np.pi*(x - x0)*np.exp(-(x - x0)**2/F**2) - np.pi*(x - x0 + 1)*np.exp(-(x - x0 + 1)**2/F**2))/(np.sqrt(np.pi)*F)))
+    hess[1, 1] = np.sum(A*erfj*(2.46740110027234*A*F**2*pico*expi**2*(-erfj)/(np.pi*((np.pi/4)*A*F**2*erfij + bkg)**2) - np.pi*pico*((x - x0)*ex(x, x0, F) - (x - x0 + 1)*ex(x, x0 - 1, F))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*erfij + bkg)) + (np.pi*(x - x0)*ex(x, x0, F) - np.pi*(x - x0 + 1)*ex(x, x0 - 1, F))/(np.sqrt(np.pi)*F)))
 
     # expr.diff(x0, y0)
-    hess[1, 2] = np.sum(A*(expi)*(expj)*(-2.46740110027234*A*F**2*pico*(-erfi)*(-erfj)/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2 + np.pi*pico/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg) - np.pi)/np.pi)
+    hess[1, 2] = np.sum(A*expi*expj*(-2.46740110027234*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + np.pi*pico/((np.pi/4)*A*F**2*erfij + bkg) - np.pi)/np.pi)
     hess[2, 1] = hess[1, 2]
 
     # expr.diff(x0, bkg)
-    hess[1, 3] = np.sum(-(np.pi/2)*A*F*pico*(expi)*(-erfj)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2))
+    hess[1, 3] = np.sum(-(np.pi/2)*A*F*pico*expi*(-erfj)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*erfij + bkg)**2))
     hess[3, 1] = hess[1, 3]
 
     # expr.diff(y0, y0)
-    hess[2, 2] = np.sum(A*(-erfi)*(-2.46740110027234*A*F**2*pico*(expj)**2*(-erfi)/(np.pi*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2) - np.pi*pico*((y - y0)*np.exp(-(y - y0)**2/F**2) - (y - y0 + 1)*np.exp(-(y - y0 + 1)**2/F**2))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)) + (np.pi*(y - y0)*np.exp(-(y - y0)**2/F**2) - np.pi*(y - y0 + 1)*np.exp(-(y - y0 + 1)**2/F**2))/(np.sqrt(np.pi)*F)))
+    hess[2, 2] = np.sum(A*(-erfi)*(-2.46740110027234*A*F**2*pico*expj**2*(-erfi)/(np.pi*((np.pi/4)*A*F**2*erfij + bkg)**2) - np.pi*pico*((y - y0)*ex(y, y0, F) - (y - y0 + 1)*ex(y, y0 -1, F))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*erfij + bkg)) + (np.pi*(y - y0)*ex(y, y0, F) - np.pi*(y - y0 + 1)*ex(y, y0 -1, F))/(np.sqrt(np.pi)*F)))
 
     # expr.diff(y0, bkg)
-    hess[2, 3] = np.sum(-(np.pi/2)*A*F*pico*(expj)*(-erfi)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2))
+    hess[2, 3] = np.sum(-(np.pi/2)*A*F*pico*expj*(-erfi)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*erfij + bkg)**2))
     hess[3, 2] = hess[2, 3]
 
     # expr.diff(bkg, bkg)
-    hess[3, 3] = np.sum(-pico/((np.pi/4)*A*F**2*(-erfi)*(-erfj) + bkg)**2)
+    hess[3, 3] = np.sum(-pico/((np.pi/4)*A*F**2*erfij + bkg)**2)
 
     return hess
 
@@ -139,8 +154,10 @@ def fit_area(area, fwhm, bkg):
 
 #    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F), jac=False,
 #                    method='Newton-CG')
-    return minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
-                    method='Powell')
+    results = minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
+                       method='Powell')
+
+    return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
 
 # TODO: get error of each parameter from the fit (see Powell?)
 
@@ -148,9 +165,12 @@ def fit_area(area, fwhm, bkg):
 class Maxima():
     """ Class defined as the local maxima in an image frame. """
 
-    def __init__(self, image, fwhm, kernel=None):
+    def __init__(self, image, fw=None, kernel=None):
         self.image = image
-        self.fwhm = fwhm
+        if fw is None:
+            self.fwhm = fwhm(670, 1.42) / 140
+        else:
+            self.fwhm = fwhm
         self.size = int(np.ceil(self.fwhm))
         if kernel is None:
             self.kernel = tools.kernel(self.fwhm)
@@ -166,15 +186,15 @@ class Maxima():
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        imageConv = convolve(self.image.astype(float), self.kernel)
+        self.image_conv = convolve(self.image.astype(float), self.kernel)
 
-        # Image mask. We leave the borders out
-        self.imageMask = np.ones(self.image.shape, dtype=bool)
-        self.imageMask[self.size:self.image.shape[0] - self.size,
-                       self.size:self.image.shape[1] - self.size] = False
-        maskedArray = np.ma.masked_array(imageConv, self.imageMask)
+        # Image mask
+        self.imageMask = np.zeros(self.image.shape, dtype=bool)
+        maskedArray = np.ma.masked_array(self.image_conv, self.imageMask)
 
-        self.threshold = self.alpha*np.std(imageConv) + np.mean(imageConv)
+        self.mean = np.mean(self.image_conv)
+        self.std = np.mean((self.image_conv - self.mean)**2)
+        self.threshold = self.alpha*self.std + self.mean
 
         # Estimate for the maximum number of maxima in a frame
         nMax = np.ceil(self.image.size / (2*self.size + 1)**2)
@@ -182,11 +202,11 @@ class Maxima():
         nPeak = 0
 
         while 1:
-            k = np.argmax(np.ma.masked_array(imageConv, self.imageMask))
+            k = np.argmax(np.ma.masked_array(self.image_conv, self.imageMask))
 
             # index juggling
             j, i = np.unravel_index(k, self.image.shape)
-            if(imageConv[j, i] >= self.threshold):
+            if(self.image_conv[j, i] >= self.threshold):
 
                 # Saving the peak
                 maxima[nPeak] = tuple([j, i])
@@ -204,11 +224,9 @@ class Maxima():
             else:
                 break
 
-        maxima = maxima[:nPeak]
-
-        # Drop overlapping spots
-        self.positions = tools.dropOverlapping(maxima, 2 * self.size)
-        self.overlaps = len(maxima) - len(self.positions)
+        self.positions = maxima[:nPeak]
+        self.drop_overlapping()
+        self.drop_border()
 
     def find(self, alpha=5):
         """
@@ -222,34 +240,43 @@ class Maxima():
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
-        image_conv = convolve(self.image.astype(float), self.kernel)
+        self.image_conv = convolve(self.image.astype(float), self.kernel)
 
-        image_max = maximum_filter(image_conv, self.size)
-        maxima = (image_conv == image_max)
-        self.threshold = self.alpha*np.std(image_conv) + np.mean(image_conv)
+        image_max = maximum_filter(self.image_conv, self.size)
+        maxima = (self.image_conv == image_max)
+
+        self.mean = np.mean(self.image_conv)
+        self.std = np.sqrt(np.mean((self.image_conv - self.mean)**2))
+        self.threshold = self.alpha*self.std + self.mean
+
         diff = (image_max > self.threshold)
 
         maxima[diff == 0] = 0
-        # Filter out close to the border maxima
-        borders = np.ones(self.image.shape, dtype=bool)
-        borders[self.size:self.image.shape[0] - self.size,
-                self.size:self.image.shape[1] - self.size] = False
-        maxima[borders] = 0
 
-#       Cuidado porque voy a necesitar áreas más grandes
-#        labeled, num_objects = label(maxima)
-#        xy = np.array(center_of_mass(self.image, labeled,
-#                                     range(1, num_objects + 1)))
-        maxima = np.dstack(np.where(maxima == 1))[0]
+        labeled, num_objects = label(maxima)
+        self.positions = np.array(maximum_position(self.image, labeled,
+                                                   range(1, num_objects + 1)))
 
-        # Drop overlapping spots
-        self.positions = tools.dropOverlapping(maxima, 2 * self.size)
-        self.overlaps = len(maxima) - len(self.positions)
+        self.drop_overlapping()
+        self.drop_border()
 
-#        plt.imshow(mm.image)
+#        plt.imshow(mm.image, interpolation='None')
 #        plt.autoscale(False)
 #        plt.plot(maxima[:, 1], maxima[:, 0], 'ro')
 #        plt.plot(mm.positions[:, 1], mm.positions[:, 0], 'ro')
+
+    def drop_overlapping(self):
+        """Drop overlapping spots."""
+        n = len(self.positions)
+        self.positions = tools.dropOverlapping(self.positions,
+                                               2 * self.size + 1)
+        self.overlaps = n - len(self.positions)
+
+    def drop_border(self):
+        """ Drop near-the-edge spots. """
+        keep = ((self.positions[:, 0] < 126) & (self.positions[:, 0] > 1) &
+                (self.positions[:, 1] < 126) & (self.positions[:, 1] > 1))
+        self.positions = self.positions[keep]
 
     def getParameters(self):
         """Calculate the roundness, brightness, sharpness"""
@@ -259,8 +286,16 @@ class Maxima():
         # Background estimation. Taking the mean counts of the molecule-free
         # area is good enough and ~10x faster than getting the mode
         # 215 µs vs 1.89 ms
-        self.bkg = np.mean(np.ma.masked_array(self.image, imageMask))
+        try:
+            self.imageMask
+        except:
+            self.imageMask = np.zeros(self.image.shape, dtype=bool)
+            for p in self.positions:
+                self.imageMask[p[0] - self.size:p[0] + self.size + 1,
+                               p[1] - self.size:p[1] + self.size + 1] = True
 
+        self.imageMask[self.image == 0] = True
+        self.bkg = np.mean(np.ma.masked_array(self.image, self.imageMask))
         self.xkernel = tools.xkernel(self.fwhm)
 
         # Peak parameters
@@ -268,8 +303,8 @@ class Maxima():
         brightness = np.zeros(len(self.positions))
 
         sharpness = np.zeros(len(self.positions))
-        mask = np.zeros((2*size + 1, 2*size + 1), dtype=bool)
-        mask[size, size] = True
+        mask = np.zeros((2*self.size + 1, 2*self.size + 1), dtype=bool)
+        mask[self.size, self.size] = True
 
         for i in np.arange(len(self.positions)):
             # tuples make indexing easier (see below)
@@ -277,7 +312,7 @@ class Maxima():
 
             # Sharpness
             masked = np.ma.masked_array(self.area(i), mask)
-            sharpness[i] = self.image[p] / (imageConv[p] * masked.mean())
+            sharpness[i] = self.image[p] / (self.image_conv[p] * masked.mean())
 
             # Roundness
             hx = np.dot(self.area(i)[2, :], self.xkernel)
@@ -285,7 +320,8 @@ class Maxima():
             roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
-            brightness[i] = 2.5 * np.log(imageConv[p] / self.alpha*std)
+            brightness[i] = 2.5 * np.log(self.image_conv[p] /
+                                         self.alpha*self.std)
 
         self.sharpness = sharpness
         self.roundness = roundness
@@ -297,26 +333,36 @@ class Maxima():
         return self.image[coord[0] - self.size:coord[0] + self.size + 1,
                           coord[1] - self.size:coord[1] + self.size + 1]
 
+    def radius(self, coord):
+        """Returns the area around the entered point."""
+        return self.image[coord[0] - self.size:coord[0] + self.size + 1,
+                          coord[1] - self.size:coord[1] + self.size + 1]
+
     def fit(self, fit_model='2d'):
 
-        if fit_model is '2d':
-            fit_par = [x[0] for x in parameters_2d]
-            self.results = np.zeros(len(self.positions), dtype=dt_2d)
+        npar, self.dt = results_dt(fit_model)
 
+#        fit_par = [x[0] for x in npar]
+        self.results = np.zeros(len(self.positions), dtype=self.dt)
+        self.mean_psf = np.zeros(self.area(0).shape)
+
+        # TODO: all in one step?
         for i in np.arange(len(self.positions)):
 
             # Fit and store fitting results
             area = self.area(i)
-            res = fit_area(area, self.fwhm, self.bkg)
-            res.x[1:3] = (res.x[1:3] - self.size - 0.5 + self.positions[i])
-            for p in np.arange(len(fit_par)):
-                self.results[fit_par[p]][i] = res.x[p]
+            fit = fit_area(area, self.fwhm, self.bkg)
+            fit[1] += self.positions[i] - self.size - 0.5
+            for p in np.arange(npar):
+                self.results[self.dt.names[-npar + p]][i] = fit[p]
 
+            # Background-sustracted measured PSF
+            bkg_subtract = area - fit[-1]
             # photons from molecule calculation
-            self.results['photons'][i] = (np.sum(area)
-                                          - area.size * res.x[-1])
+            self.results['photons'][i] = np.sum(bkg_subtract)
+            self.mean_psf += bkg_subtract/self.results['photons'][i]
 
-        self.results['maxima'] = self.positions
+        self.results['maxima_px'] = self.positions
         self.results['sharpness'] = self.sharpness
         self.results['roundness'] = self.roundness
         self.results['brightness'] = self.brightness

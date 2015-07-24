@@ -10,7 +10,7 @@ import numpy as np
 import h5py as hdf
 
 from tormenta.analysis.airygauss import fwhm
-from tormenta.analysis.tools import overlaps
+from tormenta.analysis.tools import overlaps, kernel, xkernel
 
 # data-type definitions
 parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
@@ -59,7 +59,10 @@ class Stack(object):
 #        except:
         self.NA = 1.42
 
-        self.nm_per_px = 1000 * self.attrs['element_size_um'][2]
+        try:
+            self.nm_per_px = 1000 * self.attrs['element_size_um'][2]
+        except:
+            self.nm_per_px = 120
 
         self.frame = 0
         self.fwhm = fwhm(self.lambda_em, self.NA) / self.nm_per_px
