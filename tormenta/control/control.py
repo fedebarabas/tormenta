@@ -90,12 +90,17 @@ class RecordingWidget(QtGui.QFrame):
         self.numExpositionsEdit.textChanged.connect(self.nChanged)
         self.updateRemaining()
 
+        self.closeShutters = QtGui.QCheckBox('Close shutters when finished')
+        self.closeShutters.setChecked(True)
+
         # Layout
         buttonWidget = QtGui.QWidget()
         buttonGrid = QtGui.QGridLayout()
         buttonWidget.setLayout(buttonGrid)
         buttonGrid.addWidget(self.snapTIFFButton, 0, 0)
         buttonGrid.addWidget(self.snapHDFButton, 0, 1)
+        buttonWidget.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                   QtGui.QSizePolicy.Expanding)
         buttonGrid.addWidget(self.recButton, 0, 2)
 
         recGrid = QtGui.QGridLayout()
@@ -103,21 +108,21 @@ class RecordingWidget(QtGui.QFrame):
 
         recGrid.addWidget(recTitle, 0, 0, 1, 3)
         recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0)
-        recGrid.addWidget(loadFolderButton, 1, 5)
-        recGrid.addWidget(openFolderButton, 1, 4)
-        recGrid.addWidget(self.folderEdit, 2, 0, 1, 6)
+        recGrid.addWidget(loadFolderButton, 1, 4)
+        recGrid.addWidget(openFolderButton, 1, 3)
+        recGrid.addWidget(self.folderEdit, 2, 0, 1, 5)
         recGrid.addWidget(QtGui.QLabel('Filename'), 3, 0, 1, 2)
-        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 6)
+        recGrid.addWidget(self.filenameEdit, 4, 0, 1, 5)
         recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
         recGrid.addWidget(self.currentFrame, 5, 1)
         recGrid.addWidget(self.numExpositionsEdit, 5, 2)
-        recGrid.addWidget(self.tElapsed, 5, 4)
-        recGrid.addWidget(self.tRemaining, 5, 5)
-        recGrid.addWidget(buttonWidget, 6, 0, 1, 6)
+        recGrid.addWidget(self.tElapsed, 6, 0)
+        recGrid.addWidget(self.tRemaining, 6, 1, 1, 2)
+        recGrid.addWidget(self.closeShutters, 5, 3, 1, 2)
+        recGrid.addWidget(buttonWidget, 7, 0, 1, 5)
 
-        recGrid.setColumnMinimumWidth(0, 110)
-        recGrid.setColumnMinimumWidth(3, 20)
-        recGrid.setRowMinimumHeight(6, 60)
+        recGrid.setColumnMinimumWidth(0, 90)
+        recGrid.setRowMinimumHeight(7, 50)
 
         self.writable = True
         self.readyToRecord = False
@@ -312,6 +317,9 @@ class RecordingWidget(QtGui.QFrame):
             self.worker.pressed = False
 
     def endRecording(self):
+
+        if self.closeShutters:
+            self.main.laserWidgets.closeShutters()
 
         self.recordingThread.terminate()
 
@@ -587,7 +595,7 @@ class CamParamTree(ParameterTree):
 
 class TormentaGUI(QtGui.QMainWindow):
 
-    def __init__(self, andor, redlaser, bluelaser, greenlaser, scanZ,
+    def __init__(self, andor, redlaser, bluelaser, greenlaser, scanZ, daq,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -598,6 +606,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.greenlaser = greenlaser
         self.bluelaser = bluelaser
         self.scanZ = scanZ
+        self.daq = daq
 
         self.setWindowTitle('Tormenta')
         self.cwidget = QtGui.QWidget()
@@ -813,14 +822,14 @@ class TormentaGUI(QtGui.QMainWindow):
 
         laserDock = Dock("Laser Control", size=(1, 1))
         self.lasers = (redlaser, bluelaser, greenlaser)
-        self.laserWidgets = lasercontrol.LaserWidget(self.lasers)
+        self.laserWidgets = lasercontrol.LaserWidget(self.lasers, self.daq)
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', focusDock)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
-        layout.setColumnMinimumWidth(0, 380)
+        layout.setColumnMinimumWidth(0, 350)
         layout.setColumnMinimumWidth(2, 600)
         layout.setColumnMinimumWidth(3, 200)
         layout.setRowMinimumHeight(1, 720)
@@ -1048,8 +1057,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.hist.setLevels(np.min(image) - np.std(image),
                                 np.max(image) + np.std(image))
 
-            self.viewtimer.start(0)
-
+        self.viewtimer.start(0)
         self.moleculeWidget.enableBox.setEnabled(True)
 
     def liveviewStop(self):
@@ -1121,15 +1129,15 @@ if __name__ == '__main__':
             instruments.Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
             instruments.Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
             instruments.Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser, \
-            instruments.ScanZ(12) as scanZ:
+            instruments.ScanZ(12) as scanZ, instruments.DAQ() as daq:
             # instruments.DAQ() as DAQ, ScanZ(12) as scanZ:
 
         print(andor.idn)
         print(redlaser.idn)
         print(bluelaser.idn)
         print(greenlaser.idn)
-#        print(DAQ.idn)
         print('Prior Z stage')
+        print(daq.idn)
 
         win = TormentaGUI()
         win.show()

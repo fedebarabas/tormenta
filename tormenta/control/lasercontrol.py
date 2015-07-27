@@ -30,17 +30,19 @@ class UpdatePowers(QtCore.QObject):
 
 class LaserWidget(QtGui.QFrame):
 
-    def __init__(self, lasers, *args, **kwargs):
+    def __init__(self, lasers, daq, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
 
         self.redlaser, self.bluelaser, self.greenlaser = lasers
         self.mW = Q_(1, 'mW')
+        self.daq = daq
 
         self.redControl = LaserControl(self.redlaser,
                                        '<h3>MPB 642nm</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
-                                       tickInterval=100, singleStep=10)
+                                       tickInterval=100, singleStep=10,
+                                       daq=self.daq, port=0)
 
         self.blueControl = LaserControl(self.bluelaser,
                                         '<h3>RGB 405nm</h3>',
@@ -85,19 +87,27 @@ class LaserWidget(QtGui.QFrame):
         self.updateThread.start()
         self.updateThread.started.connect(self.updatePowers.update)
 
+    def closeShutters(self):
+        for control in self.controls:
+            if control.port is not None:
+                control.shutterBox.setChecked(False)
+
     def closeEvent(self, *args, **kwargs):
-        super().closeEvent(*args, **kwargs)
+        self.closeShutters()
         self.updateThread.terminate()
+        super().closeEvent(*args, **kwargs)
 
 
 class LaserControl(QtGui.QFrame):
 
     def __init__(self, laser, name, color, prange, tickInterval, singleStep,
-                 *args, **kwargs):
+                 daq=None, port=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         self.laser = laser
         self.mW = Q_(1, 'mW')
+        self.daq = daq
+        self.port = port
 
         self.name = QtGui.QLabel(name)
         self.name.setTextFormat(QtCore.Qt.RichText)
@@ -126,8 +136,6 @@ class LaserControl(QtGui.QFrame):
         self.slider.setValue(self.laser.power.magnitude)
         self.minpower = QtGui.QLabel(str(prange[0]))
         self.minpower.setAlignment(QtCore.Qt.AlignCenter)
-        self.shutterBox = QtGui.QCheckBox('Shutter open')
-        self.shutterBox.stateChanged.connect(self.shutterAction)
 
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
@@ -138,8 +146,6 @@ class LaserControl(QtGui.QFrame):
         grid.addWidget(self.maxpower, 1, 1)
         grid.addWidget(self.slider, 2, 1, 5, 1)
         grid.addWidget(self.minpower, 7, 1)
-        grid.addWidget(self.shutterBox, 6, 0)
-
         grid.setRowMinimumHeight(2, 60)
         grid.setRowMinimumHeight(6, 60)
 
@@ -148,8 +154,18 @@ class LaserControl(QtGui.QFrame):
         self.slider.valueChanged[int].connect(self.changeSlider)
         self.setPointEdit.returnPressed.connect(self.changeEdit)
 
-    def shutterAction(self):
-        pass
+        # Shutter port
+        if self.port is not None:
+            self.daq.digital_IO[self.port] = False
+            self.shutterBox = QtGui.QCheckBox('Shutter open')
+            grid.addWidget(self.shutterBox, 6, 0)
+            self.shutterBox.stateChanged.connect(self.shutterAction)
+
+    def shutterAction(self, state):
+        if state == 0:
+            self.daq.digital_IO[self.port] = False
+        elif state == 2:
+            self.daq.digital_IO[self.port] = True
 
     def toggleLaser(self):
         if self.enableButton.isChecked():
@@ -183,10 +199,11 @@ if __name__ == '__main__':
 
     with instruments.Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
             instruments.Laser(blueDriver, 'COM7') as bluelaser, \
-            instruments.Laser(greenDriver, 'COM13') as greenlaser:
+            instruments.Laser(greenDriver, 'COM13') as greenlaser, \
+            instruments.DAQ() as daq:
 
-        print(redlaser.idn, bluelaser.idn, greenlaser.idn)
-        win = LaserWidget((redlaser, bluelaser, greenlaser))
+        print(redlaser.idn, bluelaser.idn, greenlaser.idn, daq.idn)
+        win = LaserWidget((redlaser, bluelaser, greenlaser), daq)
         win.show()
 
         app.exec_()
