@@ -58,16 +58,17 @@ class RecordingWidget(QtGui.QFrame):
         self.filenameEdit = QtGui.QLineEdit('filename')
 
         # Snap and recording buttons
-        self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
+#        self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
+        self.snapTIFFButton = QtGui.QPushButton('Snap')
         self.snapTIFFButton.setStyleSheet("font-size:16px")
         self.snapTIFFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                           QtGui.QSizePolicy.Expanding)
         self.snapTIFFButton.clicked.connect(self.snapTIFF)
-        self.snapHDFButton = QtGui.QPushButton('Snap HDF5')
-        self.snapHDFButton.setStyleSheet("font-size:16px")
-        self.snapHDFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
-                                         QtGui.QSizePolicy.Expanding)
-        self.snapHDFButton.clicked.connect(self.snapHDF)
+#        self.snapHDFButton = QtGui.QPushButton('Snap HDF5')
+#        self.snapHDFButton.setStyleSheet("font-size:16px")
+#        self.snapHDFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+#                                         QtGui.QSizePolicy.Expanding)
+#        self.snapHDFButton.clicked.connect(self.snapHDF)
         self.recButton = QtGui.QPushButton('REC')
         self.recButton.setStyleSheet("font-size:16px")
         self.recButton.setCheckable(True)
@@ -90,15 +91,12 @@ class RecordingWidget(QtGui.QFrame):
         self.numExpositionsEdit.textChanged.connect(self.nChanged)
         self.updateRemaining()
 
-        self.closeShutters = QtGui.QCheckBox('Close shutters when finished')
-        self.closeShutters.setChecked(True)
-
         # Layout
         buttonWidget = QtGui.QWidget()
         buttonGrid = QtGui.QGridLayout()
         buttonWidget.setLayout(buttonGrid)
         buttonGrid.addWidget(self.snapTIFFButton, 0, 0)
-        buttonGrid.addWidget(self.snapHDFButton, 0, 1)
+#        buttonGrid.addWidget(self.snapHDFButton, 0, 1)
         buttonWidget.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                    QtGui.QSizePolicy.Expanding)
         buttonGrid.addWidget(self.recButton, 0, 2)
@@ -116,13 +114,12 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
         recGrid.addWidget(self.currentFrame, 5, 1)
         recGrid.addWidget(self.numExpositionsEdit, 5, 2)
-        recGrid.addWidget(self.tElapsed, 6, 0)
-        recGrid.addWidget(self.tRemaining, 6, 1, 1, 2)
-        recGrid.addWidget(self.closeShutters, 5, 3, 1, 2)
-        recGrid.addWidget(buttonWidget, 7, 0, 1, 5)
+        recGrid.addWidget(self.tElapsed, 5, 3)
+        recGrid.addWidget(self.tRemaining, 5, 4)
+        recGrid.addWidget(buttonWidget, 6, 0, 1, 5)
 
-        recGrid.setColumnMinimumWidth(0, 90)
-        recGrid.setRowMinimumHeight(7, 50)
+        recGrid.setColumnMinimumWidth(0, 80)
+        recGrid.setRowMinimumHeight(6, 50)
 
         self.writable = True
         self.readyToRecord = False
@@ -134,7 +131,7 @@ class RecordingWidget(QtGui.QFrame):
     @readyToRecord.setter
     def readyToRecord(self, value):
         self.snapTIFFButton.setEnabled(value)
-        self.snapHDFButton.setEnabled(value)
+#        self.snapHDFButton.setEnabled(value)
         self.recButton.setEnabled(value)
         self._readyToRecord = value
 
@@ -608,47 +605,64 @@ class TormentaGUI(QtGui.QMainWindow):
         self.scanZ = scanZ
         self.daq = daq
 
-        self.setWindowTitle('Tormenta')
-        self.cwidget = QtGui.QWidget()
-        self.setCentralWidget(self.cwidget)
-
         self.s = Q_(1, 's')
         self.lastTime = ptime.time()
         self.fps = None
 
         # Actions and menubar
+        # Shortcut only
+        self.liveviewAction = QtGui.QAction(self)
+        self.liveviewAction.setShortcut('Ctrl+Space')
+        self.liveviewAction.triggered.connect(self.liveviewKey)
+        self.liveviewAction.setEnabled(False)
+
+        # Actions in menubar
+        menubar = self.menuBar()
+        fileMenu = menubar.addMenu('&File')
+
         self.savePresetAction = QtGui.QAction('Save configuration...', self)
         self.savePresetAction.setShortcut('Ctrl+S')
         self.savePresetAction.setStatusTip('Save camera & recording settings')
         savePresetFunction = lambda: guitools.savePreset(self)
         self.savePresetAction.triggered.connect(savePresetFunction)
-        self.liveviewAction = QtGui.QAction(self)
-        self.liveviewAction.setShortcut('Ctrl+Space')
-        self.liveviewAction.triggered.connect(self.liveviewKey)
-        self.liveviewAction.setEnabled(False)
+        fileMenu.addAction(self.savePresetAction)
+        fileMenu.addSeparator()
+
+        self.shuttersAction = QtGui.QAction(('Close shutters when recording '
+                                             'is over'), self, checkable=True)
+        self.shuttersAction.setChecked(True)
+        self.shuttersAction.setStatusTip(('Close all laser shutters when the '
+                                          'recording session is over'))
+        fileMenu.addAction(self.shuttersAction)
+        fileMenu.addSeparator()
+
+#        snapMenu = fileMenu.addMenu('Snap format')
+#        self.snapTiffAction = QtGui.QAction('TIFF', self, checkable=True)
+#        snapMenu.addAction(self.snapTiffAction)
+#        self.snapHdf5Action = QtGui.QAction('HDF5', self, checkable=True)
+#        snapMenu.addAction(self.snapHdf5Action)
         self.exportTiffAction = QtGui.QAction('Export HDF5 to Tiff...', self)
         self.exportTiffAction.setShortcut('Ctrl+E')
         self.exportTiffAction.setStatusTip('Export HDF5 file to Tiff format')
         self.exportTiffAction.triggered.connect(guitools.TiffConverterThread)
+        fileMenu.addAction(self.exportTiffAction)
+
         self.exportlastAction = QtGui.QAction('Export last recording to Tiff',
                                               self)
         self.exportlastAction.setEnabled(False)
         self.exportlastAction.setShortcut('Ctrl+L')
         self.exportlastAction.setStatusTip('Export last recording to Tiff ' +
                                            'format')
+        fileMenu.addAction(self.exportlastAction)
+        fileMenu.addSeparator()
+
         exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(QtGui.QApplication.closeAllWindows)
-
-        menubar = self.menuBar()
-        fileMenu = menubar.addMenu('&File')
-        fileMenu.addAction(self.savePresetAction)
-        fileMenu.addAction(self.exportTiffAction)
-        fileMenu.addAction(self.exportlastAction)
         fileMenu.addAction(exitAction)
 
-        self.statusBar()
+#        self.statusBar()
         self.tree = CamParamTree(self.andor)
 
         # Frame signals
@@ -825,6 +839,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.laserWidgets = lasercontrol.LaserWidget(self.lasers, self.daq)
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', focusDock)
+
+        self.setWindowTitle('Tormenta')
+        self.cwidget = QtGui.QWidget()
+        self.setCentralWidget(self.cwidget)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
