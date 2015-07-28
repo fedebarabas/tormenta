@@ -118,7 +118,7 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(self.tRemaining, 5, 4)
         recGrid.addWidget(buttonWidget, 6, 0, 1, 5)
 
-        recGrid.setColumnMinimumWidth(0, 80)
+        recGrid.setColumnMinimumWidth(0, 70)
         recGrid.setRowMinimumHeight(6, 50)
 
         self.writable = True
