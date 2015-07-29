@@ -422,9 +422,13 @@ class TemperatureStabilizer(QtCore.QObject):
     def start(self):
         self.updateTemp()
         self.main.andor.cooler_on = True
+        self.update()
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
-        self.timer.start(1)
+        self.timer.start(10000)
+
+    def stop(self):
+        self.timer.stop()
 
     def update(self):
         tempStatus = self.main.andor.temperature_status
@@ -439,7 +443,7 @@ class TemperatureStabilizer(QtCore.QObject):
             if temperature <= threshold or self.main.andor.mock:
                 self.main.liveviewButton.setEnabled(True)
                 self.main.liveviewAction.setEnabled(True)
-            time.sleep(10)
+#            time.sleep(10)
 
         else:
             self.timer.stop()
@@ -592,6 +596,9 @@ class CamParamTree(ParameterTree):
 
 class TormentaGUI(QtGui.QMainWindow):
 
+    liveviewStarts = QtCore.pyqtSignal()
+    liveviewEnds = QtCore.pyqtSignal()
+
     def __init__(self, andor, redlaser, bluelaser, greenlaser, scanZ, daq,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -715,6 +722,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizer.moveToThread(self.stabilizerThread)
         self.stabilizerThread.started.connect(self.stabilizer.start)
         self.stabilizerThread.start()
+        self.liveviewStarts.connect(self.stabilizer.stop)
+        self.liveviewEnds.connect(self.stabilizer.start)
 
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
@@ -1055,7 +1064,8 @@ class TormentaGUI(QtGui.QMainWindow):
             self.liveviewStop()
 
     def liveviewStart(self, update):
-        self.stabilizer.timer.stop()
+        self.liveviewStarts.emit()
+
         idle = 'Camera is idle, waiting for instructions.'
         if self.andor.status != idle:
             self.andor.abort_acquisition()
@@ -1089,7 +1099,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.andor.shutter(0, 2, 0, 0, 0)
         self.img.setImage(np.zeros(self.shape), autoLevels=False)
-        self.stabilizer.timer.start()
+
+        self.liveviewEnds.emit()
 
     def updateView(self):
         """ Image update while in Liveview mode

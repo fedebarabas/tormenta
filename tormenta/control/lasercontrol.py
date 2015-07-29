@@ -53,7 +53,7 @@ class LaserWidget(QtGui.QFrame):
                                          '<h3>Ventus 532nm</h3>',
                                          color=(80, 255, 0), prange=(0, 1500),
                                          tickInterval=10, singleStep=1,
-                                         daq=self.daq, port=1)
+                                         daq=self.daq, port=1, invert=True)
 
         self.controls = (self.redControl, self.blueControl, self.greenControl)
 
@@ -100,7 +100,7 @@ class LaserWidget(QtGui.QFrame):
 class LaserControl(QtGui.QFrame):
 
     def __init__(self, laser, name, color, prange, tickInterval, singleStep,
-                 daq=None, port=None, *args, **kwargs):
+                 daq=None, port=None, invert=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         self.laser = laser
@@ -155,16 +155,19 @@ class LaserControl(QtGui.QFrame):
 
         # Shutter port
         if self.port is not None:
-            self.daq.digital_IO[self.port] = False
             self.shutterBox = QtGui.QCheckBox('Shutter open')
             grid.addWidget(self.shutterBox, 6, 0)
             self.shutterBox.stateChanged.connect(self.shutterAction)
 
+            if invert:
+                self.daq.digital_IO[self.port] = True
+                self.states = {2: False, 0: True}
+            else:
+                self.daq.digital_IO[self.port] = False
+                self.states = {2: True, 0: False}
+
     def shutterAction(self, state):
-        if state == 0:
-            self.daq.digital_IO[self.port] = False
-        elif state == 2:
-            self.daq.digital_IO[self.port] = True
+        self.daq.digital_IO[self.port] = self.states[state]
 
     def toggleLaser(self):
         if self.enableButton.isChecked():
