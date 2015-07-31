@@ -41,7 +41,6 @@ class RecordingWidget(QtGui.QFrame):
 
         self.main = main
         self.dataname = 'data'      # In case I need a QLineEdit for this
-        self.shape = self.main.shape
         self.initialDir = r'C:\Users\Usuario\Documents\Data'
 
         # Title
@@ -163,7 +162,7 @@ class RecordingWidget(QtGui.QFrame):
         self.tRemaining.setText('Remaining: {}'.format(rTime))
 
     def nPixels(self):
-        return self.shape[0] * self.shape[1]
+        return self.main.shape[0] * self.main.shape[1]
 
     # Setting a xGB limit on file sizes to be able to open them in Fiji
     def limitExpositions(self, xGB):
@@ -211,7 +210,7 @@ class RecordingWidget(QtGui.QFrame):
         folder = self.folderEdit.text()
         if os.path.exists(folder):
 
-            image = self.main.andor.most_recent_image16(self.shape)
+            image = self.main.andor.most_recent_image16(self.main.shape)
 
             name = os.path.join(folder, self.filenameEdit.text())
             savename = guitools.getUniqueName(name + '_snap.hdf5')
@@ -230,7 +229,7 @@ class RecordingWidget(QtGui.QFrame):
         folder = self.folderEdit.text()
         if os.path.exists(folder):
 
-            image = self.main.andor.most_recent_image16(self.shape)
+            image = self.main.andor.most_recent_image16(self.main.shape)
             time.sleep(0.01)
 
             savename = (os.path.join(folder, self.filenameEdit.text()) +
@@ -295,7 +294,7 @@ class RecordingWidget(QtGui.QFrame):
                 self.savename = guitools.getUniqueName(self.savename)
                 self.startTime = ptime.time()
 
-                shape = (self.n(), self.shape[0], self.shape[1])
+                shape = (self.n(), self.main.shape[0], self.main.shape[1])
                 self.worker = RecWorker(self.main.andor, shape,
                                         self.main.t_exp_real, self.savename,
                                         self.dataname, self.getAttrs())
@@ -315,7 +314,7 @@ class RecordingWidget(QtGui.QFrame):
 
     def endRecording(self):
 
-        if self.closeShutters:
+        if self.main.shuttersAction.isChecked():
             self.main.laserWidgets.closeShutters()
 
         self.recordingThread.terminate()
@@ -385,6 +384,8 @@ class RecWorker(QtCore.QObject):
             time.sleep(self.t_exp.magnitude)
             if self.andor.n_images_acquired > self.j:
                 i, self.j = self.andor.new_images_index
+                print(i, self.j, (self.shape[1], self.shape[2]), 1,
+                      self.shape[0])
                 newImages = self.andor.images16(i, self.j, (self.shape[1],
                                                             self.shape[2]),
                                                 1, self.shape[0])
@@ -669,7 +670,6 @@ class TormentaGUI(QtGui.QMainWindow):
         exitAction.triggered.connect(QtGui.QApplication.closeAllWindows)
         fileMenu.addAction(exitAction)
 
-#        self.statusBar()
         self.tree = CamParamTree(self.andor)
 
         # Frame signals
@@ -887,6 +887,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.FTMPar.setWritable()
                 if self.shape != self.andor.detector_shape:
                     self.shape = self.andor.detector_shape
+                    self.frameStart = (1, 1)
                     self.changeParameter(self.adjustFrame)
 
                 ROIpos = (0, 0)
@@ -906,20 +907,19 @@ class TormentaGUI(QtGui.QMainWindow):
     def startCropMode(self):
 
         # Used when cropmode is loaded from a config file
-        if self.cropLoaded:
-            ROISize = self.cropROI.size()
-            self.shape = (int(ROISize[0]), int(ROISize[1]))
-            self.cropROI.hide()
+        ROISize = self.cropROI.size()
+        self.shape = (int(ROISize[0]), int(ROISize[1]))
+        self.cropROI.hide()
 
         self.frameStart = (1, 1)
         self.andor.crop_mode_shape = self.shape
         self.changeParameter(lambda: self.setCropMode(True))
-        self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5,
-                          yMin=-0.5, yMax=self.shape[1] - 0.5,
-                          minXRange=4, minYRange=4)
+        self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5, minXRange=4,
+                          yMin=-0.5, yMax=self.shape[1] - 0.5, minYRange=4)
         self.updateTimings()
 
         self.grid.update(self.shape)
+        self.updateLevels()     # not working  # TODO: make this work
 
     def setCropMode(self, state):
         self.andor.crop_mode = state
@@ -942,6 +942,10 @@ class TormentaGUI(QtGui.QMainWindow):
             self.andor.start_acquisition()
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
             self.viewtimer.start(0)
+
+    def updateLevels(self):
+        self.hist.setLevels(np.min(self.image) - np.std(self.image),
+                            np.max(self.image) + np.std(self.image))
 
     def setGain(self):
         """ Method to change the pre-amp gain and main gain of the EMCCD
@@ -1079,11 +1083,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.recButton.setEnabled(True)
 
         # Initial image
-        image = self.andor.most_recent_image16(self.shape)
-        self.img.setImage(image, autoLevels=False, lut=self.lut)
+        self.image = self.andor.most_recent_image16(self.shape)
+        self.img.setImage(self.image, autoLevels=False, lut=self.lut)
         if update:
-            self.hist.setLevels(np.min(image) - np.std(image),
-                                np.max(image) + np.std(image))
+            self.hist.setLevels(np.min(self.image) - np.std(self.image),
+                                np.max(self.image) + np.std(self.image))
 
         self.viewtimer.start(0)
         self.moleculeWidget.enableBox.setEnabled(True)
@@ -1106,16 +1110,16 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Image update while in Liveview mode
         """
         try:
-            image = self.andor.most_recent_image16(self.shape)
+            self.image = self.andor.most_recent_image16(self.shape)
             if self.moleculeWidget.enabled:
-                self.moleculeWidget.graph.update(image)
-            self.img.setImage(image, autoLevels=False)
+                self.moleculeWidget.graph.update(self.image)
+            self.img.setImage(self.image, autoLevels=False)
 
             if self.crosshair.showed:
                 ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
                 xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
-                self.xProfile.setData(image[:, ycoord])
-                self.yProfile.setData(image[xcoord])
+                self.xProfile.setData(self.image[:, ycoord])
+                self.yProfile.setData(self.image[xcoord])
 
             self.fpsMath()
 

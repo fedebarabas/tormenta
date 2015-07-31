@@ -353,8 +353,8 @@ class Crosshair():
 
 class ROI(pg.ROI):
 
-    def __init__(self, shape, vb, pos, handlePos, handleCenter,
-                 *args, **kwargs):
+    def __init__(self, shape, vb, pos, handlePos, handleCenter, *args,
+                 **kwargs):
 
         self.mainShape = shape
 
@@ -363,7 +363,8 @@ class ROI(pg.ROI):
         vb.addItem(self)
 
         self.label = pg.TextItem()
-        self.label.setPos(self.pos())
+        self.label.setPos(self.pos()[0] + self.size()[0],
+                          self.pos()[1] + self.size()[1])
         self.label.setText('128x128')
 
         self.sigRegionChanged.connect(self.updateText)
@@ -371,12 +372,13 @@ class ROI(pg.ROI):
         vb.addItem(self.label)
 
     def updateText(self):
-        self.label.setPos(self.pos())
+        self.label.setPos(self.pos()[0] + self.size()[0],
+                          self.pos()[1] + self.size()[1])
         size = np.round(self.size()).astype(np.int)
         self.label.setText('{}x{}'.format(size[0], size[1]))
 
     def hide(self, *args, **kwargs):
-        super(ROI, self).hide(*args, **kwargs)
+        super().hide(*args, **kwargs)
         self.label.hide()
 
 
