@@ -384,8 +384,6 @@ class RecWorker(QtCore.QObject):
             time.sleep(self.t_exp.magnitude)
             if self.andor.n_images_acquired > self.j:
                 i, self.j = self.andor.new_images_index
-                print(i, self.j, (self.shape[1], self.shape[2]), 1,
-                      self.shape[0])
                 newImages = self.andor.images16(i, self.j, (self.shape[1],
                                                             self.shape[2]),
                                                 1, self.shape[0])
@@ -1078,7 +1076,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.andor.shutter(0, 1, 0, 0, 0)
 
         self.andor.start_acquisition()
-        time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
+        time.sleep(np.max((5 * self.t_exp_real.magnitude, 1)))
         self.recWidget.readyToRecord = True
         self.recWidget.recButton.setEnabled(True)
 
@@ -1086,9 +1084,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.image = self.andor.most_recent_image16(self.shape)
         self.img.setImage(self.image, autoLevels=False, lut=self.lut)
         if update:
-            self.hist.setLevels(np.min(self.image) - np.std(self.image),
-                                np.max(self.image) + np.std(self.image))
-
+            self.updateLevels()
         self.viewtimer.start(0)
         self.moleculeWidget.enableBox.setEnabled(True)
 
