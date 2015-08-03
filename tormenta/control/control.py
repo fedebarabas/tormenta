@@ -172,7 +172,6 @@ class RecordingWidget(QtGui.QFrame):
             self.numExpositionsEdit.setText(str(np.round(nMax).astype(int)))
 
     def openFolder(self, path):
-        print(self.folderEdit.text())
         if sys.platform == 'darwin':
             subprocess.check_call(['open', '', self.folderEdit.text()])
         elif sys.platform == 'linux':
@@ -187,9 +186,9 @@ class RecordingWidget(QtGui.QFrame):
             folder = filedialog.askdirectory(parent=root,
                                              initialdir=self.initialDir)
             root.destroy()
-            self.folderEdit.setText(folder)
+            if folder != '':
+                self.folderEdit.setText(folder)
         except OSError:
-            print(self.folderEdit.text())
             pass
 
     # Attributes saving
@@ -762,6 +761,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Image Widget
         self.fpsBox = QtGui.QLabel()
+        self.fpsBox.setText('0 fps')
         imageWidget = pg.GraphicsLayoutWidget()
         self.vb = imageWidget.addViewBox(row=1, col=1)
         self.vb.setMouseMode(pg.ViewBox.RectMode)
@@ -1138,7 +1138,7 @@ class TormentaGUI(QtGui.QMainWindow):
         else:
             s = np.clip(dt * 3., 0, 1)
             self.fps = self.fps * (1 - s) + (1.0/dt) * s
-        self.fpsBox.setText('%0.2f fps' % self.fps)
+        self.fpsBox.setText('{} fps'.format(int(self.fps)))
 
     def closeEvent(self, *args, **kwargs):
 
