@@ -102,7 +102,7 @@ def kernel(fwhm):
 def xkernel(fwhm):
     window = np.ceil(fwhm) + 3
     x = np.arange(0, window)
-    matrix = gaussian(x, x.mean(), fwhm)
+    matrix = best_gauss(x, x.mean(), fwhm)
     matrix = matrix - matrix.sum() / matrix.size
     return matrix
 
