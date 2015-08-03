@@ -6,11 +6,9 @@ Created on Sun Dec 22 16:44:59 2013
 """
 
 import numpy as np
-
 import h5py as hdf
 
-from tormenta.analysis.airygauss import fwhm
-from tormenta.analysis.tools import overlaps, kernel, xkernel
+import tormenta.analysis.tools as tools
 
 # data-type definitions
 parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
@@ -65,11 +63,11 @@ class Stack(object):
             self.nm_per_px = 120
 
         self.frame = 0
-        self.fwhm = fwhm(self.lambda_em, self.NA) / self.nm_per_px
+        self.fwhm = tools.fwhm(self.lambda_em, self.NA) / self.nm_per_px
         self.win_size = np.ceil(self.fwhm)
 
-        self.kernel = kernel(self.fwhm)
-        self.xkernel = xkernel(self.fwhm)
+        self.kernel = tools.kernel(self.fwhm)
+        self.xkernel = tools.xkernel(self.fwhm)
 
     def __exit__(self):
         self.file.close()
@@ -142,12 +140,8 @@ class Stack(object):
 
 #            sorted_m = np.array_split(sorted_m, cuts)
 
-
     def close(self):
         self.file.close()
-
-
-
 
 
 if __name__ == "__main__":
@@ -162,7 +156,7 @@ if __name__ == "__main__":
 #    plt.plot(maxima.positions[:, 1], maxima.positions[:, 0],
 #             'ro', markersize=10, alpha=0.5)
 #
-##    image = stack.image[10]
+#    image = stack.image[10]
 #    pico = maxima.get_peak(10)
 #
 #    maxima.fit()

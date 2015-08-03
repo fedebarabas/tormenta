@@ -12,6 +12,7 @@ from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph.ptime as ptime
 
 import tormenta.analysis.maxima as maxima
+import tormenta.analysis.tools as tools
 
 
 class MoleculeWidget(QtGui.QFrame):
@@ -79,6 +80,7 @@ class MoleculesGraph(pg.PlotWidget):
         self.plot2 = pg.ViewBox()
         self.ax2 = pg.AxisItem('right')
         self.plot1.layout.addItem(self.ax2, 2, 3)
+        self.plot1.setLimits(yMin=-0.5)
         self.plot1.scene().addItem(self.plot2)
         self.ax2.linkToView(self.plot2)
         self.plot2.setXLink(self.plot1)
@@ -90,6 +92,9 @@ class MoleculesGraph(pg.PlotWidget):
         # Handle view resizing
         self.updateViews()
         self.plot1.vb.sigResized.connect(self.updateViews)
+
+        self.fwhm = tools.get_fwhm(670, 1.42) / 120
+        self.kernel = tools.kernel(self.fwhm)
 
     def updateViews(self):
         self.plot2.setGeometry(self.plot1.vb.sceneBoundingRect())
@@ -105,14 +110,15 @@ class MoleculesGraph(pg.PlotWidget):
 
     def update(self, image):
 
-        peaks = maxima.Maxima(image, float(self.main.alphaEdit.text()))
-        peaks.find()
+        peaks = maxima.Maxima(image, self.fwhm, self.kernel)
+        peaks.find(float(self.main.alphaEdit.text()))
         nMaxima = len(peaks.positions)
-        overlaps = peaks.overlaps
+        nOverlaps = peaks.overlaps
 
         if self.ptr < self.npoints:
+
             self.dataN[self.ptr] = nMaxima
-            self.dataOverlaps[self.ptr] = overlaps
+            self.dataOverlaps[self.ptr] = nOverlaps
             self.time[self.ptr] = ptime.time() - self.startTime
             self.curve1.setData(self.time[1:self.ptr + 1],
                                 self.dataN[1:self.ptr + 1])
@@ -123,7 +129,7 @@ class MoleculesGraph(pg.PlotWidget):
             self.dataN[:-1] = self.dataN[1:]
             self.dataN[-1] = nMaxima
             self.dataOverlaps[:-1] = self.dataOverlaps[1:]
-            self.dataOverlaps[-1] = overlaps
+            self.dataOverlaps[-1] = nOverlaps
             self.time[:-1] = self.time[1:]
             self.time[-1] = ptime.time() - self.startTime
 

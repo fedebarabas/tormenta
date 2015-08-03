@@ -1098,6 +1098,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def liveviewStop(self):
         self.viewtimer.stop()
         self.recWidget.readyToRecord = False
+        self.moleculeWidget.enableBox.setEnabled(False)
 
         # Turn off camera, close shutter
         idleMsg = 'Camera is idle, waiting for instructions.'
@@ -1155,27 +1156,3 @@ class TormentaGUI(QtGui.QMainWindow):
         self.laserWidgets.closeEvent(*args, **kwargs)
         self.focusWidget.closeEvent(*args, **kwargs)
         super().closeEvent(*args, **kwargs)
-
-
-if __name__ == '__main__':
-
-    app = QtGui.QApplication([])
-
-    with instruments.Camera('andor.ccd.CCD') as andor, \
-            instruments.Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
-            instruments.Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
-            instruments.Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser, \
-            instruments.ScanZ(12) as scanZ, instruments.DAQ() as daq:
-            # instruments.DAQ() as DAQ, ScanZ(12) as scanZ:
-
-        print(andor.idn)
-        print(redlaser.idn)
-        print(bluelaser.idn)
-        print(greenlaser.idn)
-        print('Prior Z stage')
-        print(daq.idn)
-
-        win = TormentaGUI()
-        win.show()
-
-        app.exec_()

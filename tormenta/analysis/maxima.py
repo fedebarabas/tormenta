@@ -18,7 +18,6 @@ import pyqtgraph.ptime as ptime
 
 import tormenta.analysis.stack as stack
 import tormenta.analysis.tools as tools
-from tormenta.analysis.airygauss import fwhm
 
 
 # data-type definitions
@@ -168,12 +167,14 @@ class Maxima():
     def __init__(self, image, fw=None, kernel=None):
         self.image = image
         if fw is None:
-            self.fwhm = fwhm(670, 1.42) / 140
+            self.fwhm = tools.get_fwhm(670, 1.42) / 120
         else:
-            self.fwhm = fwhm
+            self.fwhm = fw
         self.size = int(np.ceil(self.fwhm))
         if kernel is None:
             self.kernel = tools.kernel(self.fwhm)
+        else:
+            self.kernel = kernel
 
     def find_old(self, alpha=5):
         """Local maxima finding routine.
@@ -258,7 +259,6 @@ class Maxima():
                                                    range(1, num_objects + 1)))
 
         self.drop_overlapping()
-        self.drop_border()
 
 #        plt.imshow(mm.image, interpolation='None')
 #        plt.autoscale(False)
