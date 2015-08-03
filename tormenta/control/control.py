@@ -713,15 +713,15 @@ class TormentaGUI(QtGui.QMainWindow):
         cameraGrid.addWidget(cameraTitle, 0, 0)
         cameraGrid.addWidget(self.tree, 1, 0)
 
-        # Temperature stabilization functionality
-        self.TempPar = self.tree.p.param('Temperature')
-        self.stabilizer = TemperatureStabilizer(self)
-        self.stabilizerThread = QtCore.QThread()
-        self.stabilizer.moveToThread(self.stabilizerThread)
-        self.stabilizerThread.started.connect(self.stabilizer.start)
-        self.stabilizerThread.start()
-        self.liveviewStarts.connect(self.stabilizer.stop)
-        self.liveviewEnds.connect(self.stabilizer.start)
+        self.presetsMenu = QtGui.QComboBox()
+        self.presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
+        if not(os.path.isdir(self.presetDir)):
+            self.presetDir = os.path.join(os.getcwd(), 'Presets')
+        for preset in os.listdir(self.presetDir):
+            self.presetsMenu.addItem(preset)
+        self.loadPresetButton = QtGui.QPushButton('Load preset')
+        loadPresetFunction = lambda: guitools.loadPreset(self)
+        self.loadPresetButton.pressed.connect(loadPresetFunction)
 
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
@@ -734,15 +734,28 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
 
-        self.presetsMenu = QtGui.QComboBox()
-        self.presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
-        if not(os.path.isdir(self.presetDir)):
-            self.presetDir = os.path.join(os.getcwd(), 'Presets')
-        for preset in os.listdir(self.presetDir):
-            self.presetsMenu.addItem(preset)
-        self.loadPresetButton = QtGui.QPushButton('Load preset')
-        loadPresetFunction = lambda: guitools.loadPreset(self)
-        self.loadPresetButton.pressed.connect(loadPresetFunction)
+        # viewBox custom Tools
+        self.gridButton = QtGui.QPushButton('Grid')
+        self.gridButton.setCheckable(True)
+        self.crosshairButton = QtGui.QPushButton('Crosshair')
+        self.crosshairButton.setCheckable(True)
+
+        self.viewCtrl = QtGui.QWidget()
+        self.viewCtrlLayout = QtGui.QGridLayout()
+        self.viewCtrl.setLayout(self.viewCtrlLayout)
+        self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 2)
+        self.viewCtrlLayout.addWidget(self.gridButton, 1, 0)
+        self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 1)
+
+        # Temperature stabilization functionality
+        self.TempPar = self.tree.p.param('Temperature')
+        self.stabilizer = TemperatureStabilizer(self)
+        self.stabilizerThread = QtCore.QThread()
+        self.stabilizer.moveToThread(self.stabilizerThread)
+        self.stabilizerThread.started.connect(self.stabilizer.start)
+        self.stabilizerThread.start()
+        self.liveviewStarts.connect(self.stabilizer.stop)
+        self.liveviewEnds.connect(self.stabilizer.start)
 
         # Recording settings widget
         self.recWidget = RecordingWidget(self)
@@ -762,6 +775,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imageWidget.addItem(self.hist, row=1, col=2)
 
+        self.grid = guitools.Grid(self.vb, self.shape)
+        self.gridButton.clicked.connect(self.grid.toggle)
+        self.crosshair = guitools.Crosshair(self.vb)
+        self.crosshairButton.clicked.connect(self.crosshair.toggle)
+
         # x and y profiles
         xPlot = imageWidget.addPlot(row=0, col=1)
         xPlot.hideAxis('left')
@@ -776,16 +794,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.yProfile.rotate(90)
         imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
         yPlot.setYLink(self.vb)
-
-        # viewBox custom Tools
-        self.gridButton = QtGui.QPushButton('Grid')
-        self.gridButton.setCheckable(True)
-        self.grid = guitools.Grid(self.vb, self.shape)
-        self.gridButton.clicked.connect(self.grid.toggle)
-        self.crosshairButton = QtGui.QPushButton('Crosshair')
-        self.crosshairButton.setCheckable(True)
-        self.crosshair = guitools.Crosshair(self.vb)
-        self.crosshairButton.clicked.connect(self.crosshair.toggle)
 
         # Initial camera configuration taken from the parameter tree
         self.andor.set_exposure_time(self.expPar.value() * self.s)
@@ -851,6 +859,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.cwidget = QtGui.QWidget()
         self.setCentralWidget(self.cwidget)
 
+        self.statusBar().addPermanentWidget(self.fpsBox)
+
         # Widgets' layout
         layout = QtGui.QGridLayout()
         self.cwidget.setLayout(layout)
@@ -863,13 +873,10 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(self.presetsMenu, 0, 0)
         layout.addWidget(self.loadPresetButton, 0, 1)
         layout.addWidget(cameraWidget, 1, 0, 2, 2)
-        layout.addWidget(self.liveviewButton, 3, 0, 1, 2)
-        layout.addWidget(self.recWidget, 4, 0, 2, 2)
+        layout.addWidget(self.viewCtrl, 3, 0, 1, 2)
+        layout.addWidget(self.recWidget, 4, 0, 1, 2)
         layout.addWidget(imageWidget, 0, 2, 5, 4)
-        layout.addWidget(self.fpsBox, 5, 2)
-        layout.addWidget(self.gridButton, 5, 4)
-        layout.addWidget(self.crosshairButton, 5, 5)
-        layout.addWidget(dockArea, 0, 6, 6, 1)
+        layout.addWidget(dockArea, 0, 6, 5, 1)
 
         layout.setRowMinimumHeight(2, 40)
 

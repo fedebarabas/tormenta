@@ -57,6 +57,7 @@ class MockDAQ(Driver):
         self.constants = constants()
         self.digital_IO = np.zeros(23, dtype='bool')
 
+    @property
     def idn(self):
         return 'Simulated Labjack T7'
 
