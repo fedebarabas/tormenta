@@ -10,13 +10,9 @@ import numpy as np
 from scipy.special import erf
 from scipy.optimize import minimize
 from scipy.ndimage import label
-from scipy.ndimage.filters import convolve, minimum_filter, maximum_filter
-from scipy.ndimage.morphology import generate_binary_structure, binary_erosion
+from scipy.ndimage.filters import convolve, maximum_filter
 from scipy.ndimage.measurements import maximum_position, center_of_mass
 
-import pyqtgraph.ptime as ptime
-
-import tormenta.analysis.stack as stack
 import tormenta.analysis.tools as tools
 
 
@@ -36,15 +32,15 @@ def fit_area(area, fwhm, bkg):
 
     # First guess of parameters
     F = fwhm / (2 * np.sqrt(np.log(2)))
-    A = (area[np.floor(area.shape[0]/2),
-              np.floor(area.shape[1]/2)] - bkg) / 0.65
+    A = area[np.floor(area.shape[0]/2), np.floor(area.shape[1]/2)] - bkg
+    A /= 0.65
     x0, y0 = center_of_mass(area)
 
-#    return minimize(logll, x0=[A, x0, y0, bkg], args=(peak, F), jac=False,
-#                    method='Newton-CG')
     results = minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
-                       method='Powell')
-
+                       jac=ll_jac((A, x0, y0, bkg), area, F),
+                       method='Newton-CG')
+#    results = minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
+#                       method='Powell')
     return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
 
 # TODO: get error of each parameter from the fit (see Powell?)
@@ -80,7 +76,6 @@ class Maxima():
 
         # Image mask
         self.imageMask = np.zeros(self.image.shape, dtype=bool)
-        maskedArray = np.ma.masked_array(self.image_conv, self.imageMask)
 
         self.mean = np.mean(self.image_conv)
         self.std = np.sqrt(np.mean((self.image_conv - self.mean)**2))
@@ -276,6 +271,15 @@ def logll(params, *args):
     return - np.sum(pico * np.log(lambda_p) - lambda_p)
 
 
+def logll(A, x0, y0, fwhm, bkg):
+    """ Log-likelihood function of an area around a local maximum with respect
+    with a 2d gaussian of A amplitude centered in (x0, y0) with full-width
+    half maximum fwhm on top of a background bkg as the model PSF.
+    """
+
+    return lambda area:
+
+
 def ll_jac(params, *args):
 
     A, x0, y0, bkg = params
@@ -291,15 +295,11 @@ def ll_jac(params, *args):
     jac = np.zeros(4)
 
     # Some derivatives made with sympy
-
     # expr.diff(A)
     jaci0 = (np.pi/4)*F**2*pico*erfi[:, np.newaxis] * erfj/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - (np.pi/4)*F**2*erfi[:, np.newaxis] * erfj
     jac[0] = np.sum(jaci0)
-
     jac[1] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*expi[:, np.newaxis] * erfj)
-
     jac[2] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*erfi[:, np.newaxis] * expj)
-
     # expr.diff(y0)
     jac[3] = np.sum(pico/((np.pi/4)*A*F**2*erfi[:, np.newaxis]*erfj + bkg) - 1)
 
@@ -365,6 +365,8 @@ def ll_hess(params, *args):
     return hess
 
 if __name__ == "__main__":
+
+    import tormenta.analysis.stack as stack
 
     stack = stack.Stack()
     maxima = Maxima(stack.image[10], stack.fwhm)

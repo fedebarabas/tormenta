@@ -126,8 +126,8 @@ class Stack(object):
 
                 try:
 
-                    while does_overlap(sorted_m['maxima'][i - 1],
-                                       sorted_m['maxima'][i], 2):
+                    while tools.overlaps(sorted_m['maxima'][i - 1],
+                                         sorted_m['maxima'][i], 2):
                         i = i + 1
 
                     cuts.append(i)
