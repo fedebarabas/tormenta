@@ -28,24 +28,6 @@ def results_dt(fit_model):
     return n_fit_par, np.dtype(parameters + fit_parameters)
 
 
-def fit_area(area, fwhm, bkg):
-
-    # First guess of parameters
-    F = fwhm / (2 * np.sqrt(np.log(2)))
-    A = area[np.floor(area.shape[0]/2), np.floor(area.shape[1]/2)] - bkg
-    A /= 0.65
-    x0, y0 = center_of_mass(area)
-
-    results = minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
-                       jac=ll_jac((A, x0, y0, bkg), area, F),
-                       method='Newton-CG')
-#    results = minimize(logll, x0=[A, x0, y0, bkg], args=(area, F),
-#                       method='Powell')
-    return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
-
-# TODO: get error of each parameter from the fit (see Powell?)
-
-
 class Maxima():
     """ Class defined as the local maxima in an image frame. """
 
@@ -249,59 +231,93 @@ class Maxima():
         self.results['brightness'] = self.brightness
 
 
-def ex(x, x0, sigma):
-    return np.exp(-(x - x0)**2/sigma**2)
+def fit_area(area, fwhm, bkg):
+
+    # First guess of parameters
+#    F = fwhm / (2 * np.sqrt(np.log(2)))
+    A = area[np.floor(area.shape[0]/2), np.floor(area.shape[1]/2)] - bkg
+    A /= 0.65
+    x0, y0 = center_of_mass(area)
+
+    # TODO: get error of each parameter from the fit (see Powell?)
+    results = minimize(logll, [A, x0, y0, bkg], jac=ll_jac, args=(fwhm, area),
+                       method='CG', options={d})
+#    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
+#                       method='Powell')
+    return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
+
+
+def dexp(x, x0, sigma):
+    return np.exp(-((x + 1 - x0)/sigma)**2) - np.exp(-((x - x0)/sigma)**2)
 
 
 def derf(x, x0, sigma):
+    """ Auxiliary  function. x, x0 and sigma are in px units. """
     return erf((x + 1 - x0) / sigma) - erf((x - x0) / sigma)
 
 
-def logll(params, *args):
-
-    A, x0, y0, bkg = params
-    pico, F = args
-
-    x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
-
-    derfx = derf(x, x0, F)
-    derfy = derf(y, y0, F)
-    lambda_p = A*F**2*np.pi*derfx[:, np.newaxis]*derfy/4 + bkg
-
-    return - np.sum(pico * np.log(lambda_p) - lambda_p)
-
-
-def logll(A, x0, y0, fwhm, bkg):
-    """ Log-likelihood function of an area around a local maximum with respect
-    with a 2d gaussian of A amplitude centered in (x0, y0) with full-width
-    half maximum fwhm on top of a background bkg as the model PSF.
+def lambda_g(A, x0, y0, fwhm, size):
+    """ Theoretical mean number of photons detected in an area of size size**2
+    due to the emission of a molecule located in (x0, y0). The model PSF is
+    a 2d symmetric gaussian of A amplitude with full-width half maximum fwhm.
+    x, x0 and fwhm are in px units.
     """
+#    fwhm *= 0.5*(np.log(2))**(-1/2)
+    fwhm *= 0.6
+    x, y = np.arange(size), np.arange(size)
 
-    return lambda area:
+    derfx = derf(x, x0, fwhm)
+    derfy = derf(y, y0, fwhm)
+    return 0.25 * A * fwhm**2 * np.pi * derfx[:, np.newaxis] * derfy
 
 
-def ll_jac(params, *args):
+def logll(parameters, *args):
+    """ Log-likelihood function for an area of size size**2 around a local
+    maximum with respect with a 2d symmetric gaussian of A amplitude centered
+    in (x0, y0) with full-width half maximum fwhm on top of a background bkg
+    as the model PSF. x, x0 and sigma are in px units.
+    """
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
 
-    A, x0, y0, bkg = params
-    pico, F = args
+    lambda_p = lambda_g(A, x0, y0, fwhm, area.shape[0]) + bkg
+    return -np.sum(area * np.log(lambda_p) - lambda_p)
 
-    x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
 
-    erfi = derf(x, x0, F)
-    erfj = derf(y, y0, F)
-    expi = ex(x, x0 - 1, F) - ex(x, x0, F)
-    expj = ex(y, y0 - 1, F) - ex(y, y0, F)
+# TODO: Not working, check gradient
+def ll_jac(parameters, *args):
+    """ Jacobian of the log-likelihood function for an area of size size**2
+    around a local maximum with respect with a 2d symmetric gaussian of A
+    amplitude centered in (x0, y0) with full-width half maximum fwhm on top of
+    a background bkg as the model PSF. x, x0 and sigma are in px units.
+    Order of derivatives: A, x0, y0, bkg.
+    """
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
+
+#    fwhm *= 0.5*(np.log(2))**(-1/2)
+    fwhm *= 0.6
+    size = area.shape[0]
+    x, y = np.arange(size), np.arange(size)
+
+    derfx = derf(x, x0, fwhm)
+    derfy = derf(y, y0, fwhm)
+    lamb_g = lambda_g(A, x0, y0, fwhm, size)
+    factor = 1 - area/(lamb_g + bkg)
 
     jac = np.zeros(4)
+    # dL/d(A)
+    jac[0] = -np.sum(factor*lamb_g)/A
 
-    # Some derivatives made with sympy
-    # expr.diff(A)
-    jaci0 = (np.pi/4)*F**2*pico*erfi[:, np.newaxis] * erfj/((np.pi/4)*A*F**2*erfi[:, np.newaxis] * erfj + bkg) - (np.pi/4)*F**2*erfi[:, np.newaxis] * erfj
-    jac[0] = np.sum(jaci0)
-    jac[1] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*expi[:, np.newaxis] * erfj)
-    jac[2] = np.sum(- 0.5*A*F*np.sqrt(np.pi)*erfi[:, np.newaxis] * expj)
-    # expr.diff(y0)
-    jac[3] = np.sum(pico/((np.pi/4)*A*F**2*erfi[:, np.newaxis]*erfj + bkg) - 1)
+    # dL/d(x0)
+    jac12 = 0.5*A*fwhm*np.sqrt(np.pi)
+    jac[1] = jac12*np.sum(dexp(x, x0, fwhm)[:, np.newaxis]*derfy*factor)
+
+    # dL/d(y0)
+    jac[2] = jac12*np.sum(dexp(y, y0, fwhm)[:, np.newaxis]*derfx*factor)
+
+    # dL/d(bkg)
+    jac[3] = -np.sum(factor)
 
     return jac
 
