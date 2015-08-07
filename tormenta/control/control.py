@@ -26,7 +26,6 @@ import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
 
 # tormenta imports
-import tormenta.control.instruments as instruments
 import tormenta.control.lasercontrol as lasercontrol
 import tormenta.control.focus as focus
 import tormenta.control.molecules_counter as moleculesCounter
@@ -118,7 +117,7 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(buttonWidget, 6, 0, 1, 5)
 
         recGrid.setColumnMinimumWidth(0, 70)
-        recGrid.setRowMinimumHeight(6, 50)
+        recGrid.setRowMinimumHeight(6, 40)
 
         self.writable = True
         self.readyToRecord = False
@@ -724,7 +723,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Liveview functionality
         self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
-        self.liveviewButton.setStyleSheet("font-size:20px")
+        self.liveviewButton.setStyleSheet("font-size:18px")
         self.liveviewButton.setCheckable(True)
         self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                           QtGui.QSizePolicy.Expanding)
@@ -875,10 +874,11 @@ class TormentaGUI(QtGui.QMainWindow):
         layout.addWidget(cameraWidget, 1, 0, 2, 2)
         layout.addWidget(self.viewCtrl, 3, 0, 1, 2)
         layout.addWidget(self.recWidget, 4, 0, 1, 2)
-        layout.addWidget(imageWidget, 0, 2, 5, 4)
-        layout.addWidget(dockArea, 0, 6, 5, 1)
+        layout.addWidget(imageWidget, 0, 2, 5, 1)
+        layout.addWidget(dockArea, 0, 3, 5, 1)
 
         layout.setRowMinimumHeight(2, 40)
+        layout.setColumnMinimumWidth(2, 1000)
 
     def cropCCD(self):
 
