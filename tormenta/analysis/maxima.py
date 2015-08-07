@@ -240,10 +240,11 @@ def fit_area(area, fwhm, bkg):
     x0, y0 = center_of_mass(area)
 
     # TODO: get error of each parameter from the fit (see Powell?)
-    results = minimize(logll, [A, x0, y0, bkg], jac=ll_jac, args=(fwhm, area),
-                       method='CG', options={d})
+    # TODO: gradient methods not working
 #    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
-#                       method='Powell')
+#                       method='CG', options={'disp': True})
+    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
+                       method='Powell')
     return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
 
 
@@ -264,10 +265,9 @@ def lambda_g(A, x0, y0, fwhm, size):
     """
 #    fwhm *= 0.5*(np.log(2))**(-1/2)
     fwhm *= 0.6
-    x, y = np.arange(size), np.arange(size)
 
-    derfx = derf(x, x0, fwhm)
-    derfy = derf(y, y0, fwhm)
+    derfx = derf(np.arange(size), x0, fwhm)
+    derfy = derf(np.arange(size), y0, fwhm)
     return 0.25 * A * fwhm**2 * np.pi * derfx[:, np.newaxis] * derfy
 
 
@@ -296,25 +296,23 @@ def ll_jac(parameters, *args):
     fwhm, area = args
 
 #    fwhm *= 0.5*(np.log(2))**(-1/2)
-    fwhm *= 0.6
     size = area.shape[0]
     x, y = np.arange(size), np.arange(size)
 
-    derfx = derf(x, x0, fwhm)
-    derfy = derf(y, y0, fwhm)
-    lamb_g = lambda_g(A, x0, y0, fwhm, size)
-    factor = 1 - area/(lamb_g + bkg)
+    derfx = derf(x, x0, fwhm*0.6)
+    derfy = derf(y, y0, fwhm*0.6)
+    factor = 1 - area/(lambda_g(A, x0, y0, fwhm, size) + bkg)
 
     jac = np.zeros(4)
     # dL/d(A)
-    jac[0] = -np.sum(factor*lamb_g)/A
+    # The derivative of lambda_g is lambda_g(A=1)
+    jac[0] = -np.sum(factor*lambda_g(1, x0, y0, fwhm, size))
 
-    # dL/d(x0)
-    jac12 = 0.5*A*fwhm*np.sqrt(np.pi)
-    jac[1] = jac12*np.sum(dexp(x, x0, fwhm)[:, np.newaxis]*derfy*factor)
-
-    # dL/d(y0)
-    jac[2] = jac12*np.sum(dexp(y, y0, fwhm)[:, np.newaxis]*derfx*factor)
+    # dL/d(x0) y dL/d(y0)
+    # 0.3 = 0.5*0.6
+    jac12 = 0.3*A*fwhm*np.sqrt(np.pi)
+    jac[1] = jac12*np.sum(dexp(x, x0, fwhm*0.6)[:, np.newaxis]*derfy*factor)
+    jac[2] = jac12*np.sum(dexp(y, y0, fwhm*0.6)[:, np.newaxis]*derfx*factor)
 
     # dL/d(bkg)
     jac[3] = -np.sum(factor)

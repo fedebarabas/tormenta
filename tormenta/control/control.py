@@ -407,40 +407,31 @@ class TemperatureStabilizer(QtCore.QObject):
 
         super().__init__(*args, **kwargs)
         self.main = main
-        self.parameter = self.main.TempPar
-        self.setPointPar = self.parameter.param('Set point')
-        self.setPointPar.sigValueChanged.connect(self.updateTemp)
-        self.currTempPar = self.parameter.param('Current temperature')
-
-    def updateTemp(self):
-        self.main.andor.temperature_setpoint = Q_(self.setPointPar.value(),
-                                                  'degC')
+        self.setPoint = main.tempSetPoint
+        self.main.andor.temperature_setpoint = self.setPoint
+        self.stableText = 'Temperature has stabilized at set point.'
 
     def start(self):
-        self.updateTemp()
         self.main.andor.cooler_on = True
-        self.update()
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(10000)
+        self.update()
 
     def stop(self):
         self.timer.stop()
 
     def update(self):
         tempStatus = self.main.andor.temperature_status
-        self.parameter.param('Status').setValue(tempStatus)
+        self.main.tempStatus.setText(tempStatus)
 
-        stable = 'Temperature has stabilized at set point.'
-        if tempStatus != stable:
+        if tempStatus != self.stableText:
             temperature = self.main.andor.temperature
-            self.currTempPar.setValue(np.round(temperature.magnitude, 1))
-            tempSetPoint = self.main.andor.temperature_setpoint.magnitude
-            threshold = Q_(0.8 * tempSetPoint, 'degC')
+            self.main.temp.setText('{} ºC'.format(temperature.magnitude))
+            threshold = Q_(0.8 * self.setPoint.magnitude, 'degC')
             if temperature <= threshold or self.main.andor.mock:
                 self.main.liveviewButton.setEnabled(True)
                 self.main.liveviewAction.setEnabled(True)
-#            time.sleep(10)
 
         else:
             self.timer.stop()
@@ -523,15 +514,15 @@ class CamParamTree(ParameterTree):
                        'tip': preampTip},
                       {'name': 'EM gain', 'type': 'int', 'value': 1,
                        'limits': (0, andor.EM_gain_range[1]),
-                       'tip': EMGainTip}]},
-                  {'name': 'Temperature', 'type': 'group', 'children': [
-                      {'name': 'Set point', 'type': 'int', 'value': -50,
-                       'suffix': 'º', 'limits': (-80, 0)},
-                      {'name': 'Current temperature', 'type': 'int',
-                       'value': andor.temperature.magnitude, 'suffix': 'ºC',
-                       'readonly': True},
-                      {'name': 'Status', 'type': 'str', 'readonly': True,
-                       'value': andor.temperature_status}]}]
+                       'tip': EMGainTip}]}]
+#                  {'name': 'Temperature', 'type': 'group', 'children': [
+#                      {'name': 'Set point', 'type': 'int', 'value': -50,
+#                       'suffix': 'º', 'limits': (-80, 0)},
+#                      {'name': 'Current temperature', 'type': 'int',
+#                       'value': andor.temperature.magnitude, 'suffix': 'ºC',
+#                       'readonly': True},
+#                      {'name': 'Status', 'type': 'str', 'readonly': True,
+#                       'value': andor.temperature_status}]}]
 
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
@@ -745,8 +736,17 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewCtrlLayout.addWidget(self.gridButton, 1, 0)
         self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 1)
 
+        self.fpsBox = QtGui.QLabel()
+        self.fpsBox.setText('0 fps')
+        self.statusBar().addPermanentWidget(self.fpsBox)
+        self.tempStatus = QtGui.QLabel()
+        self.statusBar().addPermanentWidget(self.tempStatus)
+        self.temp = QtGui.QLabel()
+        self.statusBar().addPermanentWidget(self.temp)
+
         # Temperature stabilization functionality
-        self.TempPar = self.tree.p.param('Temperature')
+#        self.TempPar = self.tree.p.param('Temperature')
+        self.tempSetPoint = Q_(-50, 'degC')
         self.stabilizer = TemperatureStabilizer(self)
         self.stabilizerThread = QtCore.QThread()
         self.stabilizer.moveToThread(self.stabilizerThread)
@@ -759,8 +759,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget = RecordingWidget(self)
 
         # Image Widget
-        self.fpsBox = QtGui.QLabel()
-        self.fpsBox.setText('0 fps')
         imageWidget = pg.GraphicsLayoutWidget()
         self.vb = imageWidget.addViewBox(row=1, col=1)
         self.vb.setMouseMode(pg.ViewBox.RectMode)
@@ -857,8 +855,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.setWindowTitle('Tormenta')
         self.cwidget = QtGui.QWidget()
         self.setCentralWidget(self.cwidget)
-
-        self.statusBar().addPermanentWidget(self.fpsBox)
 
         # Widgets' layout
         layout = QtGui.QGridLayout()
