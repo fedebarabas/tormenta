@@ -9,6 +9,7 @@ import numpy as np
 import h5py as hdf
 
 import tormenta.analysis.tools as tools
+import tormenta.analysis.maxima as maxima
 
 # data-type definitions
 parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
@@ -46,16 +47,15 @@ class Stack(object):
 
         # Attributes loading as attributes of the stack
         self.attrs = self.file[imagename].attrs
-#        try:
-#            self.attrs['lambda_em']
-#        except:
-#        self.attrs['lambda_em'] = 670
-        self.lambda_em = 670
+        try:
+            self.lambda_em = self.attrs['lambda_em']
+        except:
+            self.lambda_em = 670
 
-#        try:
-#            self.attrs['NA']
-#        except:
-        self.NA = 1.42
+        try:
+            self.NA = self.attrs['NA']
+        except:
+            self.NA = 1.42
 
         try:
             self.nm_per_px = 1000 * self.attrs['element_size_um'][2]
@@ -63,19 +63,16 @@ class Stack(object):
             self.nm_per_px = 120
 
         self.frame = 0
-        self.fwhm = tools.fwhm(self.lambda_em, self.NA) / self.nm_per_px
+        self.fwhm = tools.get_fwhm(self.lambda_em, self.NA) / self.nm_per_px
         self.win_size = np.ceil(self.fwhm)
 
         self.kernel = tools.kernel(self.fwhm)
         self.xkernel = tools.xkernel(self.fwhm)
 
-    def __exit__(self):
-        self.file.close()
-
     def localize_molecules(self, init=0, end=None, fit_model='2d'):
 
         if end is None:
-            end = self.nframes
+            end = len(self.imageData)
 
         # I create a big array, I'll keep the non-null part at the end
         # frame | peaks.results
@@ -84,7 +81,7 @@ class Stack(object):
         if fit_model is '2d':
             self.dt = dt_2d
 
-        results = np.zeros(len(self.frames)*np.prod(self.size)
+        results = np.zeros((end - init + 1)*np.prod(self.imageData.shape[1:])
                            / (self.win_size + 1), dtype=self.dt)
 
         mol_per_frame = np.zeros(len(self.frames),
@@ -94,8 +91,9 @@ class Stack(object):
         for frame in self.frames:
 
             # fit all molecules in each frame
-            maxi = maxima.Maxima(stack.image[frame], stack.fwhm)
-            maxi.find(stack.kernel, stack.xkernel)
+            maxi = maxima.Maxima(self.imageData[frame], self.fwhm)
+            maxi.find()
+            maxi.getParameters()
             maxi.fit(fit_model)
 
             # save frame number and fit results
@@ -108,7 +106,8 @@ class Stack(object):
 
             index = index + len(maxi.results)
 
-            print(100 * (frame - init) / len(self.frames), '% done')
+            print(np.round((100 * (frame - init) / len(self.frames)), 2),
+                  '% done')
 
         # final results table
         self.molecules = results[0:index]
@@ -116,7 +115,6 @@ class Stack(object):
     def filter_results(self, trail=True):
 
         ### TODO: filter by parameters
-
         if trail:
 
             # Find trails: local maxima in the same pixel in consecutive frames
@@ -128,8 +126,8 @@ class Stack(object):
 
                 try:
 
-                    while does_overlap(sorted_m['maxima'][i - 1],
-                                       sorted_m['maxima'][i], 2):
+                    while tools.overlaps(sorted_m['maxima'][i - 1],
+                                         sorted_m['maxima'][i], 2):
                         i = i + 1
 
                     cuts.append(i)
@@ -139,6 +137,9 @@ class Stack(object):
                     pass
 
 #            sorted_m = np.array_split(sorted_m, cuts)
+
+    def __exit__(self):
+        self.file.close()
 
     def close(self):
         self.file.close()

@@ -195,7 +195,7 @@ class RecordingWidget(QtGui.QFrame):
         attrs = self.main.tree.attrs()
         attrs.extend([('Date', time.strftime("%Y-%m-%d")),
                       ('Start time', time.strftime("%H:%M:%S")),
-                      ('element_size_um', (1, 0.143, 0.143)),
+                      ('element_size_um', (1, 0.120, 0.120)),
                       ('NA', 1.42),
                       ('lambda_em', 670)])
         for laserControl in self.main.laserWidgets.controls:
