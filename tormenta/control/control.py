@@ -424,10 +424,10 @@ class TemperatureStabilizer(QtCore.QObject):
     def update(self):
         tempStatus = self.main.andor.temperature_status
         self.main.tempStatus.setText(tempStatus)
+        temperature = np.round(self.main.andor.temperature, 1)
+        self.main.temp.setText('{} ºC'.format(temperature.magnitude))
 
         if tempStatus != self.stableText:
-            temperature = self.main.andor.temperature
-            self.main.temp.setText('{} ºC'.format(temperature.magnitude))
             threshold = Q_(0.8 * self.setPoint.magnitude, 'degC')
             if temperature <= threshold or self.main.andor.mock:
                 self.main.liveviewButton.setEnabled(True)
@@ -726,8 +726,16 @@ class TormentaGUI(QtGui.QMainWindow):
         # viewBox custom Tools
         self.gridButton = QtGui.QPushButton('Grid')
         self.gridButton.setCheckable(True)
+        self.gridButton.setEnabled(False)
         self.crosshairButton = QtGui.QPushButton('Crosshair')
         self.crosshairButton.setCheckable(True)
+        self.crosshairButton.setEnabled(False)
+
+        self.flipperButton = QtGui.QPushButton('STORM')
+        self.flipperButton.setStyleSheet("font-size:16px")
+        self.flipperButton.setCheckable(True)
+        self.flipperButton.setEnabled(False)
+        self.flipperButton.clicked.connect(self.daq.toggleFlipper)
 
         self.viewCtrl = QtGui.QWidget()
         self.viewCtrlLayout = QtGui.QGridLayout()
@@ -735,6 +743,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 2)
         self.viewCtrlLayout.addWidget(self.gridButton, 1, 0)
         self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 1)
+        self.viewCtrlLayout.addWidget(self.flipperButton, 2, 0, 1, 2)
 
         self.fpsBox = QtGui.QLabel()
         self.fpsBox.setText('0 fps')
@@ -1090,11 +1099,17 @@ class TormentaGUI(QtGui.QMainWindow):
             self.updateLevels()
         self.viewtimer.start(0)
         self.moleculeWidget.enableBox.setEnabled(True)
+        self.gridButton.setEnabled(True)
+        self.crosshairButton.setEnabled(True)
+        self.flipperButton.setEnabled(True)
 
     def liveviewStop(self):
         self.viewtimer.stop()
         self.recWidget.readyToRecord = False
         self.moleculeWidget.enableBox.setEnabled(False)
+        self.gridButton.setEnabled(False)
+        self.crosshairButton.setEnabled(False)
+        self.flipperButton.setEnabled(False)
 
         # Turn off camera, close shutter
         idleMsg = 'Camera is idle, waiting for instructions.'
@@ -1144,10 +1159,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizer.timer.stop()
         self.stabilizerThread.terminate()
 
-        # Turn off camera, close shutter
+        # Turn off camera, close shutter and flipper
         if self.andor.status != 'Camera is idle, waiting for instructions.':
             self.andor.abort_acquisition()
         self.andor.shutter(0, 2, 0, 0, 0)
+        self.daq.flipper = True
 
         self.laserWidgets.closeEvent(*args, **kwargs)
         self.focusWidget.closeEvent(*args, **kwargs)

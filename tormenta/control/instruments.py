@@ -7,7 +7,6 @@ Created on Sun Dec 28 13:25:27 2014
 
 import numpy as np
 import importlib
-import sys
 
 from lantz.drivers.andor.ccd import CCD
 from lantz.drivers.labjack.t7 import T7
@@ -58,7 +57,6 @@ class DAQ(object):
             return STORMDAQ(*args)
 
         except:
-            print(sys.exc_info()[0])
             return mockers.MockDAQ()
 
 
@@ -83,7 +81,7 @@ class STORMDAQ(T7):
 
     @property
     def flipper(self):
-        """ Flipper ON means the ND filter is in the light path."""
+        """ Flipper True means the ND filter is in the light path."""
         return self.flipperState
 
     @flipper.setter
@@ -94,6 +92,9 @@ class STORMDAQ(T7):
             self.writeName("DIO2_EF_CONFIG_A", 72000)
 
         self.flipperState = value
+
+    def toggleFlipper(self):
+        self.flipper = not(self.flipper)
 
 
 class ScanZ(object):
