@@ -56,6 +56,7 @@ class MockDAQ(Driver):
         super(MockDAQ).__init__()
         self.constants = constants()
         self.digital_IO = np.zeros(23, dtype='bool')
+        self.flipperState = True
 
     @property
     def idn(self):
@@ -75,6 +76,14 @@ class MockDAQ(Driver):
 
     def address(self, port):
         return (0, 0)
+
+    @property
+    def flipper(self):
+        return self.flipperState
+
+    @flipper.setter
+    def flipper(self, value):
+        self.flipperState = value
 
 
 class MockScanZ(Driver):

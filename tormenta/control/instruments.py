@@ -7,8 +7,10 @@ Created on Sun Dec 28 13:25:27 2014
 
 import numpy as np
 import importlib
+import sys
 
 from lantz.drivers.andor.ccd import CCD
+from lantz.drivers.labjack.t7 import T7
 from lantz import Q_
 
 import pygame
@@ -53,12 +55,45 @@ class DAQ(object):
             from labjack import ljm
             handle = ljm.openS("ANY", "ANY", "ANY")
             ljm.close(handle)
-
-            from lantz.drivers.labjack.t7 import T7
-            return T7(*args)
+            return STORMDAQ(*args)
 
         except:
+            print(sys.exc_info()[0])
             return mockers.MockDAQ()
+
+
+class STORMDAQ(T7):
+    """ Subclass of the Labjack lantz driver. """
+    def __init__(self, *args):
+
+        super().__init__(*args)
+        super().initialize(*args)
+
+        # Clock configuration for the flipper
+        self.writeName("DIO_EF_CLOCK0_ENABLE", 0)
+        self.writeName("DIO_EF_CLOCK0_DIVISOR", 1)
+        self.writeName("DIO_EF_CLOCK0_ROLL_VALUE", 1600000)
+        self.writeName("DIO_EF_CLOCK0_ENABLE", 1)
+        self.writeName("DIO2_EF_ENABLE", 0)
+        self.writeName("DIO2_EF_INDEX", 0)
+        self.writeName("DIO2_EF_OPTIONS", 0)
+        self.flipperState = True
+        self.flipper = self.flipperState
+        self.writeName("DIO2_EF_ENABLE", 1)
+
+    @property
+    def flipper(self):
+        """ Flipper ON means the ND filter is in the light path."""
+        return self.flipperState
+
+    @flipper.setter
+    def flipper(self, value):
+        if value:
+            self.writeName("DIO2_EF_CONFIG_A", 150000)
+        else:
+            self.writeName("DIO2_EF_CONFIG_A", 72000)
+
+        self.flipperState = value
 
 
 class ScanZ(object):
@@ -100,8 +135,8 @@ class STORMCamera(CCD):
 
     def __init__(self, *args, **kwargs):
 
-        super(STORMCamera, self).__init__(*args, **kwargs)
-        super(STORMCamera, self).initialize(*args, **kwargs)
+        super().__init__(*args, **kwargs)
+        super().initialize(*args, **kwargs)
 
         self.s = Q_(1, 's')
         self.mock = False
