@@ -69,14 +69,16 @@ class Stack(object):
         self.kernel = tools.kernel(self.fwhm)
         self.xkernel = tools.xkernel(self.fwhm)
 
-    def localize_molecules(self, init=0, end=None, fit_model='2d'):
+    def localize_molecules(self, ran=(0, None), fit_model='2d'):
+
+        init, end = ran
 
         if end is None:
             end = len(self.imageData)
 
         # I create a big array, I'll keep the non-null part at the end
         # frame | peaks.results
-        self.frames = np.arange(init, end + 1)
+        self.frames = np.arange(init, end)
 
         if fit_model is '2d':
             self.dt = dt_2d
@@ -93,24 +95,29 @@ class Stack(object):
             # fit all molecules in each frame
             maxi = maxima.Maxima(self.imageData[frame], self.fwhm)
             maxi.find()
-            maxi.getParameters()
-            maxi.fit(fit_model)
 
-            # save frame number and fit results
-            results[index:index + len(maxi.results)] = maxi.results
-            results['frame'][index:index + len(maxi.results)] = frame
+            if len(maxi.positions) > 0:
 
-            # save number of molecules per frame
-            mol_per_frame['frame'][frame - init] = frame
-            mol_per_frame['molecules'][frame - init] = len(maxi.results)
+                maxi.getParameters()
+                maxi.fit(fit_model)
 
-            index = index + len(maxi.results)
+                # save frame number and fit results
+                results[index:index + len(maxi.results)] = maxi.results
+                results['frame'][index:index + len(maxi.results)] = frame
 
-            print(np.round((100 * (frame - init) / len(self.frames)), 2),
-                  '% done')
+                # save number of molecules per frame
+                mol_per_frame['frame'][frame - init] = frame
+                mol_per_frame['molecules'][frame - init] = len(maxi.results)
+
+                index += len(maxi.results)
+
+            progress = np.round((100 * (frame - init) / len(self.frames)), 2)
+            print('{}% done'.format(progress), end="\r")
 
         # final results table
         self.molecules = results[0:index]
+
+# FIXME: not saving properly
 
     def filter_results(self, trail=True):
 

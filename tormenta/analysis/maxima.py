@@ -65,7 +65,7 @@ class Maxima():
 
         # Estimate for the maximum number of maxima in a frame
         nMax = np.ceil(self.image.size / (2*self.size + 1)**2)
-        maxima = np.zeros((nMax, 2), dtype=int)
+        self.positions = np.zeros((nMax, 2), dtype=int)
         nPeak = 0
 
         while 1:
@@ -76,7 +76,7 @@ class Maxima():
             if(self.image_conv[j, i] >= self.threshold):
 
                 # Saving the peak
-                maxima[nPeak] = tuple([j, i])
+                self.positions[nPeak] = tuple([j, i])
 
                 # this is the part that masks already-found maxima
                 x = np.arange(i - self.size, i + self.size + 1, dtype=np.int)
@@ -91,9 +91,10 @@ class Maxima():
             else:
                 break
 
-        self.positions = maxima[:nPeak]
-        self.drop_overlapping()
-        self.drop_border()
+        if nPeak > 0:
+            self.positions = self.positions[:nPeak]
+            self.drop_overlapping()
+            self.drop_border()
 
     def find(self, alpha=5):
         """
@@ -120,11 +121,15 @@ class Maxima():
         maxima[diff == 0] = 0
 
         labeled, num_objects = label(maxima)
-        self.positions = np.array(maximum_position(self.image, labeled,
-                                                   range(1, num_objects + 1)))
+        if num_objects > 0:
+            self.positions = maximum_position(self.image, labeled,
+                                              range(1, num_objects + 1))
+            self.positions = np.array(self.positions)
+            self.drop_overlapping()
+            self.drop_border()
+        else:
+            self.positions = np.zeros((0, 2), dtype=int)
 
-        self.drop_overlapping()
-        self.drop_border()
 
 #        plt.imshow(mm.image, interpolation='None')
 #        plt.autoscale(False)
@@ -134,8 +139,13 @@ class Maxima():
     def drop_overlapping(self):
         """Drop overlapping spots."""
         n = len(self.positions)
-        self.positions = tools.dropOverlapping(self.positions, 2*self.size + 1)
-        self.overlaps = n - len(self.positions)
+
+        if n > 1:
+            self.positions = tools.dropOverlapping(self.positions,
+                                                   2*self.size + 1)
+            self.overlaps = n - len(self.positions)
+        else:
+            self.overlaps = 0
 
     def drop_border(self):
         """ Drop near-the-edge spots. """
@@ -230,6 +240,7 @@ class Maxima():
         self.results['roundness'] = self.roundness
         self.results['brightness'] = self.brightness
 
+# FIXME: not saving properly
 
 def fit_area(area, fwhm, bkg):
 
