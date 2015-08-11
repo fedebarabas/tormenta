@@ -312,8 +312,9 @@ class RecordingWidget(QtGui.QFrame):
 
     def endRecording(self):
 
-        if self.main.shuttersAction.isChecked():
-            self.main.laserWidgets.closeShutters()
+        # Attenuate excitation x1000, turn blue laser off
+        self.main.flipperInPath(True)
+        self.main.laserWidgets.blueControl.laser.power_sp = Q_(0, 'mW')
 
         self.recordingThread.terminate()
 
@@ -623,13 +624,13 @@ class TormentaGUI(QtGui.QMainWindow):
         fileMenu.addAction(self.savePresetAction)
         fileMenu.addSeparator()
 
-        self.shuttersAction = QtGui.QAction(('Close shutters when recording '
-                                             'is over'), self, checkable=True)
-        self.shuttersAction.setChecked(True)
-        self.shuttersAction.setStatusTip(('Close all laser shutters when the '
-                                          'recording session is over'))
-        fileMenu.addAction(self.shuttersAction)
-        fileMenu.addSeparator()
+#        self.shuttersAction = QtGui.QAction(('Close shutters when recording '
+#                                             'is over'), self, checkable=True)
+#        self.shuttersAction.setChecked(True)
+#        self.shuttersAction.setStatusTip(('Close all laser shutters when the '
+#                                          'recording session is over'))
+#        fileMenu.addAction(self.shuttersAction)
+#        fileMenu.addSeparator()
 
 #        snapMenu = fileMenu.addMenu('Snap format')
 #        self.snapTiffAction = QtGui.QAction('TIFF', self, checkable=True)
@@ -884,6 +885,10 @@ class TormentaGUI(QtGui.QMainWindow):
 
         layout.setRowMinimumHeight(2, 40)
         layout.setColumnMinimumWidth(2, 1000)
+
+    def flipperInPath(self, value):
+        self.flipperButton.setChecked(not(value))
+        self.daq.flipper = value
 
     def cropCCD(self):
 

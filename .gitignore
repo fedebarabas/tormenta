@@ -9,6 +9,7 @@
 *.hdf5
 *.png
 *.npy
+*.dat
 /control/tifffile.py
 /control/tifffile.c
 /control/focus_data
