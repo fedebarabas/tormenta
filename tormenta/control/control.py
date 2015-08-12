@@ -732,10 +732,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.crosshairButton.setCheckable(True)
         self.crosshairButton.setEnabled(False)
 
-        self.flipperButton = QtGui.QPushButton('STORM')
+        self.flipperButton = QtGui.QPushButton('x1000')
         self.flipperButton.setStyleSheet("font-size:16px")
         self.flipperButton.setCheckable(True)
-        self.flipperButton.setEnabled(False)
         self.flipperButton.clicked.connect(self.daq.toggleFlipper)
 
         self.viewCtrl = QtGui.QWidget()
@@ -755,7 +754,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.statusBar().addPermanentWidget(self.temp)
 
         # Temperature stabilization functionality
-#        self.TempPar = self.tree.p.param('Temperature')
         self.tempSetPoint = Q_(-50, 'degC')
         self.stabilizer = TemperatureStabilizer(self)
         self.stabilizerThread = QtCore.QThread()
@@ -1106,7 +1104,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
         self.crosshairButton.setEnabled(True)
-        self.flipperButton.setEnabled(True)
 
     def liveviewStop(self):
         self.viewtimer.stop()
@@ -1114,7 +1111,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.moleculeWidget.enableBox.setEnabled(False)
         self.gridButton.setEnabled(False)
         self.crosshairButton.setEnabled(False)
-        self.flipperButton.setEnabled(False)
 
         # Turn off camera, close shutter
         idleMsg = 'Camera is idle, waiting for instructions.'
