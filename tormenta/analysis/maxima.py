@@ -252,10 +252,11 @@ def fit_area(area, fwhm, bkg):
 
     # TODO: get error of each parameter from the fit (see Powell?)
     # TODO: gradient methods not working
-#    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
-#                       method='CG', options={'disp': True})
-    # 1.45 is an ad hoc factor to minimize the number of iterations during fit
-    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm * 1.45, area),
+#    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm * 1.7, area),
+#                       method='CG')
+    # 1.7 is an ad hoc factor to minimize the number of iterations during fit
+    results = minimize(logll, [A, x0, y0, bkg],
+                       args=(fwhm * 1.75, area, np.arange(len(area))),
                        method='Powell')
     return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
 
@@ -269,7 +270,15 @@ def derf(x, x0, sigma):
     return erf((x + 1 - x0) / sigma) - erf((x - x0) / sigma)
 
 
-def lambda_g(A, x0, y0, fwhm, size, factor=0.09, f2=0.6):
+# TODO: broadcasting here?
+def derfs(xy, x0, y0, sigma):
+    """ Auxiliary  function. x, x0 and sigma are in px units. """
+    i = erf((xy + 1 - x0) / sigma) - erf((xy - x0) / sigma)
+    j = erf((xy + 1 - y0) / sigma) - erf((xy - y0) / sigma)
+    return i[:, np.newaxis] * j
+
+
+def lambda_g(A, x0, y0, fwhm, vector, factor=0.09*np.pi, f2=0.6):
     """ Theoretical mean number of photons detected in an area of size size**2
     due to the emission of a molecule located in (x0, y0). The model PSF is
     a 2d symmetric gaussian of A amplitude with full-width half maximum fwhm.
@@ -279,10 +288,7 @@ def lambda_g(A, x0, y0, fwhm, size, factor=0.09, f2=0.6):
 #    fwhm *= 0.6
 #    0.6*0.6*0.25 = 0.09
 
-    xy = np.arange(size)
-    derfx = derf(xy, x0, fwhm * f2)
-    derfy = derf(xy, y0, fwhm * f2)
-    return factor * A * fwhm**2 * np.pi * derfx[:, np.newaxis] * derfy
+    return factor * A * fwhm**2 * derfs(vector, x0, y0, fwhm * f2)
 
 
 def logll(parameters, *args):
@@ -292,9 +298,9 @@ def logll(parameters, *args):
     as the model PSF. x, x0 and sigma are in px units.
     """
     A, x0, y0, bkg = parameters
-    fwhm, area = args
+    fwhm, area, vector = args
 
-    lambda_p = lambda_g(A, x0, y0, fwhm, len(area)) + bkg
+    lambda_p = lambda_g(A, x0, y0, fwhm, vector) + bkg
     return -np.sum(area * np.log(lambda_p) - lambda_p)
 
 
@@ -311,10 +317,10 @@ def ll_jac(parameters, *args):
 
 #    fwhm *= 0.5*(np.log(2))**(-1/2)
     size = area.shape[0]
-    x, y = np.arange(size), np.arange(size)
+    xy = np.arange(size)
 
-    derfx = derf(x, x0, fwhm*0.6)
-    derfy = derf(y, y0, fwhm*0.6)
+    derfx = derf(xy, x0, fwhm*0.6)
+    derfy = derf(xy, y0, fwhm*0.6)
     factor = 1 - area/(lambda_g(A, x0, y0, fwhm, size) + bkg)
 
     jac = np.zeros(4)
@@ -325,8 +331,8 @@ def ll_jac(parameters, *args):
     # dL/d(x0) y dL/d(y0)
     # 0.3 = 0.5*0.6
     jac12 = 0.3*A*fwhm*np.sqrt(np.pi)
-    jac[1] = jac12*np.sum(dexp(x, x0, fwhm*0.6)[:, np.newaxis]*derfy*factor)
-    jac[2] = jac12*np.sum(dexp(y, y0, fwhm*0.6)[:, np.newaxis]*derfx*factor)
+    jac[1] = jac12*np.sum(dexp(xy, x0, fwhm*0.6)[:, np.newaxis]*derfy*factor)
+    jac[2] = jac12*np.sum(dexp(xy, y0, fwhm*0.6)[:, np.newaxis]*derfx*factor)
 
     # dL/d(bkg)
     jac[3] = -np.sum(factor)
