@@ -18,6 +18,8 @@ import tormenta.analysis.tools as tools
 
 # data-type definitions
 def results_dt(fit_model):
+    n_fit_par = 0
+    fit_parameters = []
     if fit_model is '2d':
         fit_parameters = [('amplitude', float), ('maxima_fit', np.float, (2,)),
                           ('background', float)]
@@ -187,7 +189,7 @@ class Maxima():
 
             # Sharpness
             masked = np.ma.masked_array(self.area(i), mask)
-            sharpness[i] = self.image[p] / (self.image_conv[p] * masked.mean())
+            sharpness[i] = 100*self.image[p]/(self.image_conv[p]*masked.mean())
 
             # Roundness
             hx = np.dot(self.area(i)[2, :], self.xkernel)
@@ -240,7 +242,6 @@ class Maxima():
         self.results['roundness'] = self.roundness
         self.results['brightness'] = self.brightness
 
-# FIXME: not saving properly
 
 def fit_area(area, fwhm, bkg):
 

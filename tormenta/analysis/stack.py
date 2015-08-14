@@ -7,17 +7,10 @@ Created on Sun Dec 22 16:44:59 2013
 
 import numpy as np
 import h5py as hdf
+import multiprocessing as mp
 
 import tormenta.analysis.tools as tools
 import tormenta.analysis.maxima as maxima
-
-# data-type definitions
-parameters_2d = [('amplitude', float), ('x0', float), ('y0', float),
-                 ('background', float)]
-parameters = [('frame', int), ('maxima', np.int, (2,)), ('photons', float),
-              ('sharpness', float), ('roundness', float),
-              ('brightness', float)]
-dt_2d = np.dtype(parameters + parameters_2d)
 
 
 def convert(word):
@@ -44,6 +37,7 @@ class Stack(object):
 
         # Loading of measurements (i.e., images) in HDF5 file
         self.imageData = self.file[imagename].value
+        self.nframes = len(self.imageData)
 
         # Attributes loading as attributes of the stack
         self.attrs = self.file[imagename].attrs
@@ -71,53 +65,20 @@ class Stack(object):
 
     def localize_molecules(self, ran=(0, None), fit_model='2d'):
 
-        init, end = ran
+        if ran[1] is None:
+            ran[1] = self.nframes
 
-        if end is None:
-            end = len(self.imageData)
+        cpus = mp.cpu_count()
+        step = int((ran[1] - ran[0])/cpus)
+        chunks = [[i*step, (i + 1)*step - 1] for i in np.arange(cpus)]
+        chunks[-1][1] = ran[1] - 1
 
-        # I create a big array, I'll keep the non-null part at the end
-        # frame | peaks.results
-        self.frames = np.arange(init, end)
+        args = [[self.imageData[i:j], '2d', self.win_size, self.fwhm, i]
+                for i, j in chunks]
 
-        if fit_model is '2d':
-            self.dt = dt_2d
-
-        results = np.zeros((end - init + 1)*np.prod(self.imageData.shape[1:])
-                           / (self.win_size + 1), dtype=self.dt)
-
-        mol_per_frame = np.zeros(len(self.frames),
-                                 dtype=[('frame', int), ('molecules', int)])
-        index = 0
-
-        for frame in self.frames:
-
-            # fit all molecules in each frame
-            maxi = maxima.Maxima(self.imageData[frame], self.fwhm)
-            maxi.find()
-
-            if len(maxi.positions) > 0:
-
-                maxi.getParameters()
-                maxi.fit(fit_model)
-
-                # save frame number and fit results
-                results[index:index + len(maxi.results)] = maxi.results
-                results['frame'][index:index + len(maxi.results)] = frame
-
-                # save number of molecules per frame
-                mol_per_frame['frame'][frame - init] = frame
-                mol_per_frame['molecules'][frame - init] = len(maxi.results)
-
-                index += len(maxi.results)
-
-            progress = np.round((100 * (frame - init) / len(self.frames)), 2)
-            print('{}% done'.format(progress), end="\r")
-
-        # final results table
-        self.molecules = results[0:index]
-
-# FIXME: not saving properly
+        pool = mp.Pool(processes=cpus)
+        results = pool.map(localize_chunk, args)
+        self.molecules = np.concatenate(results[:])
 
     def filter_results(self, trail=True):
 
@@ -151,6 +112,50 @@ class Stack(object):
     def close(self):
         self.file.close()
 
+
+def localize_chunk(args):
+
+    stack, fit_model, win_size, fwhm, init_frame = args
+
+    n_frames = len(stack)
+    dt = maxima.results_dt(fit_model)[1]
+
+    # I create a big array, I'll keep the non-null part at the end
+    results = np.zeros((n_frames + 1)*np.prod(stack.shape[1:])/(win_size + 1),
+                       dtype=dt)
+
+#    mol_per_frame = np.zeros(n_frames,
+#                             dtype=[('frame', int), ('molecules', int)])
+    index = 0
+
+    for n in np.arange(n_frames):
+
+        frame = init_frame + n
+
+        # fit all molecules in each frame
+        maxi = maxima.Maxima(stack[n], fwhm)
+        maxi.find()
+
+        if len(maxi.positions) > 0:
+
+            maxi.getParameters()
+            maxi.fit(fit_model)
+
+            # save frame number and fit results
+            results[index:index + len(maxi.results)] = maxi.results
+            results['frame'][index:index + len(maxi.results)] = frame
+
+            # save number of molecules per frame
+#            mol_per_frame['frame'][frame - init] = frame
+#            mol_per_frame['molecules'][frame - init] = len(maxi.results)
+
+            index += len(maxi.results)
+
+#        progress = np.round((100 * (frame - init) / len(frames)), 2)
+#        print('{}% done'.format(progress), end="\r")
+
+    # final results table
+    return results[0:index]
 
 if __name__ == "__main__":
 
