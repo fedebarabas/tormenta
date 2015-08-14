@@ -176,33 +176,33 @@ class Maxima():
         self.xkernel = tools.xkernel(self.fwhm)
 
         # Peak parameters
-        roundness = np.zeros(len(self.positions))
-        brightness = np.zeros(len(self.positions))
+        self.roundness = np.zeros(len(self.positions))
+        self.brightness = np.zeros(len(self.positions))
+        self.sharpness = np.zeros(len(self.positions))
 
-        sharpness = np.zeros(len(self.positions))
         mask = np.zeros((2*self.size + 1, 2*self.size + 1), dtype=bool)
         mask[self.size, self.size] = True
 
-        for i in np.arange(len(self.positions)):
+        i = 0
+        for maxx in self.positions:
             # tuples make indexing easier (see below)
-            p = tuple(self.positions[i])
+            p = tuple(maxx)
 
             # Sharpness
-            masked = np.ma.masked_array(self.area(i), mask)
-            sharpness[i] = 100*self.image[p]/(self.image_conv[p]*masked.mean())
+            masked = np.ma.masked_array(self.radius(maxx), mask)
+            self.sharpness[i] = 100*self.image[p]/(self.image_conv[p] *
+                                                   np.mean(masked))
 
             # Roundness
-            hx = np.dot(self.area(i)[2, :], self.xkernel)
-            hy = np.dot(self.area(i)[:, 2], self.xkernel)
-            roundness[i] = 2 * (hy - hx) / (hy + hx)
+            hx = np.dot(self.radius(maxx)[2, :], self.xkernel)
+            hy = np.dot(self.radius(maxx)[:, 2], self.xkernel)
+            self.roundness[i] = 2 * (hy - hx) / (hy + hx)
 
             # Brightness
-            brightness[i] = 2.5 * np.log(self.image_conv[p] /
-                                         self.alpha*self.std)
+            self.brightness[i] = 2.5 * np.log(self.image_conv[p] /
+                                              (self.alpha * self.std))
 
-        self.sharpness = sharpness
-        self.roundness = roundness
-        self.brightness = brightness
+            i += 1
 
     def area(self, n):
         """Returns the area around the local maximum number n."""
@@ -242,11 +242,10 @@ class Maxima():
         self.results['roundness'] = self.roundness
         self.results['brightness'] = self.brightness
 
-
+# TODO: run calibration routine for better fwhm estimate
 def fit_area(area, fwhm, bkg):
 
     # First guess of parameters
-#    F = fwhm / (2 * np.sqrt(np.log(2)))
     A = area[np.floor(area.shape[0]/2), np.floor(area.shape[1]/2)] - bkg
     A /= 0.65
     x0, y0 = center_of_mass(area)
@@ -255,7 +254,8 @@ def fit_area(area, fwhm, bkg):
     # TODO: gradient methods not working
 #    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
 #                       method='CG', options={'disp': True})
-    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
+    # 1.45 is an ad hoc factor to minimize the number of iterations during fit
+    results = minimize(logll, [A, x0, y0, bkg], args=(fwhm * 1.45, area),
                        method='Powell')
     return [results.x[0], np.array([results.x[1], results.x[2]]), results.x[3]]
 
@@ -269,18 +269,20 @@ def derf(x, x0, sigma):
     return erf((x + 1 - x0) / sigma) - erf((x - x0) / sigma)
 
 
-def lambda_g(A, x0, y0, fwhm, size):
+def lambda_g(A, x0, y0, fwhm, size, factor=0.09, f2=0.6):
     """ Theoretical mean number of photons detected in an area of size size**2
     due to the emission of a molecule located in (x0, y0). The model PSF is
     a 2d symmetric gaussian of A amplitude with full-width half maximum fwhm.
     x, x0 and fwhm are in px units.
     """
 #    fwhm *= 0.5*(np.log(2))**(-1/2)
-    fwhm *= 0.6
+#    fwhm *= 0.6
+#    0.6*0.6*0.25 = 0.09
 
-    derfx = derf(np.arange(size), x0, fwhm)
-    derfy = derf(np.arange(size), y0, fwhm)
-    return 0.25 * A * fwhm**2 * np.pi * derfx[:, np.newaxis] * derfy
+    xy = np.arange(size)
+    derfx = derf(xy, x0, fwhm * f2)
+    derfy = derf(xy, y0, fwhm * f2)
+    return factor * A * fwhm**2 * np.pi * derfx[:, np.newaxis] * derfy
 
 
 def logll(parameters, *args):
@@ -292,7 +294,7 @@ def logll(parameters, *args):
     A, x0, y0, bkg = parameters
     fwhm, area = args
 
-    lambda_p = lambda_g(A, x0, y0, fwhm, area.shape[0]) + bkg
+    lambda_p = lambda_g(A, x0, y0, fwhm, len(area)) + bkg
     return -np.sum(area * np.log(lambda_p) - lambda_p)
 
 

@@ -127,16 +127,18 @@ def localize_chunk(args):
 #    mol_per_frame = np.zeros(n_frames,
 #                             dtype=[('frame', int), ('molecules', int)])
     index = 0
+    frame = init_frame
 
     for n in np.arange(n_frames):
 
-        frame = init_frame + n
+        frame += n
 
         # fit all molecules in each frame
         maxi = maxima.Maxima(stack[n], fwhm)
         maxi.find()
 
-        if len(maxi.positions) > 0:
+#        if len(maxi.positions) > 0:
+        try:
 
             maxi.getParameters()
             maxi.fit(fit_model)
@@ -150,6 +152,9 @@ def localize_chunk(args):
 #            mol_per_frame['molecules'][frame - init] = len(maxi.results)
 
             index += len(maxi.results)
+
+        except IndexError:
+            pass
 
 #        progress = np.round((100 * (frame - init) / len(frames)), 2)
 #        print('{}% done'.format(progress), end="\r")
