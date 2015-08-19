@@ -66,7 +66,7 @@ class Stack(object):
     def localize_molecules(self, ran=(0, None), fit_model='2d'):
 
         if ran[1] is None:
-            ran[1] = self.nframes
+            ran = (0, self.nframes)
 
         cpus = mp.cpu_count()
         step = int((ran[1] - ran[0])/cpus)
@@ -131,15 +131,13 @@ def localize_chunk(args):
 
     for n in np.arange(n_frames):
 
-        frame += n
+        frame += 1
 
         # fit all molecules in each frame
         maxi = maxima.Maxima(stack[n], fwhm)
         maxi.find()
 
-#        if len(maxi.positions) > 0:
         try:
-
             maxi.getParameters()
             maxi.fit(fit_model)
 
@@ -152,21 +150,19 @@ def localize_chunk(args):
 #            mol_per_frame['molecules'][frame - init] = len(maxi.results)
 
             index += len(maxi.results)
-
         except IndexError:
             pass
 
 #        progress = np.round((100 * (frame - init) / len(frames)), 2)
 #        print('{}% done'.format(progress), end="\r")
 
-    # final results table
     return results[0:index]
 
-if __name__ == "__main__":
+#if __name__ == "__main__":
 
 #    import matplotlib.pyplot as plt
 
-    stack = Stack()
+#    stack = Stack()
 #    maxima = Peaks(stack.image[10], stack.fwhm)
 #    maxima.find(stack.kernel, stack.xkernel)
 #    plt.imshow(maxima.image, interpolation='nearest')
@@ -180,4 +176,4 @@ if __name__ == "__main__":
 #    maxima.fit()
 #    print(maxima.results)
 
-    stack.localize_molecules(init=10, end=20)
+#    stack.localize_molecules(init=10, end=20)
