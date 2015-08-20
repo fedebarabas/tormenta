@@ -36,17 +36,25 @@ def results_dt(fit_parameters):
 class Maxima():
     """ Class defined as the local maxima in an image frame. """
 
-    def __init__(self, image, fit_par=None, dt=0, fw=None, kernel=None):
+    def __init__(self, image, fit_par=None, dt=0, fw=None, win_size=None,
+                 kernel=None, xkernel=None):
         self.image = image
-        if fw is None:
-            self.fwhm = tools.get_fwhm(670, 1.42) / 120
-        else:
+
+        # Noise removal by convolving with a null sum gaussian. Its FWHM
+        # has to match the one of the objects we want to detect.
+        try:
             self.fwhm = fw
-        self.size = int(np.ceil(self.fwhm))
-        if kernel is None:
-            self.kernel = tools.kernel(self.fwhm)
-        else:
+            self.win_size = win_size
             self.kernel = kernel
+            self.xkernel = xkernel
+            self.image_conv = convolve(self.image.astype(float), self.kernel)
+        except RuntimeError:
+            # If the kernel is None, I assume all the args must be calculated
+            self.fwhm = tools.get_fwhm(670, 1.42) / 120
+            self.win_size = int(np.ceil(self.fwhm))
+            self.kernel = tools.kernel(self.fwhm)
+            self.xkernel = tools.xkernel(self.fwhm)
+            self.image_conv = convolve(self.image.astype(float), self.kernel)
 
         self.fit_par = fit_par
         self.dt = dt
@@ -60,10 +68,6 @@ class Maxima():
         """
         self.alpha = alpha
 
-        # Noise removal by convolving with a null sum gaussian. Its FWHM
-        # has to match the one of the objects we want to detect.
-        self.image_conv = convolve(self.image.astype(float), self.kernel)
-
         # Image mask
         self.imageMask = np.zeros(self.image.shape, dtype=bool)
 
@@ -72,7 +76,7 @@ class Maxima():
         self.threshold = self.alpha*self.std + self.mean
 
         # Estimate for the maximum number of maxima in a frame
-        nMax = np.ceil(self.image.size / (2*self.size + 1)**2)
+        nMax = self.image.size // (2*self.win_size + 1)**2
         self.positions = np.zeros((nMax, 2), dtype=int)
         nPeak = 0
 
@@ -87,15 +91,13 @@ class Maxima():
                 self.positions[nPeak] = tuple([j, i])
 
                 # this is the part that masks already-found maxima
-                x = np.arange(i - self.size, i + self.size + 1, dtype=np.int)
-                y = np.arange(j - self.size, j + self.size + 1, dtype=np.int)
+                x = np.arange(i - self.win_size, i + self.win_size + 1, dtype=np.int)
+                y = np.arange(j - self.win_size, j + self.win_size + 1, dtype=np.int)
                 xv, yv = np.meshgrid(x, y)
                 # the clip handles cases where the peak is near the image edge
                 self.imageMask[yv.clip(0, self.image.shape[0] - 1),
                                xv.clip(0, self.image.shape[1] - 1)] = True
-
                 nPeak += 1
-
             else:
                 break
 
@@ -114,11 +116,7 @@ class Maxima():
         """
         self.alpha = alpha
 
-        # Noise removal by convolving with a null sum gaussian. Its FWHM
-        # has to match the one of the objects we want to detect.
-        self.image_conv = convolve(self.image.astype(float), self.kernel)
-
-        image_max = maximum_filter(self.image_conv, self.size)
+        image_max = maximum_filter(self.image_conv, self.win_size)
         maxima = (self.image_conv == image_max)
 
         self.mean = np.mean(self.image_conv)
@@ -141,10 +139,9 @@ class Maxima():
     def drop_overlapping(self):
         """Drop overlapping spots."""
         n = len(self.positions)
-
         if n > 1:
             self.positions = tools.dropOverlapping(self.positions,
-                                                   2*self.size + 1)
+                                                   2*self.win_size + 1)
             self.overlaps = n - len(self.positions)
         else:
             self.overlaps = 0
@@ -158,8 +155,6 @@ class Maxima():
     def getParameters(self):
         """Calculate the roundness, brightness, sharpness"""
 
-#        slices = ndimage.find_objects(labeled)
-
         # Background estimation. Taking the mean counts of the molecule-free
         # area is good enough and ~10x faster than getting the mode
         # 215 µs vs 1.89 ms
@@ -168,12 +163,11 @@ class Maxima():
         except:
             self.imageMask = np.zeros(self.image.shape, dtype=bool)
             for p in self.positions:
-                self.imageMask[p[0] - self.size:p[0] + self.size + 1,
-                               p[1] - self.size:p[1] + self.size + 1] = True
+                self.imageMask[p[0] - self.win_size:p[0] + self.win_size + 1,
+                               p[1] - self.win_size:p[1] + self.win_size + 1] = True
 
         self.imageMask[self.image == 0] = True
         self.bkg = np.mean(np.ma.masked_array(self.image, self.imageMask))
-        self.xkernel = tools.xkernel(self.fwhm)
 
         # Results storage
         try:
@@ -185,8 +179,8 @@ class Maxima():
 
         self.results['maxima_px'] = self.positions
 
-        mask = np.zeros((2*self.size + 1, 2*self.size + 1), dtype=bool)
-        mask[self.size, self.size] = True
+        mask = np.zeros((2*self.win_size + 1, 2*self.win_size + 1), dtype=bool)
+        mask[self.win_size, self.win_size] = True
 
         i = 0
         for maxx in self.positions:
@@ -211,13 +205,13 @@ class Maxima():
     def area(self, n):
         """Returns the area around the local maximum number n."""
         coord = self.positions[n]
-        return self.image[coord[0] - self.size:coord[0] + self.size + 1,
-                          coord[1] - self.size:coord[1] + self.size + 1]
+        return self.image[coord[0] - self.win_size:coord[0] + self.win_size + 1,
+                          coord[1] - self.win_size:coord[1] + self.win_size + 1]
 
     def radius(self, coord):
         """Returns the area around the entered point."""
-        return self.image[coord[0] - self.size:coord[0] + self.size + 1,
-                          coord[1] - self.size:coord[1] + self.size + 1]
+        return self.image[coord[0] - self.win_size:coord[0] + self.win_size + 1,
+                          coord[1] - self.win_size:coord[1] + self.win_size + 1]
 
     def fit(self, fit_model='2d'):
 
@@ -228,15 +222,19 @@ class Maxima():
             # Fit and store fitting results
             area = self.area(i)
             fit = fit_area(area, self.fwhm, self.bkg)
-            fit[1] += self.positions[i] - self.size - 0.5
-            for p in np.arange(npar):
-                self.results[self.dt.names[-npar + p]][i] = fit[p]
+            fit[1] += self.positions[i] - self.win_size - 0.5
+
+            # Can I do this faster if fit_area returned a struct array? TRY!
+            m = 0
+            for par in self.fit_par:
+                self.results[par][i] = fit[m]
+                m += 1
 
             # Background-sustracted measured PSF
             bkg_subtract = area - fit[-1]
             # photons from molecule calculation
             self.results['photons'][i] = np.sum(bkg_subtract)
-            self.mean_psf += bkg_subtract/self.results['photons'][i]
+            self.mean_psf += bkg_subtract / self.results['photons'][i]
 
 
 # TODO: run calibration routine for better fwhm estimate

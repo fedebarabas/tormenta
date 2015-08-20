@@ -58,7 +58,7 @@ class Stack(object):
 
         self.frame = 0
         self.fwhm = tools.get_fwhm(self.lambda_em, self.NA) / self.nm_per_px
-        self.win_size = np.ceil(self.fwhm)
+        self.win_size = int(np.ceil(self.fwhm))
 
         self.kernel = tools.kernel(self.fwhm)
         self.xkernel = tools.xkernel(self.fwhm)
@@ -68,12 +68,17 @@ class Stack(object):
         if ran[1] is None:
             ran = (0, self.nframes)
 
+        self.fit_parameters = maxima.fit_par(fit_model)
+        self.dt = maxima.results_dt(self.fit_parameters)
+
         cpus = mp.cpu_count()
-        step = int((ran[1] - ran[0])/cpus)
+        step = (ran[1] - ran[0]) // cpus
         chunks = [[i*step, (i + 1)*step - 1] for i in np.arange(cpus)]
         chunks[-1][1] = ran[1] - 1
 
-        args = [[self.imageData[i:j], '2d', self.win_size, self.fwhm, i]
+        max_args = (self.fit_parameters, self.dt, self.fwhm, self.win_size,
+                    self.kernel, self.xkernel)
+        args = [[self.imageData[i:j], i, fit_model, max_args]
                 for i, j in chunks]
 
         pool = mp.Pool(processes=cpus)
@@ -82,7 +87,7 @@ class Stack(object):
 
     def filter_results(self, trail=True):
 
-        ### TODO: filter by parameters
+        # TODO: filter by parameters
         if trail:
 
             # Find trails: local maxima in the same pixel in consecutive frames
@@ -115,14 +120,13 @@ class Stack(object):
 
 def localize_chunk(args):
 
-    stack, fit_model, win_size, fwhm, init_frame = args
-
+    stack, init_frame, fit_model, max_args = args
+    fit_parameters, res_dt, fwhm, win_size, kernel, xkernel = max_args
     n_frames = len(stack)
-    dt = maxima.results_dt(fit_model)[1]
 
     # I create a big array, I'll keep the non-null part at the end
-    results = np.zeros((n_frames + 1)*np.prod(stack.shape[1:])/(win_size + 1),
-                       dtype=dt)
+    results = np.zeros((n_frames + 1)*np.prod(stack.shape[1:])//(win_size + 1),
+                       dtype=res_dt)
 
 #    mol_per_frame = np.zeros(n_frames,
 #                             dtype=[('frame', int), ('molecules', int)])
@@ -134,7 +138,8 @@ def localize_chunk(args):
         frame += 1
 
         # fit all molecules in each frame
-        maxi = maxima.Maxima(stack[n], fwhm)
+        maxi = maxima.Maxima(stack[n], fit_parameters, res_dt, fwhm, win_size,
+                             kernel, xkernel)
         maxi.find()
 
         try:
