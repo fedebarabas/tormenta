@@ -82,12 +82,14 @@ class RecordingWidget(QtGui.QFrame):
         self.numExpositionsEdit = QtGui.QLineEdit('100')
         self.numExpositionsEdit.setFixedWidth(45)
         zeroTime = datetime.timedelta(seconds=0)
-        self.tElapsed = QtGui.QLabel('Elapsed: {}'.format(zeroTime))
         self.tRemaining = QtGui.QLabel()
-        self.tRemaining.setAlignment((QtCore.Qt.AlignRight |
+        self.tRemaining.setAlignment((QtCore.Qt.AlignCenter |
                                       QtCore.Qt.AlignVCenter))
         self.numExpositionsEdit.textChanged.connect(self.nChanged)
         self.updateRemaining()
+
+        self.progressBar = QtGui.QProgressBar()
+        self.progressBar.setTextVisible(False)
 
         # Layout
         buttonWidget = QtGui.QWidget()
@@ -112,8 +114,9 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
         recGrid.addWidget(self.currentFrame, 5, 1)
         recGrid.addWidget(self.numExpositionsEdit, 5, 2)
-        recGrid.addWidget(self.tElapsed, 5, 3)
-        recGrid.addWidget(self.tRemaining, 5, 4)
+#        recGrid.addWidget(self.tElapsed, 5, 3)
+        recGrid.addWidget(self.progressBar, 5, 3, 1, 2)
+        recGrid.addWidget(self.tRemaining, 5, 3, 1, 2)
         recGrid.addWidget(buttonWidget, 6, 0, 1, 5)
 
         recGrid.setColumnMinimumWidth(0, 70)
@@ -158,7 +161,7 @@ class RecordingWidget(QtGui.QFrame):
     def updateRemaining(self):
         rSecs = self.main.t_acc_real.magnitude * self.n()
         rTime = datetime.timedelta(seconds=np.round(rSecs))
-        self.tRemaining.setText('Remaining: {}'.format(rTime))
+        self.tRemaining.setText('{}'.format(rTime))
 
     def nPixels(self):
         return self.main.shape[0] * self.main.shape[1]
@@ -263,14 +266,13 @@ class RecordingWidget(QtGui.QFrame):
 
         # Elapsed and remaining times and frames
         eSecs = np.round(ptime.time() - self.startTime)
-        eText = 'Elapsed: {}'.format(datetime.timedelta(seconds=eSecs))
-        self.tElapsed.setText(eText)
         nframe = self.worker.j
         rFrames = self.n() - nframe
         rSecs = np.round(self.main.t_acc_real.magnitude * rFrames)
-        rText = 'Remaining: {}'.format(datetime.timedelta(seconds=rSecs))
+        rText = '{}'.format(datetime.timedelta(seconds=rSecs))
         self.tRemaining.setText(rText)
         self.currentFrame.setText(str(nframe) + ' /')
+        self.progressBar.setValue(100*(1 - rSecs / (eSecs + rSecs)))
 
     def startRecording(self):
 

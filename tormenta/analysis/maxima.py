@@ -22,12 +22,12 @@ import tormenta.analysis.tools as tools
 # data-type definitions
 def fit_par(fit_model):
     if fit_model is '2d':
-        return [('amplitude_fit', float), ('maxima_fit', np.float, (2,)),
+        return [('amplitude_fit', float), ('fit_x', float), ('fit_y', float),
                 ('background_fit', float)]
 
 
 def results_dt(fit_parameters):
-    parameters = [('frame', int), ('maxima_px', np.int, (2,)),
+    parameters = [('frame', int), ('maxima_x', int), ('maxima_y', int),
                   ('photons', float), ('sharpness', float),
                   ('roundness', float), ('brightness', float)]
     return np.dtype(parameters + fit_parameters)
@@ -205,13 +205,19 @@ class Maxima():
     def area(self, n):
         """Returns the area around the local maximum number n."""
         coord = self.positions[n]
-        return self.image[coord[0] - self.win_size:coord[0] + self.win_size + 1,
-                          coord[1] - self.win_size:coord[1] + self.win_size + 1]
+        x1 = coord[0] - self.win_size
+        x2 = coord[0] + self.win_size + 1
+        y1 = coord[1] - self.win_size
+        y2 = coord[1] + self.win_size + 1
+        return self.image[x1:x2, y1:y2]
 
     def radius(self, coord):
         """Returns the area around the entered point."""
-        return self.image[coord[0] - self.win_size:coord[0] + self.win_size + 1,
-                          coord[1] - self.win_size:coord[1] + self.win_size + 1]
+        x1 = coord[0] - self.win_size
+        x2 = coord[0] + self.win_size + 1
+        y1 = coord[1] - self.win_size
+        y2 = coord[1] + self.win_size + 1
+        return self.image[x1:x2, y1:y2]
 
     def fit(self, fit_model='2d'):
 
@@ -222,12 +228,14 @@ class Maxima():
             # Fit and store fitting results
             area = self.area(i)
             fit = fit_area(area, self.fwhm, self.bkg)
-            fit[1] += self.positions[i] - self.win_size - 0.5
+            offset = self.positions[i] - self.win_size - 0.5
+            fit[1] += offset[1]
+            fit[2] += offset[2]
 
-            # Can I do this faster if fit_area returned a struct array? TRY!
+            # Can I do this faster if fit_area returned a struct array? TRY IT!
             m = 0
             for par in self.fit_par:
-                self.results[par][i] = fit[m]
+                self.results[par[0]][i] = fit[m]
                 m += 1
 
             # Background-sustracted measured PSF
@@ -241,31 +249,31 @@ class Maxima():
 def fit_area(area, fwhm, bkg):
 
     # First guess of parameters
-    A = 1.54*(area[np.floor(area.shape[0]/2), np.floor(area.shape[1]/2)] - bkg)
+    A = 1.54*(area[area.shape[0] // 2, area.shape[1] // 2] - bkg)
     x0, y0 = center_of_mass(area)
-    mini = np.min(area)
-    maxi = np.max(area)
+    minn = np.min(area)
+    maxx = np.max(area)
+
+    results = np.zeros((1,), dtype=np.dtype(fit_par('2d')))
 
     # TODO: get error of each parameter from the fit (see Powell?)
-    # FIXME: gradient methods don't get good results
     # 1.75 is an ad hoc factor to minimize the number of iterations during fit
     try:
-        results = minimize(logll, [A, x0, y0, bkg],
-                           bounds=[(0, maxi), (1, 4), (1, 4), (0, mini)],
-                           args=(fwhm * 1.75, area, np.arange(len(area))),
-                           method='L-BFGS-B', jac=ll_jac)
-#       results = minimize(logll, [A, x0, y0, bkg],
+        fit_results = minimize(logll, [A, x0, y0, bkg],
+                               bounds=[(0, maxx), (1, 4), (1, 4), (0, minn)],
+                               args=(fwhm * 1.75, area, np.arange(len(area))),
+                               method='L-BFGS-B', jac=ll_jac)
+#        results = minimize(logll, [A, x0, y0, bkg],
 #                          args=(fwhm * 1.75, area, np.arange(len(area))),
 #                          method='Powell')
 
-        return [results.x[0],
-                np.array([results.x[1], results.x[2]]),
-                results.x[3]]
+        results = fit_results.x
 
-    except RuntimeWarning:
-        print([results.x[0], np.array([results.x[1], results.x[2]]),
-               results.x[3]])
-        print('CACHED!')
+#    except RuntimeWarning:
+        # TODO: store the warning in results
+#        print('CACHED!')
+
+    return results
 
 
 def dexp(x, x0, sigma):

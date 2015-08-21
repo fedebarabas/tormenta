@@ -118,24 +118,21 @@ class Stack(object):
         self.file.close()
 
 
-def localize_chunk(args):
+def localize_chunk(args, index=0):
 
     stack, init_frame, fit_model, max_args = args
     fit_parameters, res_dt, fwhm, win_size, kernel, xkernel = max_args
     n_frames = len(stack)
 
     # I create a big array, I'll keep the non-null part at the end
-    results = np.zeros((n_frames + 1)*np.prod(stack.shape[1:])//(win_size + 1),
-                       dtype=res_dt)
+    nn = int(np.ceil((n_frames + 1)*np.prod(stack.shape[1:])/(win_size + 1)))
+    results = np.zeros(nn, dtype=res_dt)
 
 #    mol_per_frame = np.zeros(n_frames,
 #                             dtype=[('frame', int), ('molecules', int)])
-    index = 0
     frame = init_frame
 
     for n in np.arange(n_frames):
-
-        frame += 1
 
         # fit all molecules in each frame
         maxi = maxima.Maxima(stack[n], fit_parameters, res_dt, fwhm, win_size,
@@ -148,13 +145,14 @@ def localize_chunk(args):
 
             # save frame number and fit results
             results[index:index + len(maxi.results)] = maxi.results
-            results['frame'][index:index + len(maxi.results)] = frame
+            results['frame'][index:index + len(maxi.results)] = init_frame + n
 
             # save number of molecules per frame
 #            mol_per_frame['frame'][frame - init] = frame
 #            mol_per_frame['molecules'][frame - init] = len(maxi.results)
 
             index += len(maxi.results)
+
         except IndexError:
             pass
 

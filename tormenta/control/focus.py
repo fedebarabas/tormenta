@@ -320,9 +320,7 @@ class WebcamGraph(pg.GraphicsWindow):
         self.plot.setLabels(bottom=('x', 'px'), left=('y', 'px'))
         self.plot.showGrid(x=True, y=True)
 
-        self.massCenterPlot = self.plot.plot([0, 0], pen=(200, 200, 200),
-                                             symbolBrush=(255, 0, 0),
-                                             symbolPen='w')
+        self.massCenterPlot = self.plot.plot([0], [0], pen=(200, 200, 200))
 
         self.addItem(self.plot)
         self.plot.enableAutoRange('xy', False)
@@ -331,8 +329,8 @@ class WebcamGraph(pg.GraphicsWindow):
     def update(self):
 
         self.massCenter = self.focusWidget.ProcessData.massCenter
-        self.massCenterPlot.setData([self.massCenter[0]],
-                                    [self.massCenter[1]])
+        self.massCenterPlot.setData([self.massCenter[0]], [self.massCenter[1]],
+                                    brush=(255, 0, 0), pen='w')
 
 
 class FocusCalibration(QtCore.QObject):

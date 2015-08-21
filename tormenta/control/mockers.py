@@ -38,6 +38,7 @@ class MockWebcam(object):
 
     def __init__(self):
         super(MockWebcam).__init__()
+        print('Simulated Webcam')
 
     def start(self):
         pass
@@ -84,6 +85,9 @@ class MockDAQ(Driver):
     @flipper.setter
     def flipper(self, value):
         self.flipperState = value
+
+    def toggleFlipper(self):
+        pass
 
 
 class MockScanZ(Driver):
