@@ -131,6 +131,7 @@ def localize_chunk(args, index=0):
 #    mol_per_frame = np.zeros(n_frames,
 #                             dtype=[('frame', int), ('molecules', int)])
     frame = init_frame
+    index = 0
 
     for n in np.arange(n_frames):
 
@@ -139,22 +140,19 @@ def localize_chunk(args, index=0):
                              kernel, xkernel)
         maxi.find()
 
-        try:
-            maxi.getParameters()
-            maxi.fit(fit_model)
+        maxi.getParameters()
+        maxi.fit(fit_model)
 
-            # save frame number and fit results
-            results[index:index + len(maxi.results)] = maxi.results
-            results['frame'][index:index + len(maxi.results)] = init_frame + n
+        # save frame number and fit results
+        results[index:index + len(maxi.results)] = maxi.results
+        results['frame'][index:index + len(maxi.results)] = init_frame + n
 
-            # save number of molecules per frame
+        # save number of molecules per frame
 #            mol_per_frame['frame'][frame - init] = frame
 #            mol_per_frame['molecules'][frame - init] = len(maxi.results)
 
-            index += len(maxi.results)
+        index += len(maxi.results)
 
-        except IndexError:
-            pass
 
 #        progress = np.round((100 * (frame - init) / len(frames)), 2)
 #        print('{}% done'.format(progress), end="\r")

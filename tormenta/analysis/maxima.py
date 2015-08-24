@@ -130,7 +130,7 @@ class Maxima():
         if num_objects > 0:
             self.positions = maximum_position(self.image, labeled,
                                               range(1, num_objects + 1))
-            self.positions = np.array(self.positions)
+            self.positions = np.array(self.positions).astype(int)
             self.drop_overlapping()
             self.drop_border()
         else:
@@ -158,13 +158,10 @@ class Maxima():
         # Background estimation. Taking the mean counts of the molecule-free
         # area is good enough and ~10x faster than getting the mode
         # 215 µs vs 1.89 ms
-        try:
-            self.imageMask
-        except:
-            self.imageMask = np.zeros(self.image.shape, dtype=bool)
-            for p in self.positions:
-                self.imageMask[p[0] - self.win_size:p[0] + self.win_size + 1,
-                               p[1] - self.win_size:p[1] + self.win_size + 1] = True
+        self.imageMask = np.zeros(self.image.shape, dtype=bool)
+        for p in self.positions:
+            self.imageMask[p[0] - self.win_size:p[0] + self.win_size + 1,
+                           p[1] - self.win_size:p[1] + self.win_size + 1] = True
 
         self.imageMask[self.image == 0] = True
         self.bkg = np.mean(np.ma.masked_array(self.image, self.imageMask))
@@ -177,7 +174,8 @@ class Maxima():
             self.fit_par = fit_par(self.fit_model)
             self.dt = results_dt(self.fit_par)
 
-        self.results['maxima_px'] = self.positions
+        self.results['maxima_x'] = self.positions[:, 0]
+        self.results['maxima_y'] = self.positions[:, 1]
 
         mask = np.zeros((2*self.win_size + 1, 2*self.win_size + 1), dtype=bool)
         mask[self.win_size, self.win_size] = True
@@ -229,8 +227,8 @@ class Maxima():
             area = self.area(i)
             fit = fit_area(area, self.fwhm, self.bkg)
             offset = self.positions[i] - self.win_size - 0.5
-            fit[1] += offset[1]
-            fit[2] += offset[2]
+            fit[1] += offset[0]
+            fit[2] += offset[1]
 
             # Can I do this faster if fit_area returned a struct array? TRY IT!
             m = 0
@@ -254,7 +252,7 @@ def fit_area(area, fwhm, bkg):
     minn = np.min(area)
     maxx = np.max(area)
 
-    results = np.zeros((1,), dtype=np.dtype(fit_par('2d')))
+    fit_results = np.zeros(4)
 
     # TODO: get error of each parameter from the fit (see Powell?)
     # 1.75 is an ad hoc factor to minimize the number of iterations during fit
@@ -262,18 +260,16 @@ def fit_area(area, fwhm, bkg):
         fit_results = minimize(logll, [A, x0, y0, bkg],
                                bounds=[(0, maxx), (1, 4), (1, 4), (0, minn)],
                                args=(fwhm * 1.75, area, np.arange(len(area))),
-                               method='L-BFGS-B', jac=ll_jac)
-#        results = minimize(logll, [A, x0, y0, bkg],
-#                          args=(fwhm * 1.75, area, np.arange(len(area))),
-#                          method='Powell')
+                               method='L-BFGS-B', jac=ll_jac).x
+    #        results = minimize(logll, [A, x0, y0, bkg],
+    #                          args=(fwhm * 1.75, area, np.arange(len(area))),
+    #                          method='Powell')
 
-        results = fit_results.x
-
-#    except RuntimeWarning:
+    except RuntimeWarning:
         # TODO: store the warning in results
-#        print('CACHED!')
+        print('CACHED!')
 
-    return results
+    return fit_results
 
 
 def dexp(x, x0, sigma):
