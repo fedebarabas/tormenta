@@ -258,11 +258,11 @@ def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), center=2):
     # TODO: get error of each parameter from the fit
     # Newton-CG is the fastest
     fit_results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
-                           bounds=[(0, np.max(area)), (1, 4), (1, 4),
-                                   (0, np.min(area))],
-                           method='L-BFGS-B', jac=ll_jac).x
-    print(bkg - fit_results[3])
-    # TODO: IDEA: usar menos precisión en todo
+#                           method='Powell').x
+#                           bounds=[(0, np.max(area)), (1, 4), (1, 4),
+#                                   (0, np.min(area))],
+                           method='Newton-CG', jac=ll_jac,
+                           options={'disp': True}).x
     return fit_results
 
 
@@ -281,11 +281,9 @@ def derf(x0, sigma, x=np.arange(5)):
 def derfs(x0, y0, sigma, xy=np.arange(5)):
     """ Auxiliary  function. x, x0 and sigma are in px units. """
     ax = (xy - x0) / sigma
-    bx = ax + 1/sigma
     ay = (xy - y0) / sigma
-    by = ay + 1/sigma
-    i = erf(bx) - erf(ax)
-    j = erf(by) - erf(ay)
+    i = erf(ax + 1/sigma) - erf(ax)
+    j = erf(ay + 1/sigma) - erf(ay)
     return i[:, np.newaxis] * j
 
 
@@ -340,12 +338,100 @@ def ll_jac(parameters, *args, jac120=0.3*np.sqrt(np.pi), jac=np.zeros(4)):
     # 0.3 = 0.5*0.6
     jac12 = -jac120*A*fwhm
     jac[1] = jac12*np.sum(dexp(x0, fwhm * 0.6)[:, np.newaxis] * derfy * factor)
-    jac[2] = jac12*np.sum(dexp(y0, fwhm * 0.6)[:, np.newaxis] * derfx * factor)
+#    jac[2] = jac12*np.sum(dexp(y0, fwhm * 0.6)[:, np.newaxis] * derfx * factor)
+    xx, yy = np.mgrid[0:5, 0:5]
+    jac[2] = -np.sum(0.282743338823081*A*area*fwhm**2*(3.33333333333333*np.exp(-2.77777777777778*(yy - y0)**2/fwhm**2)/(np.sqrt(np.pi)*fwhm) - 3.33333333333333*np.exp(-(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)**2)/(np.sqrt(np.pi)*fwhm))*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))/(0.282743338823081*A*fwhm**2*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)) + bkg) - 0.282743338823081*A*fwhm**2*(3.33333333333333*np.exp(-2.77777777777778*(yy - y0)**2/fwhm**2)/(np.sqrt(np.pi)*fwhm) - 3.33333333333333*np.exp(-(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)**2)/(np.sqrt(np.pi)*fwhm))*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm)))
     # dL/d(bkg)
     jac[3] = np.sum(factor)
 
     return jac
 
+
+def ll_jac0(parameters, *args):
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
+    xx, yy = np.mgrid[0:5, 0:5]
+    return -np.sum(0.282743338823081*area*fwhm**2*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm))/(0.282743338823081*A*fwhm**2*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)) + bkg) - 0.282743338823081*fwhm**2*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)))
+
+# da un poco distinto al mio
+def ll_jac1(parameters, *args):
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
+    xx, yy = np.mgrid[0:5, 0:5]
+    return -np.sum(0.282743338823081*A*area*fwhm**2*(3.33333333333333*np.exp(-2.77777777777778*(-x0 + xx)**2/fwhm**2)/(np.sqrt(np.pi)*fwhm) - 3.33333333333333*np.exp(-(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm)**2)/(np.sqrt(np.pi)*fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm))/(0.282743338823081*A*fwhm**2*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)) + bkg) - 0.282743338823081*A*fwhm**2*(3.33333333333333*np.exp(-2.77777777777778*(-x0 + xx)**2/fwhm**2)/(np.sqrt(np.pi)*fwhm) - 3.33333333333333*np.exp(-(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm)**2)/(np.sqrt(np.pi)*fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)))
+
+# da distinto al mio
+def ll_jac2(parameters, *args):
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
+    xx, yy = np.mgrid[0:5, 0:5]
+    return -np.sum(0.282743338823081*A*area*fwhm**2*(3.33333333333333*np.exp(-2.77777777777778*(yy - y0)**2/fwhm**2)/(np.sqrt(np.pi)*fwhm) - 3.33333333333333*np.exp(-(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)**2)/(np.sqrt(np.pi)*fwhm))*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))/(0.282743338823081*A*fwhm**2*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)) + bkg) - 0.282743338823081*A*fwhm**2*(3.33333333333333*np.exp(-2.77777777777778*(yy - y0)**2/fwhm**2)/(np.sqrt(np.pi)*fwhm) - 3.33333333333333*np.exp(-(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)**2)/(np.sqrt(np.pi)*fwhm))*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm)))
+
+
+def ll_jac3(parameters, *args):
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
+    xx, yy = np.mgrid[0:5, 0:5]
+    return -np.sum(area/(0.282743338823081*A*fwhm**2*(-erf(1.66666666666667*(-x0 + xx)/fwhm) + erf(1.66666666666667*(-x0 + xx)/fwhm + 1.66666666666667/fwhm))*(-erf(1.66666666666667*(yy - y0)/fwhm) + erf(1.66666666666667*(yy - y0)/fwhm + 1.66666666666667/fwhm)) + bkg) - 1)
+
+
+def ll_hess(params, *args):
+
+    A, x0, y0, bkg = params
+    F, pico = args
+
+    x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
+
+    erfi = derf(x, x0, F)
+    erfj = derf(y, y0, F)
+    erfij = erfi*erfj
+    expi = dexp(x0, F)
+    expj = dexp(y0, F)
+
+    hess = np.zeros((4, 4))
+
+    # All derivatives made with sympy
+
+    # expr.diff(A, A)
+    hess[0, 0] = - np.sum(0.616850275068085 * F**4 * pico * erfi**2 * erfj**2 /
+                          ((np.pi/4) * A * F**2 * (erfi * erfj + bkg)**2))
+
+    # expr.diff(A, x0)
+    hessi01 = F*expi*erfj*(-1.23370055013617*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + 1.5707963267949*pico/((np.pi/4)*A*F**2*erfij + bkg) - 1.5707963267949)/np.sqrt(np.pi)
+    hess[0, 1] = np.sum(hessi01)
+    hess[1, 0] = hess[0, 1]
+
+    # expr.diff(A, y0)
+    hess[0, 2] = np.sum(F*expj*(-erfi)*(-1.23370055013617*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + (np.pi/2)*pico/((np.pi/4)*A*F**2*erfij + bkg) - (np.pi/2))/np.sqrt(np.pi))
+    hess[2, 0] = hess[0, 2]
+
+    # expr.diff(A, bkg)
+    hessi03 = -(np.pi/4)*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2
+    hess[0, 3] = np.sum(hessi03)
+    hess[3, 0] = hess[0, 3]
+
+    # expr.diff(x0, x0)
+    hess[1, 1] = np.sum(A*erfj*(2.46740110027234*A*F**2*pico*expi**2*(-erfj)/(np.pi*((np.pi/4)*A*F**2*erfij + bkg)**2) - np.pi*pico*((x - x0)*ex(x, x0, F) - (x - x0 + 1)*ex(x, x0 - 1, F))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*erfij + bkg)) + (np.pi*(x - x0)*ex(x, x0, F) - np.pi*(x - x0 + 1)*ex(x, x0 - 1, F))/(np.sqrt(np.pi)*F)))
+
+    # expr.diff(x0, y0)
+    hess[1, 2] = np.sum(A*expi*expj*(-2.46740110027234*A*F**2*pico*erfij/((np.pi/4)*A*F**2*erfij + bkg)**2 + np.pi*pico/((np.pi/4)*A*F**2*erfij + bkg) - np.pi)/np.pi)
+    hess[2, 1] = hess[1, 2]
+
+    # expr.diff(x0, bkg)
+    hess[1, 3] = np.sum(-(np.pi/2)*A*F*pico*expi*(-erfj)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*erfij + bkg)**2))
+    hess[3, 1] = hess[1, 3]
+
+    # expr.diff(y0, y0)
+    hess[2, 2] = np.sum(A*(-erfi)*(-2.46740110027234*A*F**2*pico*expj**2*(-erfi)/(np.pi*((np.pi/4)*A*F**2*erfij + bkg)**2) - np.pi*pico*((y - y0)*ex(y, y0, F) - (y - y0 + 1)*ex(y, y0 -1, F))/(np.sqrt(np.pi)*F*((np.pi/4)*A*F**2*erfij + bkg)) + (np.pi*(y - y0)*ex(y, y0, F) - np.pi*(y - y0 + 1)*ex(y, y0 -1, F))/(np.sqrt(np.pi)*F)))
+
+    # expr.diff(y0, bkg)
+    hess[2, 3] = np.sum(-(np.pi/2)*A*F*pico*expj*(-erfi)/(np.sqrt(np.pi)*((np.pi/4)*A*F**2*erfij + bkg)**2))
+    hess[3, 2] = hess[2, 3]
+
+    # expr.diff(bkg, bkg)
+    hess[3, 3] = np.sum(-pico/((np.pi/4)*A*F**2*erfij + bkg)**2)
+
+    return hess
 
 # if __name__ == "__main__":
 
