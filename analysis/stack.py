@@ -137,7 +137,7 @@ def localize_chunk(args, index=0):
 
 #    mol_per_frame = np.zeros(n_frames,
 #                             dtype=[('frame', int), ('molecules', int)])
-    frame = init_frame
+#    frame = init_frame
 
     for n in np.arange(n_frames):
 
