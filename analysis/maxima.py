@@ -37,8 +37,9 @@ class Maxima():
     """ Class defined as the local maxima in an image frame. """
 
     def __init__(self, image, fit_par=None, dt=0, fw=None, win_size=None,
-                 kernel=None, xkernel=None):
+                 kernel=None, xkernel=None, bkg_image=None):
         self.image = image
+        self.bkg_image = bkg_image
 
         # Noise removal by convolving with a null sum gaussian. Its FWHM
         # has to match the one of the objects we want to detect.
@@ -157,17 +158,6 @@ class Maxima():
     def getParameters(self):
         """Calculate the roundness, brightness, sharpness"""
 
-        # Background estimation. Taking the mean counts of the molecule-free
-        # area is good enough and ~10x faster than getting the mode
-        # 215 µs vs 1.89 ms
-        self.imageMask = np.zeros(self.image.shape, dtype=bool)
-        for p in self.positions:
-            self.imageMask[p[0] - self.win_size:p[0] + self.win_size+1,
-                           p[1] - self.win_size:p[1] + self.win_size+1] = True
-
-        self.imageMask[self.image == 0] = True
-        self.bkg = np.mean(np.ma.masked_array(self.image, self.imageMask))
-
         # Results storage
         try:
             self.results = np.zeros(len(self.positions), dtype=self.dt)
@@ -187,14 +177,14 @@ class Maxima():
         for maxx in self.positions:
             # tuples make indexing easier (see below)
             p = tuple(maxx)
-            masked = np.ma.masked_array(self.radius(maxx), mask)
+            masked = np.ma.masked_array(self.radius(self.image, maxx), mask)
 
             # Sharpness
             sharp_norm = self.image_conv[p] * np.mean(masked)
             self.results['sharpness'][i] = 100*self.image[p]/sharp_norm
             # Roundness
-            hx = np.dot(self.radius(maxx)[2, :], self.xkernel)
-            hy = np.dot(self.radius(maxx)[:, 2], self.xkernel)
+            hx = np.dot(self.radius(self.image, maxx)[2, :], self.xkernel)
+            hy = np.dot(self.radius(self.image, maxx)[:, 2], self.xkernel)
             self.results['roundness'][i] = 2 * (hy - hx) / (hy + hx)
             # Brightness
             bright_norm = self.alpha * self.std
@@ -203,32 +193,33 @@ class Maxima():
 
             i += 1
 
-    def area(self, n):
+    def area(self, image, n):
         """Returns the area around the local maximum number n."""
         coord = self.positions[n]
         x1 = coord[0] - self.win_size
         x2 = coord[0] + self.win_size + 1
         y1 = coord[1] - self.win_size
         y2 = coord[1] + self.win_size + 1
-        return self.image[x1:x2, y1:y2]
+        return image[x1:x2, y1:y2]
 
-    def radius(self, coord):
+    def radius(self, image, coord):
         """Returns the area around the entered point."""
         x1 = coord[0] - self.win_size
         x2 = coord[0] + self.win_size + 1
         y1 = coord[1] - self.win_size
         y2 = coord[1] + self.win_size + 1
-        return self.image[x1:x2, y1:y2]
+        return image[x1:x2, y1:y2]
 
     def fit(self, fit_model='2d'):
 
-        self.mean_psf = np.zeros(self.area(0).shape)
+        self.mean_psf = np.zeros(self.area(self.image, 0).shape)
 
         for i in np.arange(len(self.positions)):
 
             # Fit and store fitting results
-            area = self.area(i)
-            fit = fit_area(area, self.fwhm, self.bkg)
+            area = self.area(self.image, i)
+            bkg = np.mean(self.area(self.bkg_image, i))
+            fit = fit_area(area, self.fwhm, bkg)
             offset = self.positions[i] - self.win_size
             fit[1] += offset[0]
             fit[2] += offset[1]

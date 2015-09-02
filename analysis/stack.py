@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import h5py as hdf
 import multiprocessing as mp
 
+from scipy.ndimage.filters import uniform_filter, median_filter
+
 import analysis.tools as tools
 import analysis.maxima as maxima
 
@@ -125,11 +127,29 @@ class Stack(object):
         self.file.close()
 
 
+def bkg_estimation(data_stack, window=100):
+    ''' Background estimation. It's a running (time) mean.
+    Hoogendoorn et al. in "The fidelity of stochastic single-molecule
+    super-resolution reconstructions critically depends upon robust background
+    estimation" recommend a median filter, but that takes too long, so we're
+    using an uniform filter.'''
+
+    intensity = np.mean(data_stack, (1, 2))
+    norm_data = data_stack / intensity[:, np.newaxis, np.newaxis]
+#    bkg_estimate = median_filter(norm_data, size=(window, 1, 1))
+    bkg_estimate = uniform_filter(norm_data, size=(window, 1, 1))
+    bkg_estimate *= intensity[:, np.newaxis, np.newaxis]
+
+    return bkg_estimate
+
+
 def localize_chunk(args, index=0):
 
     stack, init_frame, fit_model, max_args = args
     fit_parameters, res_dt, fwhm, win_size, kernel, xkernel = max_args
     n_frames = len(stack)
+
+    bkg_stack = bkg_estimation(stack)
 
     # I create a big array, I'll keep the non-null part at the end
     nn = int(np.ceil((n_frames + 1)*np.prod(stack.shape[1:])/(win_size + 1)))
@@ -143,7 +163,7 @@ def localize_chunk(args, index=0):
 
         # fit all molecules in each frame
         maxi = maxima.Maxima(stack[n], fit_parameters, res_dt, fwhm, win_size,
-                             kernel, xkernel)
+                             kernel, xkernel, bkg_stack[n])
         maxi.find()
 
         maxi.getParameters()
