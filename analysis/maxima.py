@@ -257,7 +257,7 @@ def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), center=2,
 
     # TODO: get error of each parameter from the fit
     fit_results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
-                           bounds=[(0, np.max(area)), (1.5, 3.5), (1.5, 3.5),
+                           bounds=[(0, np.max(area)), (1, 4), (1, 4),
                                    (0, np.min(area))],
                            method='L-BFGS-B', jac=ll_jac).x
     return fit_results
@@ -266,34 +266,21 @@ def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), center=2,
 def dexp(x0, sigma, x):
     a = (x - x0) / sigma
     b = a + 1/sigma
-    return np.exp(-b*b) - np.exp(-a*a)
+    return (np.exp(-a*a) - np.exp(-b*b))/(np.sqrt(np.pi)*sigma)
 
 
 def derf(x0, sigma, x):
     """ Auxiliary  function. x, x0 and sigma are in px units. """
     a = (x - x0) / sigma
-    return erf(a + 1/sigma) - erf(a)
+    return 0.5 * (erf(a + 1/sigma) - erf(a))
 
 
 def derfs(x0, y0, sigma, xy):
     """ Auxiliary  function. x, x0 and sigma are in px units. """
     ax = (xy - x0) / sigma
     ay = (xy - y0) / sigma
-    i = erf(ax + 1/sigma) - erf(ax)
-    return i[:, np.newaxis] * (erf(ay + 1/sigma) - erf(ay))
-
-
-def lambda_g(x0, y0, fwhm, xy, factor=0.09*np.pi, f2=0.6):
-    """ Theoretical mean number of photons detected in an area of size size**2
-    due to the emission of a molecule located in (x0, y0). The model PSF is
-    a 2d symmetric gaussian of A amplitude with full-width half maximum fwhm.
-    x, x0 and fwhm are in px units.
-    """
-#    fwhm *= 0.5*(np.log(2))**(-1/2)
-#    fwhm *= 0.6
-#    0.6*0.6*0.25 = 0.09
-
-    return factor * fwhm * fwhm * derfs(x0, y0, fwhm * f2, xy)
+    erfx = erf(ax + 1/sigma) - erf(ax)
+    return 0.25 * erfx[:, np.newaxis] * (erf(ay + 1/sigma) - erf(ay))
 
 
 def logll(parameters, *args, xy=np.arange(5)):
@@ -305,13 +292,14 @@ def logll(parameters, *args, xy=np.arange(5)):
     A, x0, y0, bkg = parameters
     fwhm, area = args
 
-    lambda_p = A * lambda_g(x0, y0, fwhm, xy) + bkg
-    return -np.sum(area * np.log(lambda_p) - lambda_p)
+#    fwhm *= 0.5*(np.log(2))**(-1/2)
+#    fwhm *= 0.6
+
+    lambda_p = A * derfs(x0, y0, fwhm * 0.6, xy) + bkg
+    return np.sum(lambda_p - area * np.log(lambda_p))
 
 
-# TODO: working?
-def ll_jac(parameters, *args, xy=np.arange(5), jac120=0.3*np.sqrt(np.pi),
-           jac=np.zeros((4, 5, 5))):
+def ll_jac(parameters, *args, xy=np.arange(5), jac=np.zeros((4, 5, 5))):
     """ Jacobian of the log-likelihood function for an area of size size**2
     around a local maximum with respect with a 2d symmetric gaussian of A
     amplitude centered in (x0, y0) with full-width half maximum fwhm on top of
@@ -320,28 +308,33 @@ def ll_jac(parameters, *args, xy=np.arange(5), jac120=0.3*np.sqrt(np.pi),
     """
     A, x0, y0, bkg = parameters
     fwhm, area = args
+    fwhm *= 0.6
 
-#    fwhm *= 0.5*(np.log(2))**(-1/2)
-    fwhm6 = fwhm * 0.6
-
-    derfx = derf(x0, fwhm6, xy)
-    derfy = derf(y0, fwhm6, xy)
-    lambda1 = lambda_g(x0, y0, fwhm, xy)
-
-    # dL/d(bkg)
-    jac[3] = 1 - area/(A * lambda1 + bkg)
+    derfx = derf(x0, fwhm, xy)
+    derfy = derf(y0, fwhm, xy)
 
     # dL/d(A)
-    # The derivative of lambda_g is lambda_g(A=1)
-    jac[0] = jac[3]*lambda1
+    jac[0] = derfx[:, np.newaxis] * derfy
     # dL/d(x0) y dL/d(y0)
-    # 0.3 = 0.5*0.6
-    jac[1] = dexp(x0, fwhm6, xy)[:, np.newaxis]*derfy
-    jac[2] = dexp(y0, fwhm6, xy)[:, np.newaxis]*derfx
-    jac[1:3] *= -jac[3]*jac120*A*fwhm
+    jac[1] = dexp(x0, fwhm, xy)[:, np.newaxis] * derfy
+    jac[2] = derfx[:, np.newaxis] * dexp(y0, fwhm, xy)
+    jac[1:3] *= A
+    # dL/d(bkg)
+    jac[3] = 1
+    jac *= 1 - area/(A * jac[0] + bkg)
 
     return np.sum(jac, (1, 2))
 
+
+#def ll_hess(params, *args):
+#    """ Hessian of the log-likelihood function for an area of size size**2
+#    around a local maximum with respect with a 2d symmetric gaussian of A
+#    amplitude centered in (x0, y0) with full-width half maximum fwhm on top of
+#    a background bkg as the model PSF. x, x0 and sigma are in px units.
+#    Order of derivatives: A, x0, y0, bkg.
+#    """
+#    A, x0, y0, bkg = params
+#    fwhm, area, x = args
 
 def ll_hess(params, *args):
 
