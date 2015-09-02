@@ -304,112 +304,136 @@ def ll_jac(parameters, *args, xy=np.arange(5), jac=np.zeros((4, 5, 5))):
     derfx = derf(x0, fwhm, xy)
     derfy = derf(y0, fwhm, xy)
 
-    # dL/d(A)
+    # d-L/d(A)
     jac[0] = derfx[:, np.newaxis] * derfy
-    # dL/d(x0) y dL/d(y0)
+    # d-L/d(x0) y d-L/d(y0)
     jac[1] = dexp(x0, fwhm, xy)[:, np.newaxis] * derfy
     jac[2] = derfx[:, np.newaxis] * dexp(y0, fwhm, xy)
     jac[1:3] *= A
-    # dL/d(bkg)
+    # d-L/d(bkg)
     jac[3] = 1
     jac *= 1 - area/(A * jac[0] + bkg)
 
     return np.sum(jac, (1, 2))
 
 
-#def ll_hess(params, *args):
-#    """ Hessian of the log-likelihood function for an area of size size**2
-#    around a local maximum with respect with a 2d symmetric gaussian of A
-#    amplitude centered in (x0, y0) with full-width half maximum fwhm on top of
-#    a background bkg as the model PSF. x, x0 and sigma are in px units.
-#    Order of derivatives: A, x0, y0, bkg.
-#    """
-#    A, x0, y0, bkg = params
-#    fwhm, area, x = args
-
-def ll_hess(params, *args):
-
+def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
+    """ Diagonal of the Hessian matrix of the log-likelihood function for an
+    area of size size**2 around a local maximum with respect with a 2d
+    symmetric gaussian of A amplitude centered in (x0, y0) with full-width half
+    maximum fwhm on top of a background bkg as the model PSF. x, x0 and sigma
+    are in px units.
+    Order of derivatives: A, x0, y0, bkg.
+    """
     A, x0, y0, bkg = params
     fwhm, area, x = args
+    fwhm *= 0.6
 
-#    x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
-    xx, yy = np.mgrid[0:5, 0:5]
+    derfx = derf(x0, fwhm, xy)[:, np.newaxis]
+    derfy = derf(y0, fwhm, xy)
 
-    hess = np.zeros((4, 4))
-
-    cc = np.sqrt(np.pi)*fwhm/3.33333333333333
-    xf = 1.66666666666667*(-x0 + xx)/fwhm
-    xf1 = xf + 1.66666666666667/fwhm
-    yf = 1.66666666666667*(yy - y0)/fwhm
-    yf1 = yf + 1.66666666666667/fwhm
-
-    derfx = -erf(xf) + erf(xf1)
-    derfx2 = derfx**2
-    derfy = -erf(yf) + erf(yf1)
-    derfy2 = derfy**2
-
-    fwhm2 = 0.282743338823081*fwhm**2
-    fwhm5 = 5.555555555556/fwhm
-    fwhmA = 0.531736155271655*A*fwhm
-    lamb_a = fwhm2*derfx*derfy
-    lamb = A*lamb_a
-    lamb_g = lamb + bkg
-
-    hess33 = area/lamb_g**2
-    c2 = 0.150344855914456*A**2*fwhm**3*hess33
-    ff = -area/lamb_g + 1
-    c3 = 3.33333333333333*fwhmA*ff/fwhm
-    dexpx = -np.exp(-xf*xf) + np.exp(-xf1*xf1)
-
-    dexpxx = dexpx/cc
-    dexpy = np.exp(-yf1*yf1) - np.exp(-yf*yf)
-    dexpyy = dexpy/cc
+    # d2-L/d(A)2
+    hess[0] = derfx
 
 
-#    diff(factor, bkg)
-    hess[3, 3] = np.sum(hess33)
+def ll_hess(params, *args, xy=np.arange(5), hess=np.zeros((4, 4, 5, 5))):
+    """ Full Hessian matrix of the log-likelihood function for an area of size
+    size**2 around a local maximum with respect with a 2d symmetric gaussian of
+    A amplitude centered in (x0, y0) with full-width half maximum fwhm on top
+    of a background bkg as the model PSF. x, x0 and sigma are in px units.
+    Order of derivatives: A, x0, y0, bkg.
+    """
+    A, x0, y0, bkg = params
+    fwhm, area, x = args
+    fwhm *= 0.6
 
-#    diff(jac0, A)
-    hess[0, 0] = fwhm2**2*np.sum(hess33*derfx2*derfy2)
-
-#    diff(jac0, x0)
-    hess[0, 1] = -fwhm2*np.sum(dexpxx*derfy*(hess33*lamb + ff))
-    hess[1, 0] = hess[0, 1]
-
-#    diff(jac0, y0)
-    hess[0, 2] = -fwhm2*np.sum((A*fwhm2*derfx*derfy*hess33 + ff)*dexpyy*derfx)
-    hess[2, 0] = hess[0, 2]
-
-#    diff(jac0, bkg)
-    hess[0, 3] = np.sum(hess33*lamb_a)
-    hess[3, 0] = hess[0, 3]
-
-#    diff(jac1, x0)
-    hess110 = c2*dexpxx*dexpx*derfy2
-    hess111 = xf1*np.exp(-xf1*xf1) + fwhm5*(x0-xx)*np.exp(-xf*xf)
-    hess111 *= -1.77245385090552*A*fwhm*ff*derfy/fwhm
-    hess[1, 1] = np.sum(hess110 + hess111)
-
-#    diff(jac1, y0)
-    hess[1, 2] = fwhmA*np.sum(dexpyy*dexpx*(hess33*lamb + ff))
-    hess[2, 1] = hess[1, 2]
-
-#    diff(jac1, bkg)
-    hess[1, 3] = -fwhmA*np.sum(hess33*dexpx*derfy)
-    hess[3, 1] = hess[1, 3]
-
-#    diff(jac2, y0)
-    hess220 = -c2*dexpyy*dexpy*derfx2
-    hess221 = yf1*np.exp(-yf1*yf1) + fwhm5*(yy+y0)*np.exp(-yf*yf)
-    hess221 *= -1.77245385090552*A*fwhm*ff*derfx/fwhm
-    hess[2, 2] = np.sum(hess220 + hess221)
+    derfx = derf(x0, fwhm, xy)
+    derfy = derf(y0, fwhm, xy)
 
 
-#    diff(jac2, bkg)
-    hess[2, 3] = -fwhmA*np.sum(hess33*dexpy*derfx)
-    hess[3, 2] = hess[2, 3]
-
-    return hess
+#def ll_hess(params, *args):
+#
+#    A, x0, y0, bkg = params
+#    fwhm, area, x = args
+#
+##    x, y = np.arange(pico.shape[0]), np.arange(pico.shape[1])
+#    xx, yy = np.mgrid[0:5, 0:5]
+#
+#    hess = np.zeros((4, 4))
+#
+#    cc = np.sqrt(np.pi)*fwhm/3.33333333333333
+#    xf = 1.66666666666667*(-x0 + xx)/fwhm
+#    xf1 = xf + 1.66666666666667/fwhm
+#    yf = 1.66666666666667*(yy - y0)/fwhm
+#    yf1 = yf + 1.66666666666667/fwhm
+#
+#    derfx = -erf(xf) + erf(xf1)
+#    derfx2 = derfx**2
+#    derfy = -erf(yf) + erf(yf1)
+#    derfy2 = derfy**2
+#
+#    fwhm2 = 0.282743338823081*fwhm**2
+#    fwhm5 = 5.555555555556/fwhm
+#    fwhmA = 0.531736155271655*A*fwhm
+#    lamb_a = fwhm2*derfx*derfy
+#    lamb = A*lamb_a
+#    lamb_g = lamb + bkg
+#
+#    hess33 = area/lamb_g**2
+#    c2 = 0.150344855914456*A**2*fwhm**3*hess33
+#    ff = -area/lamb_g + 1
+#    c3 = 3.33333333333333*fwhmA*ff/fwhm
+#    dexpx = -np.exp(-xf*xf) + np.exp(-xf1*xf1)
+#
+#    dexpxx = dexpx/cc
+#    dexpy = np.exp(-yf1*yf1) - np.exp(-yf*yf)
+#    dexpyy = dexpy/cc
+#
+#
+##    diff(factor, bkg)
+#    hess[3, 3] = np.sum(hess33)
+#
+##    diff(jac0, A)
+#    hess[0, 0] = fwhm2**2*np.sum(hess33*derfx2*derfy2)
+#
+##    diff(jac0, x0)
+#    hess[0, 1] = -fwhm2*np.sum(dexpxx*derfy*(hess33*lamb + ff))
+#    hess[1, 0] = hess[0, 1]
+#
+##    diff(jac0, y0)
+#    hess[0, 2] = -fwhm2*np.sum((A*fwhm2*derfx*derfy*hess33 + ff)*dexpyy*derfx)
+#    hess[2, 0] = hess[0, 2]
+#
+##    diff(jac0, bkg)
+#    hess[0, 3] = np.sum(hess33*lamb_a)
+#    hess[3, 0] = hess[0, 3]
+#
+##    diff(jac1, x0)
+#    hess110 = c2*dexpxx*dexpx*derfy2
+#    hess111 = xf1*np.exp(-xf1*xf1) + fwhm5*(x0-xx)*np.exp(-xf*xf)
+#    hess111 *= -1.77245385090552*A*fwhm*ff*derfy/fwhm
+#    hess[1, 1] = np.sum(hess110 + hess111)
+#
+##    diff(jac1, y0)
+#    hess[1, 2] = fwhmA*np.sum(dexpyy*dexpx*(hess33*lamb + ff))
+#    hess[2, 1] = hess[1, 2]
+#
+##    diff(jac1, bkg)
+#    hess[1, 3] = -fwhmA*np.sum(hess33*dexpx*derfy)
+#    hess[3, 1] = hess[1, 3]
+#
+##    diff(jac2, y0)
+#    hess220 = -c2*dexpyy*dexpy*derfx2
+#    hess221 = yf1*np.exp(-yf1*yf1) + fwhm5*(yy+y0)*np.exp(-yf*yf)
+#    hess221 *= -1.77245385090552*A*fwhm*ff*derfx/fwhm
+#    hess[2, 2] = np.sum(hess220 + hess221)
+#
+#
+##    diff(jac2, bkg)
+#    hess[2, 3] = -fwhmA*np.sum(hess33*dexpy*derfx)
+#    hess[3, 2] = hess[2, 3]
+#
+#    return hess
 
 
 # if __name__ == "__main__":

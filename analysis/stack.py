@@ -90,7 +90,7 @@ class Stack(object):
 
     def scatter_plot(self):
         plt.plot(self.molecules['fit_y'], self.molecules['fit_x'], 'bo',
-                 markersize=0.1)
+                 markersize=0.2)
         plt.xlim(0, self.imageData[0].shape[0])
         plt.ylim(0, self.imageData[0].shape[1])
 
