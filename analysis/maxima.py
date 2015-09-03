@@ -276,13 +276,13 @@ def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.02,
     x_t = start_point(area, bkg_estimate)
 
     def func_area(x):
-        return func(x, fwhm, area)
+        return -func(x, fwhm, area)
 
     def jac_area(x):
-        return jac(x, fwhm, area)
+        return -jac(x, fwhm, area)
 
     def hess_area(x):
-        return hess(x, fwhm, area)
+        return -hess(x, fwhm, area)
 
     for _ in range(num_iter):
         print(x_t, _)
