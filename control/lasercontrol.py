@@ -53,7 +53,7 @@ class LaserWidget(QtGui.QFrame):
                                          '<h3>Ventus 532nm</h3>',
                                          color=(80, 255, 0), prange=(0, 1500),
                                          tickInterval=10, singleStep=1,
-                                         daq=self.daq, port=1, invert=True)
+                                         daq=self.daq, port=1)
 
         self.controls = (self.redControl, self.blueControl, self.greenControl)
 
