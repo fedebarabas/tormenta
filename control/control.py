@@ -56,7 +56,6 @@ class RecordingWidget(QtGui.QFrame):
         self.filenameEdit = QtGui.QLineEdit('filename')
 
         # Snap and recording buttons
-#        self.snapTIFFButton = QtGui.QPushButton('Snap TIFF')
         self.snapTIFFButton = QtGui.QPushButton('Snap')
         self.snapTIFFButton.setStyleSheet("font-size:16px")
         self.snapTIFFButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
@@ -81,7 +80,6 @@ class RecordingWidget(QtGui.QFrame):
         self.currentFrame.setFixedWidth(45)
         self.numExpositionsEdit = QtGui.QLineEdit('100')
         self.numExpositionsEdit.setFixedWidth(45)
-        zeroTime = datetime.timedelta(seconds=0)
         self.tRemaining = QtGui.QLabel()
         self.tRemaining.setAlignment((QtCore.Qt.AlignCenter |
                                       QtCore.Qt.AlignVCenter))
@@ -518,14 +516,6 @@ class CamParamTree(ParameterTree):
                       {'name': 'EM gain', 'type': 'int', 'value': 1,
                        'limits': (0, andor.EM_gain_range[1]),
                        'tip': EMGainTip}]}]
-#                  {'name': 'Temperature', 'type': 'group', 'children': [
-#                      {'name': 'Set point', 'type': 'int', 'value': -50,
-#                       'suffix': 'º', 'limits': (-80, 0)},
-#                      {'name': 'Current temperature', 'type': 'int',
-#                       'value': andor.temperature.magnitude, 'suffix': 'ºC',
-#                       'readonly': True},
-#                      {'name': 'Status', 'type': 'str', 'readonly': True,
-#                       'value': andor.temperature_status}]}]
 
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
@@ -958,9 +948,9 @@ class TormentaGUI(QtGui.QMainWindow):
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
             self.viewtimer.start(0)
 
-    def updateLevels(self):
-        self.hist.setLevels(np.min(self.image) - np.std(self.image),
-                            np.max(self.image) + np.std(self.image))
+    def updateLevels(self, image):
+        std = np.std(image)
+        self.hist.setLevels(np.min(image) - std, np.max(image) + std)
 
     def setGain(self):
         """ Method to change the pre-amp gain and main gain of the EMCCD
@@ -1098,10 +1088,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.recButton.setEnabled(True)
 
         # Initial image
-        self.image = self.andor.most_recent_image16(self.shape)
-        self.img.setImage(self.image, autoLevels=False, lut=self.lut)
+        image = self.andor.most_recent_image16(self.shape)
+        self.img.setImage(image, autoLevels=False, lut=self.lut)
         if update:
-            self.updateLevels()
+            self.updateLevels(image)
         self.viewtimer.start(0)
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
@@ -1128,18 +1118,19 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Image update while in Liveview mode
         """
         try:
-            self.image = self.andor.most_recent_image16(self.shape)
+            image = self.andor.most_recent_image16(self.shape)
             if self.moleculeWidget.enabled:
-                self.moleculeWidget.graph.update(self.image)
-            self.img.setImage(self.image, autoLevels=False)
+                self.moleculeWidget.graph.update(image)
+            self.img.setImage(image, autoLevels=False)
 
             if self.crosshair.showed:
                 ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
                 xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
-                self.xProfile.setData(self.image[:, ycoord])
-                self.yProfile.setData(self.image[xcoord])
+                self.xProfile.setData(image[:, ycoord])
+                self.yProfile.setData(image[xcoord])
 
             self.fpsMath()
+            self.image = image
 
         except:
             pass
