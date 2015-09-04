@@ -390,6 +390,7 @@ def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
     fwhm2 = fwhm*fwhm
 
     # d2-L/d(A)2
+    # TODO: CHECK
     hess[0] = derfxy*derfxy
 
     # d2-L/d(x0)2
@@ -402,6 +403,7 @@ def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
     hess[2] = jac2*jac2
 
     # d2-L/d(bkg)2
+    # TODO: CHECK
     hess[3] = factor*factor
 
     hess *= area/(lambd*lambd)
