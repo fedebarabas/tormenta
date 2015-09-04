@@ -218,7 +218,7 @@ class Maxima():
 
             # Fit and store fitting results
             area = self.area(self.image, i)
-            bkg = np.mean(self.area(self.bkg_image, i))
+            bkg = self.area(self.bkg_image, i)
             fit = fit_area(area, self.fwhm, bkg)
             offset = self.positions[i] - self.win_size
             fit[1] += offset[0]
@@ -237,21 +237,70 @@ class Maxima():
             self.mean_psf += bkg_subtract / self.results['photons'][i]
 
 
-# TODO: run calibration routine for better fwhm estimate
-def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), center=2,
-             x=np.arange(5)):
-
-    # First guess of parameters
+def start_point(area, bkg):
+    ''' Returns a guess of fitting parameters to be used as the starting point
+    of the fitting process.'''
+    center = area.shape[0] // 2
     area_bkg = area - bkg
     A = 1.54*area_bkg[center, center]
     x0, y0 = center_of_mass(area_bkg)
 
+    return [A, x0, y0, np.mean(bkg)]
+
+
+# TODO: run calibration routine for better fwhm estimate
+def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), x=np.arange(5)):
+
     # TODO: get error of each parameter from the fit
-    fit_results = minimize(logll, [A, x0, y0, bkg], args=(fwhm, area),
+    fit_results = minimize(logll, start_point(area, bkg), args=(fwhm, area),
                            bounds=[(0, np.max(area)), (1, 4), (1, 4),
                                    (0, np.min(area))],
                            method='L-BFGS-B', jac=ll_jac).x
     return fit_results
+
+
+def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.02,
+                    num_iter=100, tol=0.000001):
+    ''' Newton's optimization method for function with vector input and scalar
+    output
+    Taken from: http://codereview.stackexchange.com/questions/38436/
+    python-class-that-implements-the-newton-method
+
+    func: function to be optimized. Takes a vector argument as input and
+        returns a scalar output
+    step_size: step size in newton method update step
+    num_iter: number of iterations for newton method to run
+    tol: tolerance to determine convergence
+    '''
+
+    x_t = start_point(area, bkg_estimate)
+
+    def func_area(x):
+        return -func(x, fwhm, area)
+
+    def jac_area(x):
+        return -jac(x, fwhm, area)
+
+    def hess_area(x):
+        return -hess(x, fwhm, area)
+
+    for _ in range(num_iter):
+        print(x_t, _)
+#        invhess = np.linalg.inv(hess_area(x_t))
+        invhess = np.diag(1 / hess_area(x_t))
+        x_tplus1 = x_t - step_size * np.dot(invhess, jac_area(x_t))
+        # Check for convergence
+        if abs(max(x_tplus1 - x_t)) < tol:
+            status = 'Success'
+            break
+        x_t = x_tplus1
+    else:
+        status = "No convergence after {} iterations".format(num_iter)
+
+    crit_point = x_tplus1
+    max_min = func_area(x_t)
+
+    return (crit_point, max_min, status)
 
 
 def dexp(x0, sigma, x):
@@ -326,14 +375,46 @@ def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
     Order of derivatives: A, x0, y0, bkg.
     """
     A, x0, y0, bkg = params
-    fwhm, area, x = args
+    fwhm, area = args
     fwhm *= 0.6
 
     derfx = derf(x0, fwhm, xy)[:, np.newaxis]
     derfy = derf(y0, fwhm, xy)
+    derfxy = derfx*derfy
+    lambd = A * derfxy + bkg
+    factor = 1 - area/lambd
+    dxf = (xy - x0)/fwhm
+    dxf1 = dxf + 1/fwhm
+    dyf = (xy - y0)/fwhm
+    dyf1 = dyf + 1/fwhm
+    fwhm2 = fwhm*fwhm
 
     # d2-L/d(A)2
-    hess[0] = derfx
+    hess[0] = derfxy*derfxy
+
+    # d2-L/d(x0)2
+    # 2/np.sqrt(np.pi) = 1.1283791670955126
+    jac1 = dexp(x0, fwhm, xy)[:, np.newaxis] * derfy
+    hess[1] = jac1*jac1
+
+    # d2-L/d(y0)2
+    jac2 = derfx * dexp(y0, fwhm, xy)
+    hess[2] = jac2*jac2
+
+    # d2-L/d(bkg)2
+    hess[3] = factor*factor
+
+    hess *= area/(lambd*lambd)
+
+    dexpx = dxf*np.exp(-dxf*dxf) - dxf1*np.exp(-dxf1*dxf1)
+    d2lambx = 1.1283791670955126*A*derfy*dexpx[:, np.newaxis]/fwhm2
+    hess[1] += d2lambx*factor
+
+    dexpy = dyf*np.exp(-dyf*dyf) - dyf1*np.exp(-dyf1*dyf1)
+    d2lamby = 1.1283791670955126*A*derfx*dexpy/fwhm2
+    hess[2] += d2lamby*factor
+
+    return np.sum(hess, (1, 2))
 
 
 def ll_hess(params, *args, xy=np.arange(5), hess=np.zeros((4, 4, 5, 5))):
