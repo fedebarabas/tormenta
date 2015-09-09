@@ -242,7 +242,7 @@ def start_point(area, bkg):
     of the fitting process.'''
     center = area.shape[0] // 2
     area_bkg = area - bkg
-    A = 1.54*area_bkg[center, center]
+    A = 1.54 * area_bkg[center, center]
     x0, y0 = center_of_mass(area_bkg)
 
     return [A, x0, y0, np.mean(bkg)]
@@ -259,7 +259,8 @@ def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), x=np.arange(5)):
     return fit_results
 
 
-def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.02,
+# TODO: Doesn't work with A and bkg
+def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.3,
                     num_iter=100, tol=0.000001):
     ''' Newton's optimization method for function with vector input and scalar
     output
@@ -276,13 +277,13 @@ def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.02,
     x_t = start_point(area, bkg_estimate)
 
     def func_area(x):
-        return -func(x, fwhm, area)
+        return func(x, fwhm, area)
 
     def jac_area(x):
-        return -jac(x, fwhm, area)
+        return jac(x, fwhm, area)
 
     def hess_area(x):
-        return -hess(x, fwhm, area)
+        return hess(x, fwhm, area)
 
     for _ in range(num_iter):
         print(x_t, _)
@@ -290,7 +291,8 @@ def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.02,
         invhess = np.diag(1 / hess_area(x_t))
         x_tplus1 = x_t - step_size * np.dot(invhess, jac_area(x_t))
         # Check for convergence
-        if abs(max(x_tplus1 - x_t)) < tol:
+#        print(x_tplus1 - x_t, np.max(x_tplus1 - x_t))
+        if np.max(np.abs(x_tplus1 - x_t)) < tol:
             status = 'Success'
             break
         x_t = x_tplus1
@@ -324,7 +326,7 @@ def derfs(x0, y0, sigma, xy):
 
 
 def logll(parameters, *args, xy=np.arange(5)):
-    """ Log-likelihood function for an area of size size**2 around a local
+    """ (-1) * Log-likelihood function for an area of size size**2 around a local
     maximum with respect with a 2d symmetric gaussian of A amplitude centered
     in (x0, y0) with full-width half maximum fwhm on top of a background bkg
     as the model PSF. x, x0 and sigma are in px units.
@@ -337,6 +339,22 @@ def logll(parameters, *args, xy=np.arange(5)):
 
     lambda_p = A * derfs(x0, y0, fwhm * 0.6, xy) + bkg
     return np.sum(lambda_p - area * np.log(lambda_p))
+
+
+def logll0(parameters, *args, xy=np.arange(5)):
+    """ Log-likelihood function for an area of size size**2 around a local
+    maximum with respect with a 2d symmetric gaussian of A amplitude centered
+    in (x0, y0) with full-width half maximum fwhm on top of a background bkg
+    as the model PSF. x, x0 and sigma are in px units.
+    """
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
+
+#    fwhm *= 0.5*(np.log(2))**(-1/2)
+#    fwhm *= 0.6
+
+    lambda_p = A * derfs(x0, y0, fwhm * 0.6, xy) + bkg
+    return np.sum(area * np.log(lambda_p) - lambda_p)
 
 
 def ll_jac(parameters, *args, xy=np.arange(5), jac=np.zeros((4, 5, 5))):
@@ -366,6 +384,33 @@ def ll_jac(parameters, *args, xy=np.arange(5), jac=np.zeros((4, 5, 5))):
     return np.sum(jac, (1, 2))
 
 
+def ll_jac0(parameters, *args, xy=np.arange(5), jac=np.zeros((4, 5, 5))):
+    """ Jacobian of the log-likelihood function for an area of size size**2
+    around a local maximum with respect with a 2d symmetric gaussian of A
+    amplitude centered in (x0, y0) with full-width half maximum fwhm on top of
+    a background bkg as the model PSF. x, x0 and sigma are in px units.
+    Order of derivatives: A, x0, y0, bkg.
+    """
+    A, x0, y0, bkg = parameters
+    fwhm, area = args
+    fwhm *= 0.6
+
+    derfx = derf(x0, fwhm, xy)
+    derfy = derf(y0, fwhm, xy)
+
+    # d-L/d(A)
+    jac[0] = derfx[:, np.newaxis] * derfy
+    # d-L/d(x0) y d-L/d(y0)
+    jac[1] = dexp(x0, fwhm, xy)[:, np.newaxis] * derfy
+    jac[2] = derfx[:, np.newaxis] * dexp(y0, fwhm, xy)
+    jac[1:3] *= A
+    # d-L/d(bkg)
+    jac[3] = 1
+    jac *= area/(A * jac[0] + bkg) - 1
+
+    return np.sum(jac, (1, 2))
+
+
 def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
     """ Diagonal of the Hessian matrix of the log-likelihood function for an
     area of size size**2 around a local maximum with respect with a 2d
@@ -382,7 +427,7 @@ def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
     derfy = derf(y0, fwhm, xy)
     derfxy = derfx*derfy
     lambd = A * derfxy + bkg
-    factor = 1 - area/lambd
+    factor = area/lambd - 1
     dxf = (xy - x0)/fwhm
     dxf1 = dxf + 1/fwhm
     dyf = (xy - y0)/fwhm
@@ -390,6 +435,7 @@ def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
     fwhm2 = fwhm*fwhm
 
     # d2-L/d(A)2
+    # TODO: CHECK
     hess[0] = derfxy*derfxy
 
     # d2-L/d(x0)2
@@ -402,9 +448,10 @@ def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
     hess[2] = jac2*jac2
 
     # d2-L/d(bkg)2
+    # TODO: CHECK
     hess[3] = factor*factor
 
-    hess *= area/(lambd*lambd)
+    hess *= -area/(lambd*lambd)
 
     dexpx = dxf*np.exp(-dxf*dxf) - dxf1*np.exp(-dxf1*dxf1)
     d2lambx = 1.1283791670955126*A*derfy*dexpx[:, np.newaxis]/fwhm2
