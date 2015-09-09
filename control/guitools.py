@@ -113,11 +113,6 @@ def savePreset(main, filename=None):
         'Pre-amp gain': str(main.PreGainPar.value()),
         'EM gain': str(main.GainPar.value())}
 
-    config['Recording'] = {
-        'Folder': main.recWidget.folderEdit.text(),
-        'Filename': main.recWidget.filenameEdit.text(),
-        'n': main.recWidget.numExpositionsEdit.text()}
-
     with open(os.path.join(main.presetDir, filename), 'w') as configfile:
         config.write(configfile)
 
@@ -175,12 +170,6 @@ def loadPreset(main, filename=None):
 
     for setting in ['Pre-amp gain', 'EM gain']:
         tree.param('Gain').param(setting).setValue(float(configCam[setting]))
-
-    main.recWidget.folderEdit.setText(config['Recording']['folder'])
-    main.recWidget.filenameEdit.setText(config['Recording']['filename'])
-    main.recWidget.numExpositionsEdit.setText(config['Recording']['n'])
-
-    # TODO: Apply all settings at once
 
 
 class TiffConverterThread(QtCore.QThread):
