@@ -210,6 +210,7 @@ class RecordingWidget(QtGui.QFrame):
         if os.path.exists(folder):
 
             image = self.main.andor.most_recent_image16(self.main.shape)
+            image = np.transpose(image)
 
             name = os.path.join(folder, self.filenameEdit.text())
             savename = guitools.getUniqueName(name + '_snap.hdf5')
@@ -229,6 +230,7 @@ class RecordingWidget(QtGui.QFrame):
         if os.path.exists(folder):
 
             image = self.main.andor.most_recent_image16(self.main.shape)
+            image = np.transpose(image)
             time.sleep(0.01)
 
             savename = (os.path.join(folder, self.filenameEdit.text()) +
@@ -386,6 +388,7 @@ class RecWorker(QtCore.QObject):
                 newImages = self.andor.images16(i, self.j, (self.shape[1],
                                                             self.shape[2]),
                                                 1, self.shape[0])
+                newImages = np.transpose(newImages, [0, 2, 1])
                 self.dataset[i - 1:self.j] = newImages
                 self.updateSignal.emit(self.dataset[self.j - 1])
 
@@ -1088,7 +1091,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.recButton.setEnabled(True)
 
         # Initial image
-        image = self.andor.most_recent_image16(self.shape)
+        image = np.transpose(self.andor.most_recent_image16(self.shape))
         self.img.setImage(image, autoLevels=False, lut=self.lut)
         if update:
             self.updateLevels(image)
@@ -1118,7 +1121,7 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Image update while in Liveview mode
         """
         try:
-            image = self.andor.most_recent_image16(self.shape)
+            image = np.transpose(self.andor.most_recent_image16(self.shape))
             if self.moleculeWidget.enabled:
                 self.moleculeWidget.graph.update(image)
             self.img.setImage(image, autoLevels=False)
