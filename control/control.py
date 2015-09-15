@@ -230,7 +230,6 @@ class RecordingWidget(QtGui.QFrame):
         if os.path.exists(folder):
 
             image = self.main.andor.most_recent_image16(self.main.shape)
-            image = np.transpose(image)
             time.sleep(0.01)
 
             savename = (os.path.join(folder, self.filenameEdit.text()) +
@@ -388,7 +387,6 @@ class RecWorker(QtCore.QObject):
                 newImages = self.andor.images16(i, self.j, (self.shape[1],
                                                             self.shape[2]),
                                                 1, self.shape[0])
-                newImages = np.transpose(newImages, [0, 2, 1])
                 self.dataset[i - 1:self.j] = newImages
                 self.updateSignal.emit(self.dataset[self.j - 1])
 
@@ -1032,8 +1030,8 @@ class TormentaGUI(QtGui.QMainWindow):
     def customFrame(self):
 
         ROISize = self.ROI.size()
-        self.shape = (int(ROISize[1]), int(ROISize[0]))
-        self.frameStart = (int(self.ROI.pos()[1]), int(self.ROI.pos()[0]))
+        self.shape = (int(ROISize[0]), int(ROISize[1]))
+        self.frameStart = (int(self.ROI.pos()[0]), int(self.ROI.pos()[1]))
 
         self.changeParameter(self.adjustFrame)
         self.ROI.hide()

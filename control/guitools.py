@@ -168,8 +168,10 @@ def loadPreset(main, filename=None):
     expt = 'Set exposure time'
     timings.param(expt).setValue(float(configCam[expt]))
 
-    for setting in ['Pre-amp gain', 'EM gain']:
-        tree.param('Gain').param(setting).setValue(float(configCam[setting]))
+    pag = 'Pre-amp gain'
+    tree.param('Gain').param(pag).setValue(float(configCam[pag]))
+
+    tree.param('Gain').param('EM gain').setValue(int(configCam['EM gain']))
 
 
 class TiffConverterThread(QtCore.QThread):
