@@ -388,7 +388,7 @@ class RecWorker(QtCore.QObject):
                                                             self.shape[2]),
                                                 1, self.shape[0])
                 self.dataset[i - 1:self.j] = newImages
-                self.updateSignal.emit(self.dataset[self.j - 1])
+                self.updateSignal.emit(np.transpose(self.dataset[self.j - 1]))
 
         # Crop dataset if it's stopped before finishing
         if self.j < self.shape[0]:

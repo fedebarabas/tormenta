@@ -115,8 +115,6 @@ class MoleculesGraph(pg.PlotWidget):
         nMaxima = len(peaks.positions)
         nOverlaps = peaks.overlaps
 
-        print(self.ptr)
-
         if self.ptr < self.npoints:
             self.dataN[self.ptr] = nMaxima
             self.dataOverlaps[self.ptr] = nOverlaps
