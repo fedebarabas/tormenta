@@ -809,18 +809,23 @@ class TormentaGUI(QtGui.QMainWindow):
         # Emission filters table widget
         wheelDock = Dock("Emission filters", size=(20, 20))
         tableWidget = pg.TableWidget(sortable=False)
-        filters = [('ZET642NF',    'Notch 642nm',     4, ''),
-                   ('ET700/75m',   'Bandpass 700/75', 5, 'Alexa647, Atto655'),
-                   ('FF01-593/40', 'Bandpass 593/40', 6, 'Alexa568, Atto565, '
-                                                         'Nile Red'),
-                   ('ET575/50',    'Bandpass 575/50', 1, 'Alexa532, Atto550'),
-                   ('FF03-525/50', 'Bandpass 525/50', 2, 'GFP'),
-                   ('',            '',                3, '')]
-        data = np.array(filters, dtype=[('Filtro', object),
-                                        ('Descripción', object),
-                                        ('Antiposición', int),
-                                        ('Fluoróforos', object)])
+        tableWidget.verticalHeader().hide()
+        f = [('Rueda 1', 4, 'ZET642NF',    'Notch', ''),
+             ('Rueda 2', 5, 'ET700/75m',   'Bandpass', 'Alexa647, Atto655'),
+             ('Rueda 3', 6, 'FF01-725/40', 'Bandpass', 'Alexa700 (2 colores)'),
+             ('Rueda 4', 1, '',            '', ''),
+             ('Rueda 5', 2, 'FF03-525/50', 'Bandpass', 'GFP'),
+             ('Rueda 6', 3, '',            'Bandpass', ''),
+             ('Tubo', '',   'FF01-582/75', 'Bandpass', 'Alexa532, Alexa568, '
+                                                       'Alexa700, \nAtto550, '
+                                                       'Atto565, Nile Red')]
+        data = np.array(f, dtype=[('Ubicación', object),
+                                  ('Antiposición', object),
+                                  ('Filtro', object),
+                                  ('Tipo', object),
+                                  ('Fluoróforos', object)])
         tableWidget.setData(data)
+        tableWidget.resizeRowsToContents()
         wheelDock.addWidget(tableWidget)
         dockArea.addDock(wheelDock, 'top', consoleDock)
 
