@@ -1107,8 +1107,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewtimer.stop()
         self.recWidget.readyToRecord = False
         self.moleculeWidget.enableBox.setEnabled(False)
+        self.gridButton.setChecked(False)
         self.gridButton.setEnabled(False)
+        self.grid.hide()
+        self.crosshairButton.setChecked(False)
         self.crosshairButton.setEnabled(False)
+        self.crosshair.hide()
 
         # Turn off camera, close shutter
         idleMsg = 'Camera is idle, waiting for instructions.'

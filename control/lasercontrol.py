@@ -100,7 +100,7 @@ class LaserWidget(QtGui.QFrame):
 class LaserControl(QtGui.QFrame):
 
     def __init__(self, laser, name, color, prange, tickInterval, singleStep,
-                 daq=None, port=None, invert=False, *args, **kwargs):
+                 daq=None, port=None, invert=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         self.laser = laser
