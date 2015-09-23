@@ -92,7 +92,7 @@ class FocusWidget(QtGui.QFrame):
 
         self.ProcessData = ProcessData(self.webcam)
         self.graph = FocusLockGraph(self, main)
-        self.webcamgraph = WebcamGraph(self)
+#        self.webcamgraph = WebcamGraph(self)
 
         self.focusTime = 1000 / self.scansPerS
         self.focusTimer = QtCore.QTimer()
@@ -106,8 +106,8 @@ class FocusWidget(QtGui.QFrame):
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(self.graph, 0, 0, 1, 3)
-        grid.addWidget(self.webcamgraph, 0, 3, 1, 3)
+        grid.addWidget(self.graph, 0, 0, 1, 6)
+#        grid.addWidget(self.webcamgraph, 0, 3, 1, 3)
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
         grid.addWidget(self.kpLabel, 1, 3)
@@ -124,7 +124,7 @@ class FocusWidget(QtGui.QFrame):
     def update(self):
         self.ProcessData.update()
         self.graph.update()
-        self.webcamgraph.update()
+#        self.webcamgraph.update()
 
         if self.locked:
             self.updatePI()
@@ -256,7 +256,7 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.setWindowTitle('Focus')
         self.setAntialiasing(True)
 
-        self.npoints = 200
+        self.npoints = 400
         self.data = np.zeros(self.npoints)
         self.ptr = 0
 

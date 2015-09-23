@@ -602,6 +602,8 @@ class TormentaGUI(QtGui.QMainWindow):
         # Shortcut only
         self.liveviewAction = QtGui.QAction(self)
         self.liveviewAction.setShortcut('Ctrl+Space')
+        QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Space'), self,
+                        self.liveviewKey)
         self.liveviewAction.triggered.connect(self.liveviewKey)
         self.liveviewAction.setEnabled(False)
 

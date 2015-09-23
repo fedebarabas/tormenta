@@ -251,25 +251,35 @@ class Grid():
         self.showed = False
         self.vb = viewBox
         self.shape = shape
+        pen = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
+        pen2 = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
 
-        self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen='y')
-        self.yline2 = pg.InfiniteLine(pos=0.50*self.shape[0], pen='y')
-        self.yline3 = pg.InfiniteLine(pos=0.75*self.shape[0], pen='y')
-        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], pen='y', angle=0)
-        self.xline2 = pg.InfiniteLine(pos=0.50*self.shape[1], pen='y', angle=0)
-        self.xline3 = pg.InfiniteLine(pos=0.75*self.shape[1], pen='y', angle=0)
+        self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen=pen)
+        self.yline2 = pg.InfiniteLine(pos=0.375*self.shape[0], pen=pen)
+        self.yline3 = pg.InfiniteLine(pos=0.50*self.shape[0], pen=pen2)
+        self.yline4 = pg.InfiniteLine(pos=0.625*self.shape[0], pen=pen)
+        self.yline5 = pg.InfiniteLine(pos=0.75*self.shape[0], pen=pen)
+        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], pen=pen, angle=0)
+        self.xline2 = pg.InfiniteLine(pos=0.375*self.shape[1], pen=pen2,
+                                      angle=0)
+        self.xline3 = pg.InfiniteLine(pos=0.50*self.shape[1], pen=pen2,
+                                      angle=0)
+        self.xline4 = pg.InfiniteLine(pos=0.625*self.shape[1], pen=pen2,
+                                      angle=0)
+        self.xline5 = pg.InfiniteLine(pos=0.75*self.shape[1], pen=pen, angle=0)
 
-        self.rectangle = QtGui.QGraphicsRectItem(192, 192, 128, 128)
-        pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.DashLine)
-        self.rectangle.setPen(pen)
 
     def update(self, shape):
         self.yline1.setPos(0.25*shape[0])
-        self.yline2.setPos(0.50*shape[0])
-        self.yline3.setPos(0.75*shape[0])
+        self.yline2.setPos(0.375*shape[0])
+        self.yline3.setPos(0.50*shape[0])
+        self.yline4.setPos(0.625*shape[0])
+        self.yline5.setPos(0.75*shape[0])
         self.xline1.setPos(0.25*shape[1])
-        self.xline2.setPos(0.50*shape[1])
-        self.xline3.setPos(0.75*shape[1])
+        self.xline2.setPos(0.375*shape[1])
+        self.xline3.setPos(0.50*shape[1])
+        self.xline4.setPos(0.625*shape[1])
+        self.xline5.setPos(0.75*shape[1])
 
     def toggle(self):
 
@@ -283,20 +293,26 @@ class Grid():
         self.vb.addItem(self.xline1)
         self.vb.addItem(self.xline2)
         self.vb.addItem(self.xline3)
+        self.vb.addItem(self.xline4)
+        self.vb.addItem(self.xline5)
         self.vb.addItem(self.yline1)
         self.vb.addItem(self.yline2)
         self.vb.addItem(self.yline3)
-        self.vb.addItem(self.rectangle)
+        self.vb.addItem(self.yline4)
+        self.vb.addItem(self.yline5)
         self.showed = True
 
     def hide(self):
         self.vb.removeItem(self.xline1)
         self.vb.removeItem(self.xline2)
         self.vb.removeItem(self.xline3)
+        self.vb.removeItem(self.xline4)
+        self.vb.removeItem(self.xline5)
         self.vb.removeItem(self.yline1)
         self.vb.removeItem(self.yline2)
         self.vb.removeItem(self.yline3)
-        self.vb.removeItem(self.rectangle)
+        self.vb.removeItem(self.yline4)
+        self.vb.removeItem(self.yline5)
         self.showed = False
 
 
