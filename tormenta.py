@@ -15,7 +15,7 @@ def main():
     app = QtGui.QApplication([])
 
     with instruments.Camera('andor.ccd.CCD') as andor, \
-            instruments.Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
+            instruments.Laser('mpb.vfl.VFL', 'COM3') as redlaser, \
             instruments.Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
             instruments.Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser, \
             instruments.DAQ() as daq, instruments.ScanZ(12) as scanZ:
