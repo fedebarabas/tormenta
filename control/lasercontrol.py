@@ -77,7 +77,7 @@ class LaserWidget(QtGui.QFrame):
         grid.addWidget(self.setEpiButton, 2, 0)
         grid.addWidget(self.tirfButton, 1, 1)
         grid.addWidget(self.epiButton, 2, 1)
-        grid.addWidget(self.stagePosLabel, 2, 2, 2, 1)
+        grid.addWidget(self.stagePosLabel, 1, 2, 2, 1)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
