@@ -235,7 +235,7 @@ class RecordingWidget(QtGui.QFrame):
             savename = (os.path.join(folder, self.filenameEdit.text()) +
                         '_snap.tiff')
             savename = guitools.getUniqueName(savename)
-            tiff.imsave(savename, image.astype(np.uint16),
+            tiff.imsave(savename, np.flipud(image.astype(np.uint16)),
                         description=self.dataname, software='Tormenta')
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
@@ -747,6 +747,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.statusBar().addPermanentWidget(self.tempStatus)
         self.temp = QtGui.QLabel()
         self.statusBar().addPermanentWidget(self.temp)
+        self.cursorPos = QtGui.QLabel()
+        self.cursorPos.setText('0, 0')
+        self.statusBar().addPermanentWidget(self.cursorPos)
 
         # Temperature stabilization functionality
         self.tempSetPoint = Q_(-50, 'degC')
@@ -883,6 +886,12 @@ class TormentaGUI(QtGui.QMainWindow):
 
         layout.setRowMinimumHeight(2, 40)
         layout.setColumnMinimumWidth(2, 1000)
+
+    def mouseMoved(self, pos):
+        if self.vb.sceneBoundingRect().contains(pos):
+            mousePoint = self.vb.mapSceneToView(pos)
+            x, y = int(mousePoint.x()), int(self.shape[1] - mousePoint.y())
+            self.cursorPos.setText('{}, {}'.format(x, y))
 
     def flipperInPath(self, value):
         self.flipperButton.setChecked(not(value))
@@ -1081,6 +1090,8 @@ class TormentaGUI(QtGui.QMainWindow):
             self.liveviewStop()
 
     def liveviewStart(self, update):
+
+        self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
         self.liveviewStarts.emit()
 
         idle = 'Camera is idle, waiting for instructions.'
