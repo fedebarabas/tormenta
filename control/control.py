@@ -723,6 +723,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.gridButton = QtGui.QPushButton('Grid')
         self.gridButton.setCheckable(True)
         self.gridButton.setEnabled(False)
+        self.grid2Button = QtGui.QPushButton('Two-color grid')
+        self.grid2Button.setCheckable(True)
+        self.grid2Button.setEnabled(False)
         self.crosshairButton = QtGui.QPushButton('Crosshair')
         self.crosshairButton.setCheckable(True)
         self.crosshairButton.setEnabled(False)
@@ -735,10 +738,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewCtrl = QtGui.QWidget()
         self.viewCtrlLayout = QtGui.QGridLayout()
         self.viewCtrl.setLayout(self.viewCtrlLayout)
-        self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 2)
+        self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 3)
         self.viewCtrlLayout.addWidget(self.gridButton, 1, 0)
-        self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 1)
-        self.viewCtrlLayout.addWidget(self.flipperButton, 2, 0, 1, 2)
+        self.viewCtrlLayout.addWidget(self.grid2Button, 1, 1)
+        self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 2)
+        self.viewCtrlLayout.addWidget(self.flipperButton, 2, 0, 1, 3)
 
         self.fpsBox = QtGui.QLabel()
         self.fpsBox.setText('0 fps')
@@ -780,6 +784,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.grid = guitools.Grid(self.vb, self.shape)
         self.gridButton.clicked.connect(self.grid.toggle)
+        self.grid2 = guitools.TwoColorGrid(self.vb)
+        self.grid2Button.clicked.connect(self.grid2.toggle)
         self.crosshair = guitools.Crosshair(self.vb)
         self.crosshairButton.clicked.connect(self.crosshair.toggle)
 
@@ -1114,6 +1120,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewtimer.start(0)
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
+        self.grid2Button.setEnabled(True)
         self.crosshairButton.setEnabled(True)
 
     def liveviewStop(self):
@@ -1123,6 +1130,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.gridButton.setChecked(False)
         self.gridButton.setEnabled(False)
         self.grid.hide()
+        self.grid2Button.setChecked(False)
+        self.grid2Button.setEnabled(False)
+        self.grid2.hide()
         self.crosshairButton.setChecked(False)
         self.crosshairButton.setEnabled(False)
         self.crosshair.hide()

@@ -268,7 +268,6 @@ class Grid():
                                       angle=0)
         self.xline5 = pg.InfiniteLine(pos=0.75*self.shape[1], pen=pen, angle=0)
 
-
     def update(self, shape):
         self.yline1.setPos(0.25*shape[0])
         self.yline2.setPos(0.375*shape[0])
@@ -282,10 +281,8 @@ class Grid():
         self.xline5.setPos(0.75*shape[1])
 
     def toggle(self):
-
         if self.showed:
             self.hide()
-
         else:
             self.show()
 
@@ -313,6 +310,51 @@ class Grid():
         self.vb.removeItem(self.yline3)
         self.vb.removeItem(self.yline4)
         self.vb.removeItem(self.yline5)
+        self.showed = False
+
+
+class TwoColorGrid():
+
+    def __init__(self, viewBox, shape=(512, 512)):
+
+        self.showed = False
+        self.vb = viewBox
+        self.shape = shape
+
+        pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
+        pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
+
+        self.rectT = QtGui.QGraphicsRectItem(192, 118, 128, 128)
+        self.rectT.setPen(pen)
+        self.rectR = QtGui.QGraphicsRectItem(192, 266, 128, 128)
+        self.rectR.setPen(pen)
+        self.yLine = pg.InfiniteLine(pos=0.5*self.shape[0], pen=pen2)
+        self.xLine = pg.InfiniteLine(pos=0.5*self.shape[1], pen=pen2, angle=0)
+        self.xLineT = pg.InfiniteLine(pos=182, pen=pen2, angle=0)
+        self.xLineR = pg.InfiniteLine(pos=330, pen=pen2, angle=0)
+
+    def toggle(self):
+        if self.showed:
+            self.hide()
+        else:
+            self.show()
+
+    def show(self):
+        self.vb.addItem(self.rectT)
+        self.vb.addItem(self.rectR)
+        self.vb.addItem(self.yLine)
+        self.vb.addItem(self.xLine)
+        self.vb.addItem(self.xLineR)
+        self.vb.addItem(self.xLineT)
+        self.showed = True
+
+    def hide(self):
+        self.vb.removeItem(self.rectT)
+        self.vb.removeItem(self.rectR)
+        self.vb.removeItem(self.yLine)
+        self.vb.removeItem(self.xLine)
+        self.vb.removeItem(self.xLineR)
+        self.vb.removeItem(self.xLineT)
         self.showed = False
 
 
