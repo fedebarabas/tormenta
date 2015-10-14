@@ -27,6 +27,7 @@ class FocusWidget(QtGui.QFrame):
     def __init__(self, scanZ, main=None, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
+        self.setMinimumSize(2, 350)
 
         self.main = main  # main va a ser RecordingWidget de control.py
 #        self.DAQ = DAQ
@@ -366,10 +367,10 @@ class FocusCalibration(QtCore.QObject):
             self.z.moveRelative(self.step)
             time.sleep(0.5)
 
-#        self.argmax = np.argmax(self.signalData)
-#        self.argmin = np.argmin(self.signalData)
-#        self.signalData = self.signalData[self.argmin:self.argmax]
-#        self.positionData = self.positionData[self.argmin:self.argmax]
+        self.argmax = np.argmax(self.signalData)
+        self.argmin = np.argmin(self.signalData)
+        self.signalData = self.signalData[self.argmin:self.argmax]
+        self.positionData = self.positionData[self.argmin:self.argmax]
 
         self.poly = np.polyfit(self.positionData,
                                self.signalData, 1)

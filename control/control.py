@@ -861,13 +861,13 @@ class TormentaGUI(QtGui.QMainWindow):
 #        self.focusThread.started.connect(self.focusWidget)
 #        self.focusThread.start()
         focusDock.addWidget(self.focusWidget)
-        dockArea.addDock(focusDock, 'above', moleculesDock)
+        dockArea.addDock(focusDock, 'top', consoleDock)
 
         laserDock = Dock("Laser Control", size=(1, 1))
         self.lasers = (redlaser, bluelaser, greenlaser)
         self.laserWidgets = lasercontrol.LaserWidget(self.lasers, self.daq)
         laserDock.addWidget(self.laserWidgets)
-        dockArea.addDock(laserDock, 'above', focusDock)
+        dockArea.addDock(laserDock, 'above', moleculesDock)
 
         self.setWindowTitle('Tormenta')
         self.cwidget = QtGui.QWidget()
