@@ -387,8 +387,8 @@ class RecWorker(QtCore.QObject):
                 newImages = self.andor.images16(i, self.j, (self.shape[1],
                                                             self.shape[2]),
                                                 1, self.shape[0])
-                self.dataset[i - 1:self.j] = newImages
-                self.updateSignal.emit(np.transpose(self.dataset[self.j - 1]))
+                self.updateSignal.emit(np.transpose(newImages[-1]))
+                self.dataset[i - 1:self.j] = newImages[:, ::-1]
 
         # Crop dataset if it's stopped before finishing
         if self.j < self.shape[0]:
@@ -1037,11 +1037,19 @@ class TormentaGUI(QtGui.QMainWindow):
                 applyParam.sigStateChanged.connect(self.customFrame)
 
         elif frameParam.param('Shape').value() == 'Full chip':
+            try:
+                self.ROI.hide()
+            except:
+                pass
             self.shape = self.andor.detector_shape
             self.frameStart = (1, 1)
             self.changeParameter(self.adjustFrame)
 
         else:
+            try:
+                self.ROI.hide()
+            except:
+                pass
             side = int(frameParam.param('Shape').value().split('x')[0])
             self.shape = (side, side)
             start = int(0.5*(self.andor.detector_shape[0] - side) + 1)
