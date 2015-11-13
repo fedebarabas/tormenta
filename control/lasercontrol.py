@@ -24,6 +24,7 @@ class UpdatePowers(QtCore.QObject):
         self.widget.redControl.powerIndicator.setText(redpower)
         self.widget.blueControl.powerIndicator.setText(bluepower)
         self.widget.greenControl.powerIndicator.setText(greenpower)
+        self.widget.powerLabel.setText(str(self.widget.daq.analog_in[3]))
         time.sleep(1)
         QtCore.QTimer.singleShot(1, self.update)
 
@@ -42,7 +43,7 @@ class LaserWidget(QtGui.QFrame):
                                        '<h3>MPB 642nm</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
                                        tickInterval=100, singleStep=10,
-                                       daq=self.daq, port=0)
+                                       daq=self.daq, port=1)
 
         self.blueControl = LaserControl(self.bluelaser,
                                         '<h3>RGB 405nm</h3>',
@@ -53,7 +54,7 @@ class LaserWidget(QtGui.QFrame):
                                          '<h3>Ventus 532nm</h3>',
                                          color=(80, 255, 0), prange=(0, 1500),
                                          tickInterval=10, singleStep=1,
-                                         daq=self.daq, port=1)
+                                         daq=self.daq, port=0)
 
         self.controls = (self.redControl, self.blueControl, self.greenControl)
 
@@ -64,8 +65,7 @@ class LaserWidget(QtGui.QFrame):
         self.epiButton = QtGui.QPushButton('EPI (no anda)')
         self.epiButton.setCheckable(True)
         self.stagePosLabel = QtGui.QLabel('0 mm')
-        self.stagePosLabel.setSizePolicy(QtGui.QSizePolicy.Preferred,
-                                         QtGui.QSizePolicy.Expanding)
+        self.powerLabel = QtGui.QLabel('0')
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
@@ -77,7 +77,8 @@ class LaserWidget(QtGui.QFrame):
         grid.addWidget(self.setEpiButton, 2, 0)
         grid.addWidget(self.tirfButton, 1, 1)
         grid.addWidget(self.epiButton, 2, 1)
-        grid.addWidget(self.stagePosLabel, 1, 2, 2, 1)
+        grid.addWidget(self.stagePosLabel, 1, 2)
+        grid.addWidget(self.powerLabel, 2, 2)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
