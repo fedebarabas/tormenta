@@ -89,7 +89,7 @@ class RecordingWidget(QtGui.QFrame):
         self.progressBar = QtGui.QProgressBar()
         self.progressBar.setTextVisible(False)
 
-        # Layout
+        # Recording buttons layout
         buttonWidget = QtGui.QWidget()
         buttonGrid = QtGui.QGridLayout()
         buttonWidget.setLayout(buttonGrid)
@@ -98,6 +98,8 @@ class RecordingWidget(QtGui.QFrame):
         buttonWidget.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                    QtGui.QSizePolicy.Expanding)
         buttonGrid.addWidget(self.recButton, 0, 2)
+
+        self.measurementBox = QtGui.QCheckBox('Intensity measurement')
 
         recGrid = QtGui.QGridLayout()
         self.setLayout(recGrid)
@@ -116,6 +118,7 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(self.progressBar, 5, 3, 1, 2)
         recGrid.addWidget(self.tRemaining, 5, 3, 1, 2)
         recGrid.addWidget(buttonWidget, 6, 0, 1, 5)
+        recGrid.addWidget(self.measurementBox, 7, 0, 1, 5)
 
         recGrid.setColumnMinimumWidth(0, 70)
         recGrid.setRowMinimumHeight(6, 40)

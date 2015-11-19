@@ -5,6 +5,8 @@ Created on Tue Aug 12 11:51:21 2014
 @author: Federico Barabas
 """
 
+import numpy as np
+
 import time
 from PyQt4 import QtGui, QtCore
 from lantz import Q_
@@ -24,7 +26,6 @@ class UpdatePowers(QtCore.QObject):
         self.widget.redControl.powerIndicator.setText(redpower)
         self.widget.blueControl.powerIndicator.setText(bluepower)
         self.widget.greenControl.powerIndicator.setText(greenpower)
-        self.widget.powerLabel.setText(str(self.widget.daq.analog_in[3]))
         time.sleep(1)
         QtCore.QTimer.singleShot(1, self.update)
 
@@ -56,7 +57,7 @@ class LaserWidget(QtGui.QFrame):
                                          tickInterval=10, singleStep=1,
                                          daq=self.daq, port=0)
 
-        self.controls = (self.redControl, self.blueControl, self.greenControl)
+        self.shuttLasers = np.array([self.redControl, self.greenControl])
 
         self.findTirfButton = QtGui.QPushButton('Find TIRF (no anda)')
         self.setEpiButton = QtGui.QPushButton('Set EPI (no anda)')
@@ -65,7 +66,8 @@ class LaserWidget(QtGui.QFrame):
         self.epiButton = QtGui.QPushButton('EPI (no anda)')
         self.epiButton.setCheckable(True)
         self.stagePosLabel = QtGui.QLabel('0 mm')
-        self.powerLabel = QtGui.QLabel('0')
+        self.getIntButton = QtGui.QPushButton('Get intensities')
+        self.getIntButton.clicked.connect(self.getIntensities)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
@@ -78,7 +80,7 @@ class LaserWidget(QtGui.QFrame):
         grid.addWidget(self.tirfButton, 1, 1)
         grid.addWidget(self.epiButton, 2, 1)
         grid.addWidget(self.stagePosLabel, 1, 2)
-        grid.addWidget(self.powerLabel, 2, 2)
+        grid.addWidget(self.getIntButton, 2, 2)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
@@ -87,10 +89,39 @@ class LaserWidget(QtGui.QFrame):
         self.updateThread.start()
         self.updateThread.started.connect(self.updatePowers.update)
 
+    def getIntensities(self):
+
+        enabledLasers = [control.laser.enabled for control in self.shuttLasers]
+        enabledLasers = np.array(enabledLasers, dtype=bool)
+        enabledControls = self.shuttLasers[enabledLasers]
+        shutterState = np.array([False for control in self.shuttLasers],
+                                dtype=bool)
+
+        i = 0
+        for control in enabledControls:
+            shutterState[i] = control.shutterBox.isChecked
+            control.shutterBox.setChecked(False)
+            i += 1
+
+        # TODO: try this
+        self.daq.digital_IO[3] = False
+
+        for control in enabledControls:
+            control.shutterBox.setChecked(True)
+            time.sleep(1)
+            control.intensityEdit.setText(str(self.daq.analog_in[3]))
+
+        i = 0
+        for control in enabledControls:
+            control.shutterBox.setChecked(not(shutterState[i]))
+            i += 1
+
+        # TODO: try this
+        self.daq.digital_IO[3] = True
+
     def closeShutters(self):
-        for control in self.controls:
-            if control.port is not None:
-                control.shutterBox.setChecked(False)
+        for control in self.shuttLasers:
+            control.shutterBox.setChecked(False)
 
     def closeEvent(self, *args, **kwargs):
         self.closeShutters()
@@ -112,19 +143,27 @@ class LaserControl(QtGui.QFrame):
         self.name = QtGui.QLabel(name)
         self.name.setTextFormat(QtCore.Qt.RichText)
 
+        # Power widget
+        self.setPointLabel = QtGui.QLabel('Setpoint')
+        self.setPointEdit = QtGui.QLineEdit(str(self.laser.power_sp.magnitude))
+        self.setPointEdit.setFixedWidth(100)
+        self.powerLabel = QtGui.QLabel('Power')
         self.powerIndicator = QtGui.QLineEdit('{:~}'.format(self.laser.power))
         self.powerIndicator.setReadOnly(True)
         self.powerIndicator.setFixedWidth(100)
-        self.setPointEdit = QtGui.QLineEdit(str(self.laser.power_sp.magnitude))
-        self.setPointEdit.setFixedWidth(100)
-        self.enableButton = QtGui.QPushButton('ON')
-        self.enableButton.setFixedWidth(100)
-        style = "background-color: rgb{}".format(color)
-        self.enableButton.setStyleSheet(style)
-        self.enableButton.setCheckable(True)
-        if self.laser.enabled:
-            self.enableButton.setChecked(True)
+        self.intensityLabel = QtGui.QLabel('Intensity')
+        self.intensityEdit = QtGui.QLineEdit()
+        powerWidget = QtGui.QWidget()
+        powerGrid = QtGui.QGridLayout()
+        powerWidget.setLayout(powerGrid)
+        powerGrid.addWidget(self.setPointLabel, 0, 0)
+        powerGrid.addWidget(self.setPointEdit, 1, 0)
+        powerGrid.addWidget(self.powerLabel, 2, 0)
+        powerGrid.addWidget(self.powerIndicator, 3, 0)
+        powerGrid.addWidget(self.intensityLabel, 4, 0)
+        powerGrid.addWidget(self.intensityEdit, 5, 0)
 
+        # Slider
         self.maxpower = QtGui.QLabel(str(prange[1]))
         self.maxpower.setAlignment(QtCore.Qt.AlignCenter)
         self.slider = QtGui.QSlider(QtCore.Qt.Vertical, self)
@@ -137,17 +176,22 @@ class LaserControl(QtGui.QFrame):
         self.minpower = QtGui.QLabel(str(prange[0]))
         self.minpower.setAlignment(QtCore.Qt.AlignCenter)
 
+        # ON/OFF button
+        self.enableButton = QtGui.QPushButton('ON')
+        style = "background-color: rgb{}".format(color)
+        self.enableButton.setStyleSheet(style)
+        self.enableButton.setCheckable(True)
+        if self.laser.enabled:
+            self.enableButton.setChecked(True)
+
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
         grid.addWidget(self.name, 0, 0)
-        grid.addWidget(self.powerIndicator, 3, 0)
-        grid.addWidget(self.setPointEdit, 4, 0)
-        grid.addWidget(self.enableButton, 5, 0)
+        grid.addWidget(powerWidget, 3, 0)
         grid.addWidget(self.maxpower, 1, 1)
         grid.addWidget(self.slider, 2, 1, 5, 1)
         grid.addWidget(self.minpower, 7, 1)
-        grid.setRowMinimumHeight(2, 60)
-        grid.setRowMinimumHeight(6, 60)
+        grid.addWidget(self.enableButton, 8, 0, 1, 2)
 
         # Connections
         self.enableButton.toggled.connect(self.toggleLaser)
@@ -157,7 +201,7 @@ class LaserControl(QtGui.QFrame):
         # Shutter port
         if self.port is not None:
             self.shutterBox = QtGui.QCheckBox('Shutter open')
-            grid.addWidget(self.shutterBox, 6, 0)
+            powerGrid.addWidget(self.shutterBox, 6, 0)
             self.shutterBox.stateChanged.connect(self.shutterAction)
 
             if invert:
