@@ -16,11 +16,11 @@ class UpdatePowers(QtCore.QObject):
 
     def __init__(self, laserwidget, *args, **kwargs):
 
-        super(QtCore.QObject, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.widget = laserwidget
 
     def update(self):
-        redpower = '{:~}'.format(self.widget.redlaser.power)
+        redpower = '{:~}'.format(np.round(self.widget.redlaser.power, 1))
         bluepower = '{:~}'.format(self.widget.bluelaser.power)
         greenpower = '{:~}'.format(self.widget.greenlaser.power)
         self.widget.redControl.powerIndicator.setText(redpower)
@@ -94,29 +94,29 @@ class LaserWidget(QtGui.QFrame):
         enabledLasers = [control.laser.enabled for control in self.shuttLasers]
         enabledLasers = np.array(enabledLasers, dtype=bool)
         enabledControls = self.shuttLasers[enabledLasers]
-        shutterState = np.array([False for control in self.shuttLasers],
-                                dtype=bool)
 
-        i = 0
-        for control in enabledControls:
-            shutterState[i] = control.shutterBox.isChecked
-            control.shutterBox.setChecked(False)
-            i += 1
+        # Record shutters state
+        shutterState = [ctl.shutterBox.isChecked() for ctl in enabledControls]
 
-        # TODO: try this
+        # Flip measurement mirror
         self.daq.digital_IO[3] = False
 
+        # Measure each laser intensity
         for control in enabledControls:
+            others = [ctrl for ctrl in enabledControls if ctrl != control]
+            for ctrl in others:
+                ctrl.shutterBox.setChecked(False)
             control.shutterBox.setChecked(True)
             time.sleep(1)
             control.intensityEdit.setText(str(self.daq.analog_in[3]))
 
+        # Load original shutter state
         i = 0
         for control in enabledControls:
-            control.shutterBox.setChecked(not(shutterState[i]))
+            control.shutterBox.setChecked(shutterState[i])
             i += 1
 
-        # TODO: try this
+        # Flip measurement mirror back
         self.daq.digital_IO[3] = True
 
     def closeShutters(self):
