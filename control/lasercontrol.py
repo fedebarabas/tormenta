@@ -39,6 +39,7 @@ class LaserWidget(QtGui.QFrame):
         self.redlaser, self.bluelaser, self.greenlaser = lasers
         self.mW = Q_(1, 'mW')
         self.daq = daq
+        self.daq.digital_IO[3] = True
 
         self.redControl = LaserControl(self.redlaser,
                                        '<h3>MPB 642nm</h3>',
