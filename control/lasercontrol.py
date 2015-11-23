@@ -58,6 +58,7 @@ class LaserWidget(QtGui.QFrame):
                                          daq=self.daq, port=0)
 
         self.shuttLasers = np.array([self.redControl, self.greenControl])
+        self.controls = (self.blueControl, self.redControl, self.greenControl)
 
         self.findTirfButton = QtGui.QPushButton('Find TIRF (no anda)')
         self.setEpiButton = QtGui.QPushButton('Set EPI (no anda)')
