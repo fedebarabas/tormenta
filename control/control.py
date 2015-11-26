@@ -291,8 +291,8 @@ class RecordingWidget(QtGui.QFrame):
                 self.main.liveviewButton.setEnabled(False)
                 self.main.viewtimer.stop()
 
-                self.savename = (os.path.join(folder, self.filenameEdit.text())
-                                 + '.hdf5')
+                name = os.path.join(folder, self.filenameEdit.text())
+                self.savename = (name + '.hdf5')
                 self.savename = guitools.getUniqueName(self.savename)
                 self.startTime = ptime.time()
 
@@ -330,7 +330,10 @@ class RecordingWidget(QtGui.QFrame):
             self.main.focusWidget.n = 1
             self.main.focusWidget.max_dev = 0
 
-        converterFunction = lambda: guitools.TiffConverterThread(self.savename)
+        def converterFunction():
+            return guitools.TiffConverterThread(self.savename)
+
+#        converterFunction = lambda: guitools.TiffConverterThread(self.savename)
         self.main.exportlastAction.triggered.connect(converterFunction)
         self.main.exportlastAction.setEnabled(True)
 
@@ -617,7 +620,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.savePresetAction = QtGui.QAction('Save configuration...', self)
         self.savePresetAction.setShortcut('Ctrl+S')
         self.savePresetAction.setStatusTip('Save camera & recording settings')
-        savePresetFunction = lambda: guitools.savePreset(self)
+
+        def savePresetFunction():
+            return guitools.savePreset(self)
+#        savePresetFunction = lambda: guitools.savePreset(self)
         self.savePresetAction.triggered.connect(savePresetFunction)
         fileMenu.addAction(self.savePresetAction)
         fileMenu.addSeparator()
@@ -666,7 +672,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.cropLoaded = False
 
         # Exposition signals
-        changeExposure = lambda: self.changeParameter(self.setExposure)
+        def changeExposure():
+            return self.changeParameter(self.setExposure)
+#        changeExposure = lambda: self.changeParameter(self.setExposure)
         timingsPar = self.tree.p.param('Timings')
         self.expPar = timingsPar.param('Set exposure time')
         self.expPar.sigValueChanged.connect(changeExposure)
@@ -685,7 +693,10 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Gain signals
         self.PreGainPar = self.tree.p.param('Gain').param('Pre-amp gain')
-        updateGain = lambda: self.changeParameter(self.setGain)
+
+        def updateGain():
+            return self.changeParameter(self.setGain)
+#        updateGain = lambda: self.changeParameter(self.setGain)
         self.PreGainPar.sigValueChanged.connect(updateGain)
         self.GainPar = self.tree.p.param('Gain').param('EM gain')
         self.GainPar.sigValueChanged.connect(updateGain)
@@ -708,7 +719,10 @@ class TormentaGUI(QtGui.QMainWindow):
         for preset in os.listdir(self.presetDir):
             self.presetsMenu.addItem(preset)
         self.loadPresetButton = QtGui.QPushButton('Load preset')
-        loadPresetFunction = lambda: guitools.loadPreset(self)
+
+        def loadPresetFunction():
+            return guitools.loadPreset(self)
+#        loadPresetFunction = lambda: guitools.loadPreset(self)
         self.loadPresetButton.pressed.connect(loadPresetFunction)
 
         # Liveview functionality
@@ -999,9 +1013,9 @@ class TormentaGUI(QtGui.QMainWindow):
         # in the GUI and the camera settings
         self.andor.horiz_shift_speed = 3 - n_hrr
 
-        n_vss = np.where(np.array([item.magnitude
-                                  for item in self.andor.vertSpeeds])
-                         == self.vertShiftSpeedPar.value().magnitude)[0][0]
+        magList = [item.magnitude for item in self.andor.vertSpeeds]
+        n_vss = np.where(np.array(magList) ==
+                         self.vertShiftSpeedPar.value().magnitude)[0][0]
         self.andor.vert_shift_speed = n_vss
 
         n_vsa = np.where(np.array(self.andor.vertAmps) ==

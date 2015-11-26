@@ -398,13 +398,13 @@ def ll_jac0(parameters, *args, xy=np.arange(5), jac=np.zeros((4, 5, 5))):
     derfx = derf(x0, fwhm, xy)
     derfy = derf(y0, fwhm, xy)
 
-    # d-L/d(A)
+    # dL/d(A)
     jac[0] = derfx[:, np.newaxis] * derfy
-    # d-L/d(x0) y d-L/d(y0)
+    # dL/d(x0) y dL/d(y0)
     jac[1] = dexp(x0, fwhm, xy)[:, np.newaxis] * derfy
     jac[2] = derfx[:, np.newaxis] * dexp(y0, fwhm, xy)
     jac[1:3] *= A
-    # d-L/d(bkg)
+    # dL/d(bkg)
     jac[3] = 1
     jac *= area/(A * jac[0] + bkg) - 1
 
@@ -463,6 +463,56 @@ def ll_hess_diag(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
 
     return np.sum(hess, (1, 2))
 
+
+def ll_hess_diag0(params, *args, xy=np.arange(5), hess=np.zeros((4, 5, 5))):
+    """ Diagonal of the Hessian matrix of the log-likelihood function for an
+    area of size size**2 around a local maximum with respect with a 2d
+    symmetric gaussian of A amplitude centered in (x0, y0) with full-width half
+    maximum fwhm on top of a background bkg as the model PSF. x, x0 and sigma
+    are in px units.
+    Order of derivatives: A, x0, y0, bkg.
+    """
+    A, x0, y0, bkg = params
+    fwhm, area = args
+    fwhm *= 0.6
+
+    derfx = derf(x0, fwhm, xy)[:, np.newaxis]
+    derfy = derf(y0, fwhm, xy)
+    derfxy = derfx*derfy
+    lambd = A * derfxy + bkg
+    factor = area/lambd - 1
+    dxf = (xy - x0)/fwhm
+    dxf1 = dxf + 1/fwhm
+    dyf = (xy - y0)/fwhm
+    dyf1 = dyf + 1/fwhm
+    fwhm2 = fwhm*fwhm
+
+    # d2L/d(A)2
+    hess[0] = derfxy*derfxy
+
+    # d2L/d(x0)2
+    # 2/np.sqrt(np.pi) = 1.1283791670955126
+    jac1 = dexp(x0, fwhm, xy)[:, np.newaxis] * derfy
+    hess[1] = jac1*jac1
+
+    # d2L/d(y0)2
+    jac2 = derfx * dexp(y0, fwhm, xy)
+    hess[2] = jac2*jac2
+
+    # d2L/d(bkg)2
+    hess[3] = factor*factor
+
+    hess *= -area/(lambd*lambd)
+
+    dexpx = dxf*np.exp(-dxf*dxf) - dxf1*np.exp(-dxf1*dxf1)
+    d2lambx = 1.1283791670955126*A*derfy*dexpx[:, np.newaxis]/fwhm2
+    hess[1] += d2lambx*factor
+
+    dexpy = dyf*np.exp(-dyf*dyf) - dyf1*np.exp(-dyf1*dyf1)
+    d2lamby = 1.1283791670955126*A*derfx*dexpy/fwhm2
+    hess[2] += d2lamby*factor
+
+    return np.sum(hess, (1, 2))
 
 def ll_hess(params, *args, xy=np.arange(5), hess=np.zeros((4, 4, 5, 5))):
     """ Full Hessian matrix of the log-likelihood function for an area of size
