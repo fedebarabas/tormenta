@@ -56,7 +56,7 @@ class LaserWidget(QtGui.QFrame):
                                          '<h3>Ventus 532nm</h3>',
                                          color=(80, 255, 0), prange=(0, 1500),
                                          tickInterval=10, singleStep=1,
-                                         daq=self.daq, port=0)
+                                         daq=self.daq, port=0, invert=False)
 
         self.shuttLasers = np.array([self.redControl, self.greenControl])
         self.controls = (self.blueControl, self.redControl, self.greenControl)

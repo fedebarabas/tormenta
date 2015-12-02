@@ -324,14 +324,14 @@ class TwoColorGrid():
         pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
         pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
 
-        self.rectT = QtGui.QGraphicsRectItem(192, 118, 128, 128)
+        self.rectT = QtGui.QGraphicsRectItem(192, 192, 128, 128)
         self.rectT.setPen(pen)
-        self.rectR = QtGui.QGraphicsRectItem(192, 266, 128, 128)
+        self.rectR = QtGui.QGraphicsRectItem(192, 54, 128, 128)
         self.rectR.setPen(pen)
         self.yLine = pg.InfiniteLine(pos=0.5*self.shape[0], pen=pen2)
         self.xLine = pg.InfiniteLine(pos=0.5*self.shape[1], pen=pen2, angle=0)
-        self.xLineT = pg.InfiniteLine(pos=182, pen=pen2, angle=0)
-        self.xLineR = pg.InfiniteLine(pos=330, pen=pen2, angle=0)
+#        self.xLineT = pg.InfiniteLine(pos=118, pen=pen2, angle=0)
+        self.xLineR = pg.InfiniteLine(pos=118, pen=pen2, angle=0)
 
     def toggle(self):
         if self.showed:
@@ -345,7 +345,7 @@ class TwoColorGrid():
         self.vb.addItem(self.yLine)
         self.vb.addItem(self.xLine)
         self.vb.addItem(self.xLineR)
-        self.vb.addItem(self.xLineT)
+#        self.vb.addItem(self.xLineT)
         self.showed = True
 
     def hide(self):
@@ -354,7 +354,7 @@ class TwoColorGrid():
         self.vb.removeItem(self.yLine)
         self.vb.removeItem(self.xLine)
         self.vb.removeItem(self.xLineR)
-        self.vb.removeItem(self.xLineT)
+#        self.vb.removeItem(self.xLineT)
         self.showed = False
 
 
