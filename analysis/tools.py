@@ -4,11 +4,16 @@ Created on Tue Feb 18 18:03:01 2014
 
 @author: fbaraba
 """
+import math
 import numpy as np
 from scipy.ndimage import affine_transform
 from scipy.special import jn
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+
+
+# epsilon for testing whether a number is close to zero
+_EPS = np.finfo(float).eps * 4.0
 
 
 def gaussian(x, fwhm):
@@ -77,7 +82,8 @@ def dropOverlapping(maxima, d):
 
     n = 0
     for i in np.arange(len(maxima)):
-        overlapFunction = lambda x: not(overlaps(maxima[i], x, d))
+        def overlapFunction(x):
+            return not(overlaps(maxima[i], x, d))
         overlapsList = map(overlapFunction, np.delete(maxima, i, 0))
         if all(overlapsList):
             noOverlaps[n] = maxima[i]
@@ -224,6 +230,72 @@ def affine_matrix_from_points(v0, v1, shear=True, scale=True, usesvd=True):
     M = np.dot(np.linalg.inv(M1), np.dot(M, M0))
     M /= M[ndims, ndims]
     return M
+
+
+def quaternion_matrix(quaternion):
+    """Return homogeneous rotation matrix from quaternion.
+
+    >>> M = quaternion_matrix([0.99810947, 0.06146124, 0, 0])
+    >>> np.allclose(M, rotation_matrix(0.123, [1, 0, 0]))
+    True
+    >>> M = quaternion_matrix([1, 0, 0, 0])
+    >>> np.allclose(M, np.identity(4))
+    True
+    >>> M = quaternion_matrix([0, 1, 0, 0])
+    >>> np.allclose(M, np.diag([1, -1, -1, 1]))
+    True
+
+    """
+    q = np.array(quaternion, dtype=np.float64, copy=True)
+    n = np.dot(q, q)
+    if n < _EPS:
+        return np.identity(4)
+    q *= math.sqrt(2.0 / n)
+    q = np.outer(q, q)
+    return np.array([
+        [1.0-q[2, 2]-q[3, 3],     q[1, 2]-q[3, 0],     q[1, 3]+q[2, 0], 0.0],
+        [q[1, 2]+q[3, 0], 1.0-q[1, 1]-q[3, 3],     q[2, 3]-q[1, 0], 0.0],
+        [q[1, 3]-q[2, 0],     q[2, 3]+q[1, 0], 1.0-q[1, 1]-q[2, 2], 0.0],
+        [0.0,                 0.0,                 0.0, 1.0]])
+
+
+def vector_norm(data, axis=None, out=None):
+    """Return length, i.e. Euclidean norm, of ndarray along axis.
+
+    >>> v = np.random.random(3)
+    >>> n = vector_norm(v)
+    >>> np.allclose(n, np.linalg.norm(v))
+    True
+    >>> v = np.random.rand(6, 5, 3)
+    >>> n = vector_norm(v, axis=-1)
+    >>> np.allclose(n, np.sqrt(np.sum(v*v, axis=2)))
+    True
+    >>> n = vector_norm(v, axis=1)
+    >>> np.allclose(n, np.sqrt(np.sum(v*v, axis=1)))
+    True
+    >>> v = np.random.rand(5, 4, 3)
+    >>> n = np.empty((5, 3))
+    >>> vector_norm(v, axis=1, out=n)
+    >>> np.allclose(n, np.sqrt(np.sum(v*v, axis=1)))
+    True
+    >>> vector_norm([])
+    0.0
+    >>> vector_norm([1])
+    1.0
+
+    """
+    data = np.array(data, dtype=np.float64, copy=True)
+    if out is None:
+        if data.ndim == 1:
+            return math.sqrt(np.dot(data, data))
+        data *= data
+        out = np.atleast_1d(np.sum(data, axis=axis))
+        np.sqrt(out, out)
+        return out
+    else:
+        data *= data
+        np.sum(data, axis=axis, out=out)
+        np.sqrt(out, out)
 
 
 def homo_affine_transform(image, H):

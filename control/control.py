@@ -484,7 +484,7 @@ class CamParamTree(ParameterTree):
                   {'name': 'Image frame', 'type': 'group', 'children': [
                       {'name': 'Shape', 'type': 'list',
                        'values': ['Full chip', '256x256', '128x128', '64x64',
-                                  'Custom']},
+                                  'Two-colors', 'Custom']},
                       {'name': 'Apply', 'type': 'action'}]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Horizontal readout rate', 'type': 'list',
@@ -1060,6 +1060,11 @@ class TormentaGUI(QtGui.QMainWindow):
                 pass
             self.shape = self.andor.detector_shape
             self.frameStart = (1, 1)
+            self.changeParameter(self.adjustFrame)
+
+        elif frameParam.param('Shape').value() == 'Two-color':
+            self.shape = (128, 266)
+            self.frameStart = (192, 54)
             self.changeParameter(self.adjustFrame)
 
         else:
