@@ -716,8 +716,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
         if not(os.path.isdir(self.presetDir)):
             self.presetDir = os.path.join(os.getcwd(), 'control/Presets')
-        for preset in os.listdir(self.presetDir):
-            self.presetsMenu.addItem(preset)
+        try:
+            for preset in os.listdir(self.presetDir):
+                self.presetsMenu.addItem(preset)
+        except FileNotFoundError:
+            pass
         self.loadPresetButton = QtGui.QPushButton('Load preset')
 
         def loadPresetFunction():
@@ -1062,7 +1065,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.frameStart = (1, 1)
             self.changeParameter(self.adjustFrame)
 
-        elif frameParam.param('Shape').value() == 'Two-color':
+        elif frameParam.param('Shape').value() == 'Two-colors':
             self.shape = (128, 266)
             self.frameStart = (192, 54)
             self.changeParameter(self.adjustFrame)
