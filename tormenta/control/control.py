@@ -1066,8 +1066,8 @@ class TormentaGUI(QtGui.QMainWindow):
             self.changeParameter(self.adjustFrame)
 
         elif frameParam.param('Shape').value() == 'Two-colors':
-            self.shape = (128, 266)
-            self.frameStart = (192, 54)
+            self.shape = (266, 266)
+            self.frameStart = (128, 54)
             self.changeParameter(self.adjustFrame)
 
         else:
@@ -1087,6 +1087,7 @@ class TormentaGUI(QtGui.QMainWindow):
         ROISize = self.ROI.size()
         self.shape = (int(ROISize[0]), int(ROISize[1]))
         self.frameStart = (int(self.ROI.pos()[0]), int(self.ROI.pos()[1]))
+        print(self.shape, self.frameStart)
 
         self.changeParameter(self.adjustFrame)
         self.ROI.hide()
