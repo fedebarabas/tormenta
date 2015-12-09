@@ -18,11 +18,24 @@ _EPS = np.finfo(float).eps * 4.0
 def points_registration(tiff_file):
     """Points registration routine. It takes a calibration tiff file 128x266
     in size and calculates the affine transformation between the channels."""
-    ff = tiff.TiffFile(tiff_file)
-    m1 = Maxima(ff.asarray()[:128, :])
-    m2 = Maxima(ff.asarray()[-128:, :])
-    ff.close()
-    return 'ee'
+
+    images = np.zeros((2, 128, 128), dtype=np.uint16)
+
+    with tiff.TiffFile(tiff_file) as ff:
+        images[0] = ff.asarray()[:128, :]
+        images[1] = ff.asarray()[-128:, :]
+
+    points = []
+    for im in images:
+        mm = Maxima(im)
+        mm.find()
+        mm.fit()
+        pp = np.zeros((len(mm.results['fit_x']), 2))
+        pp[:, 0] = mm.results['fit_x']
+        pp[:, 1] = mm.results['fit_y']
+        points.append(pp)
+
+    return points
 
 
 def affine_matrix_from_points(v0, v1, shear=True, scale=True, usesvd=True):
@@ -223,4 +236,4 @@ def homo_affine_transform(image, H):
 
 if __name__ == '__main__':
 
-    points_registration()
+    points_registration('/home/federico/Desktop/Data/filename_snap_7.tiff')
