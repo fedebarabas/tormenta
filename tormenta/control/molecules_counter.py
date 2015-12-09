@@ -11,8 +11,8 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtGui, QtCore
 import pyqtgraph.ptime as ptime
 
-import analysis.maxima as maxima
-import analysis.tools as tools
+import tormenta.analysis.maxima as maxima
+import tormenta.analysis.tools as tools
 
 
 class MoleculeWidget(QtGui.QFrame):

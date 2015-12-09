@@ -1,116 +1,28 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb 18 18:03:01 2014
+Created on Tue Dec  8 20:51:54 2015
 
-@author: fbaraba
+@author: federico
 """
-import math
 import numpy as np
+import math
 from scipy.ndimage import affine_transform
-from scipy.special import jn
-from scipy.optimize import curve_fit
-import matplotlib.pyplot as plt
+import tifffile as tiff
 
+from tormenta.analysis.maxima import Maxima
 
 # epsilon for testing whether a number is close to zero
 _EPS = np.finfo(float).eps * 4.0
 
 
-def gaussian(x, fwhm):
-    return np.exp(- 4 * np.log(2) * (x / fwhm)**2)
-
-
-def best_gauss(x, x0, fwhm):
-    """ Returns the closest gaussian function to an Airy disk centered in x0
-    and a full width half maximum equal to fwhm."""
-    return np.exp(- 4 * np.log(2) * (x - x0)**2 / fwhm**2)
-
-
-def airy(x):
-    return (2 * jn(1, 2 * np.pi * x) / (2 * np.pi * x))**2
-
-
-def get_fwhm(wavelength, NA):
-    ''' Gives the FWHM (in nm) for a PSF with wavelength in nm'''
-
-    x = np.arange(-2, 2, 0.01)
-    y = airy(x)
-
-    # Fitting only inside first Airy's ring
-    fit_int = np.where(abs(x) < 0.61)[0]
-
-    fit_par, fit_var = curve_fit(gaussian, x[fit_int], y[fit_int], p0=0.5)
-
-    return fit_par[0] * wavelength / NA
-
-
-def airy_vs_gauss():
-
-    wavelength = 670        # nm
-    NA = 1.4
-
-    x = np.arange(-2, 2, 0.01)
-    y = airy(x)
-    fw = get_fwhm(wavelength, NA)
-    fit = best_gauss(x, 0, fw * NA / wavelength)
-
-    print('FWHM is', np.round(fw))
-
-    plt.plot(x, y, label='Airy disk')
-    plt.plot(x, fit, label='Gaussian fit')
-    plt.legend()
-    plt.grid('on')
-    plt.show()
-
-
-def mode(array):
-    hist, bin_edges = np.histogram(array, bins=array.max() - array.min())
-    hist_max = hist.argmax()
-    return (bin_edges[hist_max + 1] + bin_edges[hist_max]) / 2
-
-
-def overlaps(p1, p2, d):
-    return max(abs(p1[1] - p2[1]), abs(p1[0] - p2[0])) <= d
-
-
-def dropOverlapping(maxima, d):
-    """We exclude from the analysis all the maxima that have their fitting
-    windows overlapped, i.e., the distance between them is less than 'd'
-    """
-
-    noOverlaps = np.zeros(maxima.shape, dtype=int)  # Final array
-
-    n = 0
-    for i in np.arange(len(maxima)):
-        def overlapFunction(x):
-            return not(overlaps(maxima[i], x, d))
-        overlapsList = map(overlapFunction, np.delete(maxima, i, 0))
-        if all(overlapsList):
-            noOverlaps[n] = maxima[i]
-            n += 1
-
-    return noOverlaps[:n]
-
-
-def kernel(fwhm):
-    """ Returns the kernel of a convolution used for finding objects of a
-    full width half maximum fwhm in an image."""
-    window = np.ceil(fwhm) + 3
-#    window = int(np.ceil(fwhm)) + 2
-    x = np.arange(0, window)
-    y = x
-    xx, yy = np.meshgrid(x, y, sparse=True)
-    matrix = best_gauss(xx, x.mean(), fwhm) * best_gauss(yy, y.mean(), fwhm)
-    matrix /= matrix.sum()
-    return matrix
-
-
-def xkernel(fwhm):
-    window = np.ceil(fwhm) + 3
-    x = np.arange(0, window)
-    matrix = best_gauss(x, x.mean(), fwhm)
-    matrix = matrix - matrix.sum() / matrix.size
-    return matrix
+def points_registration(tiff_file):
+    """Points registration routine. It takes a calibration tiff file 128x266
+    in size and calculates the affine transformation between the channels."""
+    ff = tiff.TiffFile(tiff_file)
+    m1 = Maxima(ff.asarray()[:128, :])
+    m2 = Maxima(ff.asarray()[-128:, :])
+    ff.close()
+    return 'ee'
 
 
 def affine_matrix_from_points(v0, v1, shear=True, scale=True, usesvd=True):
@@ -307,3 +219,8 @@ def homo_affine_transform(image, H):
     http://elonen.iki.fi/code/misc-notes/affine-fit/
     """
     return affine_transform(image, H[:2, :2], (H[0, 2], H[1, 2]))
+
+
+if __name__ == '__main__':
+
+    points_registration()

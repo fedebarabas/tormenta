@@ -17,8 +17,8 @@ import pygame
 
 from lantz import Q_
 
-import control.instruments as instruments  # , DAQ
-import control.pi as pi
+import tormenta.control.instruments as instruments  # , DAQ
+import tormenta.control.pi as pi
 
 
 class FocusWidget(QtGui.QFrame):

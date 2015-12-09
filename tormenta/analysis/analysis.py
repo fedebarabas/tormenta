@@ -32,8 +32,8 @@ class AnalysisWidget(QtGui.QFrame):
         grid.setRowMinimumHeight(1, 600)
         grid.setColumnMinimumWidth(0, 600)
 
-    def openStack(self):
-
+#    def openStack(self):
+        
 
 
 if __name__ == '__main__':

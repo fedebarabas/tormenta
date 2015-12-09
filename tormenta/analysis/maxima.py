@@ -5,9 +5,6 @@ Created on Mon Feb 17 18:23:40 2014
 @author: fbaraba
 """
 
-import warnings
-warnings.filterwarnings("error")
-
 import numpy as np
 
 from scipy.special import erf
@@ -16,7 +13,10 @@ from scipy.ndimage import label
 from scipy.ndimage.filters import convolve, maximum_filter
 from scipy.ndimage.measurements import maximum_position, center_of_mass
 
-import analysis.tools as tools
+import tormenta.analysis.tools as tools
+
+import warnings
+warnings.filterwarnings("error")
 
 
 # data-type definitions
@@ -224,7 +224,7 @@ class Maxima():
             fit[1] += offset[0]
             fit[2] += offset[1]
 
-            # Can I do this faster if fit_area returned a struct array? TRY IT!
+            # Can I do this faster if fit_area returned a struct array?
             m = 0
             for par in self.fit_par:
                 self.results[par[0]][i] = fit[m]

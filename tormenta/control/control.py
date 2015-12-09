@@ -26,11 +26,11 @@ import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
 
 # tormenta imports
-import control.lasercontrol as lasercontrol
-import control.focus as focus
-import control.molecules_counter as moleculesCounter
-import control.ontime as ontime
-import control.guitools as guitools
+import tormenta.control.lasercontrol as lasercontrol
+import tormenta.control.focus as focus
+import tormenta.control.molecules_counter as moleculesCounter
+import tormenta.control.ontime as ontime
+import tormenta.control.guitools as guitools
 
 
 class RecordingWidget(QtGui.QFrame):

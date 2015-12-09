@@ -15,7 +15,7 @@ from lantz import Q_
 import pygame
 import pygame.camera
 
-import control.mockers as mockers
+import tormenta.control.mockers as mockers
 
 
 class Webcam(object):

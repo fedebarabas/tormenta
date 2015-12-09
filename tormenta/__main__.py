@@ -5,6 +5,6 @@ Created on Thu May 21 17:20:49 2015
 @author: federico
 """
 
-from tormenta import main
+from tormenta.application import main
 
 main()

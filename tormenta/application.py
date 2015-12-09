@@ -9,8 +9,8 @@ from pyqtgraph.Qt import QtGui
 
 def main():
 
-    from control import control
-    import control.instruments as instruments
+    from tormenta.control import control
+    import tormenta.control.instruments as instruments
 
     app = QtGui.QApplication([])
 
@@ -36,7 +36,7 @@ def main():
 
 def analysisApp():
 
-    from analysis import analysis
+    from tormenta.analysis import analysis
 
     app = QtGui.QApplication([])
 

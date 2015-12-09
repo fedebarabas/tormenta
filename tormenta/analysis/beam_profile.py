@@ -12,7 +12,7 @@ from tkinter import Tk, filedialog
 from PIL import Image
 import matplotlib.pyplot as plt
 
-from stack import Stack
+from tormenta.analysis.stack import Stack
 
 
 def loadStacks(ask, folder=None):
