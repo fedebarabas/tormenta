@@ -19,6 +19,7 @@ from tkinter import Tk, filedialog, simpledialog
 from lantz import Q_
 
 
+# Misc tools
 # taken from https://www.mrao.cam.ac.uk/~dag/CUBEHELIX/cubehelix.py
 def cubehelix(gamma=1.0, s=0.5, r=-1.5, h=1.0):
     def get_color_function(p0, p1):
@@ -36,7 +37,7 @@ def cubehelix(gamma=1.0, s=0.5, r=-1.5, h=1.0):
     array[:, 2] = get_color_function(1.97294, 0.0)(abytes) * 255
     return array
 
-
+# String tools
 # Check for same name conflict
 def getUniqueName(name):
 
@@ -86,6 +87,7 @@ def getFilenames(title, filetypes):
         print("No files selected!")
 
 
+# Preset tools
 def savePreset(main, filename=None):
 
     if filename is None:
@@ -173,7 +175,7 @@ def loadPreset(main, filename=None):
 
     tree.param('Gain').param('EM gain').setValue(int(configCam['EM gain']))
 
-
+# HDF <--> Tiff converter
 class TiffConverterThread(QtCore.QThread):
 
     def __init__(self, filename=None):
@@ -244,6 +246,7 @@ class TiffConverter(QtCore.QObject):
         #                open('/Path/filename.txt'))
 
 
+# viewBox tools
 class Grid():
 
     def __init__(self, viewBox, shape):
@@ -440,3 +443,39 @@ class cropROI(pg.ROI):
                         scaleSnap=True, translateSnap=True, movable=False,
                         pen='y', *args, **kwargs)
         self.addScaleHandle((0, 1), (1, 0))
+
+
+class daqStream(QtCore.QObject):
+    """This stream gets an analog input at a high frame rate and returns the
+    mean of the set of taken data."""
+    def __init__(self, DAQ, scansPerS, port, *args, **kwargs):
+
+        super().__init__(*args, **kwargs)
+
+        self.DAQ = DAQ
+        self.scansPerS = scansPerS
+        self.port = 'AIN{}'.format(port)
+        names = [self.port + "_NEGATIVE_CH", self.port + "_RANGE",
+                 "STREAM_SETTLING_US", "STREAM_RESOLUTION_INDEX"]
+        # single-ended, +/-1V, 0, 0 (defaults)
+        # Voltage Ranges: ±10V, ±1V, ±0.1V, and ±0.01V
+        values = [self.DAQ.constants.GND, 1, 0, 0]
+        self.DAQ.writeNames(names, values)
+        self.newData = 0
+
+    def start(self):
+        scanRate = 5000
+        scansPerRead = int(scanRate/self.scansPerS)
+        portAddress = self.DAQ.address(self.port)[0]
+        scanRate = self.DAQ.streamStart(scansPerRead, [portAddress], scanRate)
+        self.newData = np.mean(self.DAQ.streamRead()[0])
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update)
+        self.timer.start(0)
+
+    def stop(self):
+        pass
+        # TODO: stop
+
+    def update(self):
+        self.newData = np.mean(self.DAQ.streamRead()[0])

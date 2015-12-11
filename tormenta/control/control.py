@@ -846,6 +846,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Focus lock widget
         focusDock = Dock("Focus Control", size=(1, 1))
+        # TODO: sacar self.daq
         self.focusWidget = focus.FocusWidget(scanZ, self.recWidget)
         focusDock.addWidget(self.focusWidget)
         dockArea.addDock(focusDock, 'top', consoleDock)

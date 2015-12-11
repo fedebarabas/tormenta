@@ -8,7 +8,6 @@ Created on Wed Oct  1 13:41:48 2014
 import numpy as np
 import time
 import scipy.ndimage as ndi
-from matplotlib import pyplot as plt
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
@@ -17,7 +16,7 @@ import pygame
 
 from lantz import Q_
 
-import tormenta.control.instruments as instruments  # , DAQ
+import tormenta.control.instruments as instruments
 import tormenta.control.pi as pi
 
 
@@ -30,11 +29,6 @@ class FocusWidget(QtGui.QFrame):
         self.setMinimumSize(2, 350)
 
         self.main = main  # main va a ser RecordingWidget de control.py
-#        self.DAQ = DAQ
-#        try:
-#            self.DAQ.streamStop()
-#        except:
-#            pass
 
         self.webcam = instruments.Webcam()
 
@@ -50,19 +44,8 @@ class FocusWidget(QtGui.QFrame):
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
 
-        # Thread for getting data from DAQ
         self.scansPerS = 10
-#        self.scansPerS = 20
-#        self.stream = daqStream(DAQ, scansPerS)
-#        self.streamThread = QtCore.QThread()
-#        self.stream.moveToThread(self.streamThread)
-#        self.streamThread.started.connect(self.stream.start)
-#        self.streamThread.start()
-
         self.ProcessData = ProcessData(self.webcam)
-
-
-
 
         # Focus lock widgets
         self.kpEdit = QtGui.QLineEdit('-0.002')
@@ -80,7 +63,6 @@ class FocusWidget(QtGui.QFrame):
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
 
         self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
-
 
         self.graph = FocusLockGraph(self, main)
 #        self.webcamgraph = WebcamGraph(self)
@@ -124,10 +106,6 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.lockButton, 1, 5, 2, 1)
         grid.addWidget(self.focusDataBox, 1, 2)
 
-#        grid.setColumnMinimumWidth(1, 100)
-#        grid.setColumnMinimumWidth(2, 40)
-#        grid.setColumnMinimumWidth(0, 100)
-
     def update(self):
         self.ProcessData.update()
         self.graph.update()
@@ -160,7 +138,6 @@ class FocusWidget(QtGui.QFrame):
 
         # TODO: explain ifs
         self.distance = self.z.position - self.initialZ
-#        out = self.PI.update(self.stream.newData)
         out = self.PI.update(self.ProcessData.focusSignal)
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
@@ -197,10 +174,8 @@ class FocusWidget(QtGui.QFrame):
         self.n += 1
 
     def closeEvent(self, *args, **kwargs):
-
         self.focusTimer.stop()
         self.webcam.stop()
-
         super().closeEvent(*args, **kwargs)
 
 
@@ -257,7 +232,6 @@ class FocusLockGraph(pg.GraphicsWindow):
 
         self.focusWidget = focusWidget
         self.main = main
-        self.scansPerS = self.focusWidget.scansPerS
         self.analize = self.focusWidget.analizeFocus
         self.focusDataBox = self.focusWidget.focusDataBox
         self.savedDataSignal = []
@@ -313,7 +287,6 @@ class FocusLockGraph(pg.GraphicsWindow):
             if self.recButton.isChecked():
                 self.savedDataSignal.append(self.focusSignal)
                 self.savedDataTime.append(self.time[-1])
-#               self.savedDataPosition.append(self.DAQ.position)
 
             if self.recButton.isChecked():
                 self.analize()
@@ -324,7 +297,6 @@ class WebcamGraph(pg.GraphicsWindow):
     def __init__(self, focusWidget, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
-
         self.focusWidget = focusWidget
 
         self.plot = self.addPlot(row=0, col=0)
@@ -338,7 +310,6 @@ class WebcamGraph(pg.GraphicsWindow):
         self.plot.setRange(xRange=(-200, 200), yRange=(-100, 100))
 
     def update(self):
-
         self.massCenter = self.focusWidget.ProcessData.massCenter
         self.massCenterPlot.setData([self.massCenter[0]], [self.massCenter[1]],
                                     brush=(255, 0, 0), pen='w')
@@ -354,7 +325,6 @@ class FocusCalibration(QtCore.QObject):
         self.positionData = []
         self.nm = Q_(1, 'nm')
         self.step = 50 * self.nm
-#        self.stream = mainwidget.stream
         self.z = mainwidget.z
         self.mainwidget = mainwidget  # mainwidget será FocusLockWidget
 
@@ -383,46 +353,11 @@ class FocusCalibration(QtCore.QObject):
         cal = np.around(np.abs(self.calibrationResult[0]), 1)
         calText = '1 px --> {} nm'.format(cal)
         self.mainwidget.calibrationDisplay.setText(calText)
-        self.savedCalibData = [self.positionData,
-                               self.signalData,
-                               np.polynomial.polynomial.polyval(self.positionData, self.calibrationResult[::-1])]
+        poly = np.polynomial.polynomial.polyval(self.positionData,
+                                                self.calibrationResult[::-1])
+        self.savedCalibData = [self.positionData, self.signalData, poly]
         np.savetxt('calibrationcurves', self.savedCalibData)
 
-
-class daqStream(QtCore.QObject):
-    """This stream only takes care of getting data from the Labjack device."""
-    """This object is not used in the current version of the focuslock """
-    def __init__(self, DAQ, scansPerS, *args, **kwargs):
-
-        super(daqStream, self).__init__(*args, **kwargs)
-
-        self.DAQ = DAQ
-        self.scansPerS = scansPerS
-        self.port = 'AIN0'
-        names = [self.port + "_NEGATIVE_CH", self.port + "_RANGE",
-                 "STREAM_SETTLING_US", "STREAM_RESOLUTION_INDEX"]
-        # single-ended, +/-1V, 0, 0 (defaults)
-        # Voltage Ranges: ±10V, ±1V, ±0.1V, and ±0.01V
-        values = [self.DAQ.constants.GND, 0.1, 0, 0]
-        self.DAQ.writeNames(names, values)
-        self.newData = 0.0
-
-    def start(self):
-        scanRate = 5000
-        scansPerRead = int(scanRate/self.scansPerS)
-        portAddress = self.DAQ.address(self.port)[0]
-        scanRate = self.DAQ.streamStart(scansPerRead, [portAddress], scanRate)
-        self.newData = np.mean(self.DAQ.streamRead()[0])
-        self.timer = QtCore.QTimer()
-        self.timer.timeout.connect(self.update)
-        self.timer.start(1)
-
-    def stop(self):
-        pass
-        # TODO: stop
-
-    def update(self):
-        self.newData = np.mean(self.DAQ.streamRead()[0])
 
 if __name__ == '__main__':
 

@@ -11,6 +11,8 @@ import time
 from PyQt4 import QtGui, QtCore
 from lantz import Q_
 
+from tormenta.control.guitools import daqStream
+
 
 class UpdatePowers(QtCore.QObject):
 
@@ -38,6 +40,7 @@ class LaserWidget(QtGui.QFrame):
 
         self.redlaser, self.bluelaser, self.greenlaser = lasers
         self.mW = Q_(1, 'mW')
+        self.V = Q_(1, 'V')
         self.daq = daq
         self.daq.digital_IO[3] = True
 
@@ -93,6 +96,12 @@ class LaserWidget(QtGui.QFrame):
 
     def getIntensities(self):
 
+        self.stream = daqStream(self.daq, 20, 3)
+        self.streamThread = QtCore.QThread()
+        self.stream.moveToThread(self.streamThread)
+        self.streamThread.started.connect(self.stream.start)
+        self.streamThread.start()
+
         enabledLasers = [control.laser.enabled for control in self.shuttLasers]
         enabledLasers = np.array(enabledLasers, dtype=bool)
         enabledControls = self.shuttLasers[enabledLasers]
@@ -102,6 +111,7 @@ class LaserWidget(QtGui.QFrame):
 
         # Flip measurement mirror
         self.daq.digital_IO[3] = False
+        trace = np.zeros(10)
 
         # Measure each laser intensity
         for control in enabledControls:
@@ -109,8 +119,19 @@ class LaserWidget(QtGui.QFrame):
             for ctrl in others:
                 ctrl.shutterBox.setChecked(False)
             control.shutterBox.setChecked(True)
+
             time.sleep(1)
-            control.intensityEdit.setText(str(self.daq.analog_in[3]))
+            for i in np.arange(len(trace)):
+                trace[i] = self.stream.newData
+
+            mean = np.mean(trace)
+            dev = np.std(trace)
+            print(mean, dev)
+            while dev / mean > 0.1:
+                trace[:-1] = trace[1:]
+                trace[-1] = self.stream.newData
+
+            control.intensityEdit.setText(str(mean))
 
         # Load original shutter state
         i = 0
@@ -120,6 +141,9 @@ class LaserWidget(QtGui.QFrame):
 
         # Flip measurement mirror back
         self.daq.digital_IO[3] = True
+
+        self.daq.streamStop()
+        self.streamThread.stop()
 
     def closeShutters(self):
         for control in self.shuttLasers:
