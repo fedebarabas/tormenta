@@ -31,6 +31,7 @@ import tormenta.control.focus as focus
 import tormenta.control.molecules_counter as moleculesCounter
 import tormenta.control.ontime as ontime
 import tormenta.control.guitools as guitools
+import tormenta.control.viewbox_tools as viewbox_tools
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -591,8 +592,9 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Actions and menubar
         # Shortcut only
-#        QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Space'), self,
-#                        self.liveviewKey)
+        self.liveShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Space'),
+                                            self, self.liveviewKey)
+        self.liveShortcut.setEnabled(False)
 
         # Actions in menubar
         menubar = self.menuBar()
@@ -765,7 +767,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vb = imageWidget.addViewBox(row=1, col=1)
         self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
-        self.lut = guitools.cubehelix()
+        self.lut = viewbox_tools.cubehelix()
         self.img.setLookupTable(self.lut)
         self.img.translate(-0.5, -0.5)
         self.vb.addItem(self.img)
@@ -774,11 +776,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hist.vb.setLimits(yMin=0, yMax=20000)
         imageWidget.addItem(self.hist, row=1, col=2)
 
-        self.grid = guitools.Grid(self.vb, self.shape)
+        self.grid = viewbox_tools.Grid(self.vb, self.shape)
         self.gridButton.clicked.connect(self.grid.toggle)
-        self.grid2 = guitools.TwoColorGrid(self.vb)
+        self.grid2 = viewbox_tools.TwoColorGrid(self.vb)
         self.grid2Button.clicked.connect(self.grid2.toggle)
-        self.crosshair = guitools.Crosshair(self.vb)
+        self.crosshair = viewbox_tools.Crosshair(self.vb)
         self.crosshairButton.clicked.connect(self.crosshair.toggle)
 
         # x and y profiles
@@ -907,10 +909,12 @@ class TormentaGUI(QtGui.QMainWindow):
                     self.changeParameter(self.adjustFrame)
 
                 ROIpos = (0, 0)
-                self.cropROI = guitools.ROI(self.shape, self.vb, ROIpos,
-                                            handlePos=(1, 1), movable=False,
-                                            handleCenter=(0, 0),
-                                            scaleSnap=True, translateSnap=True)
+                self.cropROI = viewbox_tools.ROI(self.shape, self.vb, ROIpos,
+                                                 handlePos=(1, 1),
+                                                 movable=False,
+                                                 handleCenter=(0, 0),
+                                                 scaleSnap=True,
+                                                 translateSnap=True)
                 # Signals
                 applyParam = self.cropParam.param('Apply')
                 applyParam.sigStateChanged.connect(self.startCropMode)
@@ -1017,9 +1021,11 @@ class TormentaGUI(QtGui.QMainWindow):
 
             if not(self.customFrameLoaded):
                 ROIpos = (0.5 * self.shape[0] - 64, 0.5 * self.shape[1] - 64)
-                self.ROI = guitools.ROI(self.shape, self.vb, ROIpos,
-                                        handlePos=(1, 0), handleCenter=(0, 1),
-                                        scaleSnap=True, translateSnap=True)
+                self.ROI = viewbox_tools.ROI(self.shape, self.vb, ROIpos,
+                                             handlePos=(1, 0),
+                                             handleCenter=(0, 1),
+                                             scaleSnap=True,
+                                             translateSnap=True)
                 # Signals
                 applyParam = frameParam.param('Apply')
                 applyParam.sigStateChanged.connect(self.customFrame)
@@ -1078,8 +1084,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def enableLiveview(self):
         self.liveviewButton.setEnabled(True)
-        QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Space'), self,
-                        self.liveviewKey)
+        self.liveShortcut.setEnabled(True)
 
     # This is the function triggered by the liveview shortcut
     def liveviewKey(self):

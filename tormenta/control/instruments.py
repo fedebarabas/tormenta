@@ -8,12 +8,14 @@ Created on Sun Dec 28 13:25:27 2014
 import numpy as np
 import importlib
 
-from lantz.drivers.andor.ccd import CCD
-from lantz.drivers.labjack.t7 import T7
-from lantz import Q_
+from PyQt4 import QtCore
 
 import pygame
 import pygame.camera
+
+from lantz.drivers.andor.ccd import CCD
+from lantz.drivers.labjack.t7 import T7
+from lantz import Q_
 
 import tormenta.control.mockers as mockers
 
@@ -95,6 +97,49 @@ class STORMDAQ(T7):
 
     def toggleFlipper(self):
         self.flipper = not(self.flipper)
+
+
+class daqStream(QtCore.QObject):
+    """This stream gets an analog input at a high frame rate and returns the
+    mean of the set of taken data."""
+    def __init__(self, DAQ, scansPerS, port, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.DAQ = DAQ
+        self.scansPerS = scansPerS
+        self.port = 'AIN{}'.format(port)
+        names = [self.port + "_NEGATIVE_CH", self.port + "_RANGE",
+                 "STREAM_SETTLING_US", "STREAM_RESOLUTION_INDEX"]
+        # single-ended, +/-1V, 0, 0 (defaults)
+        # Voltage Ranges: ±10V, ±1V, ±0.1V, and ±0.01V
+        values = [self.DAQ.constants.GND, 10.0, 0, 0]
+        self.DAQ.writeNames(names, values)
+        self.newData = 0
+
+    def start(self):
+        scanRate = 1000
+        scansPerRead = int(scanRate/self.scansPerS)
+        scanRate = self.DAQ.streamStart(scansPerRead,
+                                        [self.DAQ.address(self.port)[0]],
+                                        scanRate)
+
+    def startTimer(self):
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update)
+        self.timer.start(0)
+
+    def update(self):
+        self.newData = np.mean(self.DAQ.streamRead()[0])
+
+    def getNewData(self):
+        return np.mean(self.DAQ.streamRead()[0])
+
+    def stop(self):
+        try:
+            self.timer.stop()
+        except AttributeError:
+            pass
+        self.DAQ.streamStop()
 
 
 class ScanZ(object):
