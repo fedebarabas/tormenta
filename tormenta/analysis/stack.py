@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 import h5py as hdf
 import multiprocessing as mp
 
-from scipy.ndimage.filters import uniform_filter, median_filter
+from scipy.ndimage.filters import uniform_filter
 
-import analysis.tools as tools
-import analysis.maxima as maxima
+import tormenta.analysis.tools as tools
+import tormenta.analysis.maxima as maxima
 
 
 def convert(word):

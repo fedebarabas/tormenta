@@ -5,12 +5,14 @@ Created on Wed May 13 23:35:23 2015
 
 @author: federico
 """
-
+import os
 import numpy as np
 from scipy.signal import argrelextrema
 from tkinter import Tk, filedialog
 from PIL import Image
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import tifffile as tiff
 
 from tormenta.analysis.stack import Stack
 
@@ -45,8 +47,14 @@ def beamProfile(ask, folder=None, shape=(512, 512)):
 
     for filename in stacks:
         print(filename)
-        stack = Stack(filename=filename)
-        meanFrame = stack.imageData.mean(0)
+        if filename.endswith('.hdf5'):
+            stack = Stack(filename=filename)
+            meanFrame = stack.imageData.mean(0)
+            stack.close()
+        else:
+            tfile = tiff.TIFFfile(filename)
+            meanFrame = tfile.asarray()
+            tfile.close()
 
         # Beam identification
         hist, edg = np.histogram(meanFrame, bins=100)
@@ -59,7 +67,6 @@ def beamProfile(ask, folder=None, shape=(512, 512)):
         meanInt = beamFrame.mean()
         profile += meanFrame / meanInt
         norm += meanInt
-        stack.close()
 
     norm /= n
 
@@ -132,7 +139,63 @@ def analyzeBeam():
              'TIRF intensity factor={}'.format(np.round(TIRFactor, 2)))
 
     plt.show()
+    area = (TIRarea + EPIarea) / 2
+    fFactor = (TIRFrameFactor + EPIFrameFactor) / 2
+    return area, fFactor
+
+
+def intensityCalibration(area, fFactor, objectiveT=0.9, neutralFilter=1000,
+                         umPerPx=0.132):
+
+    # Get filenames from user
+    try:
+        root = Tk()
+        dialogTitle = 'Load laser calibration table'
+        filename = filedialog.askopenfilename(parent=root, title=dialogTitle)
+        root.destroy()
+    except OSError:
+        print("No files selected!")
+
+    # Data loading
+    with open(filename, 'r') as ff:
+        titlePlot = ff.readlines()[:2]
+        titlePlot = [t.replace('\n', '') for t in titlePlot]
+    xlabel = 'photodiode [V]'
+    ylabel = 'bfp [mW]'
+    tt = np.loadtxt(filename,
+                    dtype=[('bfp [mW]', float), ('photodiode [V]', float)],
+                    skiprows=3)
+
+    # Fitting and plotting
+    coef = np.polyfit(tt['photodiode [V]'], tt['bfp [mW]'], 1)
+
+    # Conversion mW --> kW at the sample
+    iFactor = objectiveT * neutralFilter * fFactor / 1000000
+    # Conversion px^2 --> cm^2
+    area *= (umPerPx * 10**(-4))**2
+    # Conversion mW --> kW/cm^2
+    factor = iFactor/area
+    coef *= factor
+
+    x = np.arange(0, 10)
+    y = np.polynomial.polynomial.polyval(x, coef[::-1])
+    plt.scatter(tt[xlabel], tt[ylabel] * factor)
+    plt.plot(x, y, 'r', label='V*({0:.2}) + ({1:.2})'.format(coef[0], coef[1]))
+    plt.grid()
+    plt.title(titlePlot)
+    plt.xlabel('Photodiode [V]')
+    plt.ylabel('Power [kW/cm^2]')
+    plt.legend(loc=2)
+    plt.show()
+
+    return coef
+
+
+def powerCalibration():
+    area, fFactor = analyzeBeam()
+    return intensityCalibration(area, fFactor)
 
 if __name__ == "__main__":
 
-    analyzeBeam()
+    coef = powerCalibration()
+    print('Coefficients for mW --> kW/cm^2 conversion: ', coef)

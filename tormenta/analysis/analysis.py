@@ -5,7 +5,7 @@ Created on Wed May 20 15:14:09 2015
 @author: federico
 """
 
-from pyqtgraph.Qt import QtCore, QtGui
+from pyqtgraph.Qt import QtGui
 import pyqtgraph as pg
 
 
@@ -33,7 +33,7 @@ class AnalysisWidget(QtGui.QFrame):
         grid.setColumnMinimumWidth(0, 600)
 
 #    def openStack(self):
-        
+
 
 
 if __name__ == '__main__':

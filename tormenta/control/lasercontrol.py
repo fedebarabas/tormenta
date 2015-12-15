@@ -6,19 +6,18 @@ Created on Tue Aug 12 11:51:21 2014
 """
 
 import numpy as np
-
 import time
 from PyQt4 import QtGui, QtCore
+import matplotlib.pyplot as plt
 from lantz import Q_
-
-from tormenta.control.guitools import daqStream
+from tormenta.control.instruments import daqStream
 
 
 class UpdatePowers(QtCore.QObject):
 
     def __init__(self, laserwidget, *args, **kwargs):
-
         super().__init__(*args, **kwargs)
+
         self.widget = laserwidget
 
     def update(self):
@@ -35,7 +34,6 @@ class UpdatePowers(QtCore.QObject):
 class LaserWidget(QtGui.QFrame):
 
     def __init__(self, lasers, daq, *args, **kwargs):
-
         super().__init__(*args, **kwargs)
 
         self.redlaser, self.bluelaser, self.greenlaser = lasers
@@ -95,55 +93,27 @@ class LaserWidget(QtGui.QFrame):
         self.updateThread.started.connect(self.updatePowers.update)
 
     def getIntensities(self):
-
-        self.stream = daqStream(self.daq, 20, 3)
-        self.streamThread = QtCore.QThread()
-        self.stream.moveToThread(self.streamThread)
-        self.streamThread.started.connect(self.stream.start)
-        self.streamThread.start()
-
-        enabledLasers = [control.laser.enabled for control in self.shuttLasers]
-        enabledLasers = np.array(enabledLasers, dtype=bool)
-        enabledControls = self.shuttLasers[enabledLasers]
-
-        # Record shutters state
-        shutterState = [ctl.shutterBox.isChecked() for ctl in enabledControls]
-
         # Flip measurement mirror
         self.daq.digital_IO[3] = False
-        trace = np.zeros(10)
 
-        # Measure each laser intensity
-        for control in enabledControls:
-            others = [ctrl for ctrl in enabledControls if ctrl != control]
-            for ctrl in others:
-                ctrl.shutterBox.setChecked(False)
-            control.shutterBox.setChecked(True)
+        # Worker in separate thread to keep the GUI responsive
+        self.worker = IntensityWorker(self, 20, 3)
+        self.worker.updateSignal.connect(self.updateIntensities)
+        self.intensityThread = QtCore.QThread()
+        self.worker.moveToThread(self.intensityThread)
+        self.intensityThread.started.connect(self.worker.start)
+        self.intensityThread.start()
 
-            time.sleep(1)
-            for i in np.arange(len(trace)):
-                trace[i] = self.stream.newData
-
-            mean = np.mean(trace)
-            dev = np.std(trace)
-            print(mean, dev)
-            while dev / mean > 0.1:
-                trace[:-1] = trace[1:]
-                trace[-1] = self.stream.newData
-
-            control.intensityEdit.setText(str(mean))
-
-        # Load original shutter state
-        i = 0
-        for control in enabledControls:
-            control.shutterBox.setChecked(shutterState[i])
-            i += 1
+    def updateIntensities(self, data):
 
         # Flip measurement mirror back
         self.daq.digital_IO[3] = True
 
-        self.daq.streamStop()
-        self.streamThread.stop()
+        for d in data:
+            for c in self.controls:
+                if c.name.text() == d['laser']:
+                    c.intensityEdit.setText(str(d['intensity']))
+        self.intensityThread.quit()
 
     def closeShutters(self):
         for control in self.shuttLasers:
@@ -151,8 +121,73 @@ class LaserWidget(QtGui.QFrame):
 
     def closeEvent(self, *args, **kwargs):
         self.closeShutters()
-        self.updateThread.terminate()
+        self.updateThread.quit()
         super().closeEvent(*args, **kwargs)
+
+
+class IntensityWorker(QtCore.QObject):
+
+    # This signal carries the photodiode's measured voltages
+    updateSignal = QtCore.pyqtSignal(np.ndarray)
+
+    def __init__(self, main, scansPerS, port, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.main = main
+        self.scansPerS = scansPerS
+        self.port = port
+
+    def start(self):
+        self.stream = daqStream(self.main.daq, self.scansPerS, self.port)
+        self.stream.start()
+
+        shuttLasers = self.main.shuttLasers
+        enabledLasers = [control.laser.enabled for control in shuttLasers]
+        enabledLasers = np.array(enabledLasers, dtype=bool)
+        enabledControls = shuttLasers[enabledLasers]
+
+        # Results signal
+        dt = np.dtype([('laser', np.str_, 30), ('intensity', float)])
+        signal = np.zeros(len(enabledControls), dtype=dt)
+
+        # Record shutters state
+        shutterState = [ctl.shutterBox.isChecked() for ctl in enabledControls]
+
+        j = 0
+        # Measure each laser intensity
+        for control in enabledControls:
+            others = [ctrl for ctrl in enabledControls if ctrl != control]
+            for ctrl in others:
+                ctrl.shutterBox.setChecked(False)
+            control.shutterBox.setChecked(True)
+
+            # Initial intensity measurement
+            trace = np.zeros(20)
+            for i in np.arange(len(trace)):
+                trace[i] = self.stream.getNewData()
+
+            # Wait until intensity fluctuations are below 0.5%
+            mean = np.mean(trace)
+            dev = np.std(trace)
+            while dev / mean > 0.005:
+                trace[:-1] = trace[1:]
+                trace[-1] = self.stream.getNewData()
+                mean = np.mean(trace)
+                dev = np.std(trace)
+
+            # Store intensity measurement
+            signal[j] = (control.name.text(), mean)
+            j += 1
+
+        # Stop DAQ streaming
+        self.stream.stop()
+
+        # Load original shutter state
+        i = 0
+        for control in enabledControls:
+            control.shutterBox.setChecked(shutterState[i])
+            i += 1
+
+        self.updateSignal.emit(signal)
 
 
 class LaserControl(QtGui.QFrame):

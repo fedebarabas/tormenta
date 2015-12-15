@@ -363,11 +363,8 @@ if __name__ == '__main__':
 
     app = QtGui.QApplication([])
 
-#    with instruments.DAQ() as DAQ, instrumentsScanZ(12) as z:
     with instruments.ScanZ(12) as z:
 
         win = FocusWidget(z)
-#        win = FocusWidget(DAQ, z)
         win.show()
-
         app.exec_()
