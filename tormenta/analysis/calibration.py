@@ -37,7 +37,7 @@ def loadStacks(ask, folder=None):
         return stacksNames.strip('{}').split('} {'), folder
 
 
-def beamProfile(ask, folder=None, shape=(512, 512)):
+def beamProfile(ask, folder=None, shape=(512, 512), th=None):
 
     stacks, folder = loadStacks(ask, folder)
 
@@ -58,7 +58,11 @@ def beamProfile(ask, folder=None, shape=(512, 512)):
 
         # Beam identification
         hist, edg = np.histogram(meanFrame, bins=100)
-        thres = edg[argrelextrema(hist, np.less)[0][0] + 1]
+        if th is None:
+            thres = edg[argrelextrema(hist, np.less)[0][0] + 1]
+        else:
+            thres = th
+
         beamMask = np.zeros(shape=meanFrame.shape, dtype=bool)
         beamMask[meanFrame < thres] = True
         beamFrame = np.ma.masked_array(meanFrame, beamMask)
@@ -71,7 +75,10 @@ def beamProfile(ask, folder=None, shape=(512, 512)):
     norm /= n
 
     hist, edg = np.histogram(profile, bins=100)
-    thres = edg[argrelextrema(hist, np.less)[0][0] + 2]
+    if th is None:
+        thres = edg[argrelextrema(hist, np.less)[0][0] + 2]
+    else:
+        thres = th
     beam_mask = np.zeros(shape=profile.shape, dtype=bool)
     beam_mask[profile < thres] = True
     beamProfile = np.ma.masked_array(profile, beam_mask)
@@ -86,7 +93,7 @@ def frame(image, center=(256, 256), shape=(128, 128)):
                  center[1] - int(shape[1] / 2):center[1] + int(shape[1] / 2)]
 
 
-def analyzeBeam():
+def analyzeBeam(th=None):
     """
     Script for loading EPI and TIRF images of homogeneous samples for
     measuring the illumination beam profile.
@@ -94,8 +101,10 @@ def analyzeBeam():
     then it calculates the means and correction factors.
     """
 
-    profileEPI, normEPI, folder = beamProfile('Select EPI profiles')
-    profileTIRF, normTIRF, folder = beamProfile('Select TIRF profiles', folder)
+    profileEPI, normEPI, folder = beamProfile('Select EPI profiles',
+                                              th=th)
+    profileTIRF, normTIRF, folder = beamProfile('Select TIRF profiles', folder,
+                                                th=th)
     TIRFactor = normTIRF / normEPI
 
     # Measurements in EPI
@@ -177,7 +186,7 @@ def intensityCalibration(area, fFactor, objectiveT=0.9, neutralFilter=1000,
     factor = iFactor/area
     coef *= factor
 
-    x = np.arange(0, 10)
+    x = np.arange(0, 1.1 * np.max(tt[xlabel]))
     y = np.polynomial.polynomial.polyval(x, coef[::-1])
     plt.scatter(tt[xlabel], tt[ylabel] * factor)
     plt.plot(x, y, 'r', label='V*({0:.2}) + ({1:.2})'.format(coef[0], coef[1]))
@@ -191,11 +200,11 @@ def intensityCalibration(area, fFactor, objectiveT=0.9, neutralFilter=1000,
     return coef
 
 
-def powerCalibration():
-    area, fFactor = analyzeBeam()
+def powerCalibration(th=None):
+    area, fFactor = analyzeBeam(th)
     return intensityCalibration(area, fFactor)
 
 if __name__ == "__main__":
 
-    coef = powerCalibration()
+    coef = powerCalibration(9)
     print('Coefficients for mW --> kW/cm^2 conversion: ', coef)
