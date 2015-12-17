@@ -61,9 +61,8 @@ class RecordingWidget(QtGui.QFrame):
         self.snapButton.setStyleSheet("font-size:16px")
         self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
+        self.snapButton.setTooltip('Ctrl+S')
         self.snapButton.clicked.connect(self.snap)
-#        QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Space'), self,
-#                        lambda: self.snapButton.setChecked(True))
 
         # REC button
         self.recButton = QtGui.QPushButton('REC')
@@ -71,6 +70,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setCheckable(True)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
+        self.recButton.setTooltip('Ctrl+D')
         self.recButton.clicked.connect(self.startRecording)
 
         # Number of frames and measurement timing
@@ -590,12 +590,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.lastTime = ptime.time()
         self.fps = None
 
-        # Actions and menubar
-        # Shortcut only
-        self.liveShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Space'),
-                                            self, self.liveviewKey)
-        self.liveShortcut.setEnabled(False)
-
         # Actions in menubar
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
@@ -642,7 +636,6 @@ class TormentaGUI(QtGui.QMainWindow):
         # Exposition signals
         def changeExposure():
             return self.changeParameter(self.setExposure)
-#        changeExposure = lambda: self.changeParameter(self.setExposure)
         timingsPar = self.tree.p.param('Timings')
         self.expPar = timingsPar.param('Set exposure time')
         self.expPar.sigValueChanged.connect(changeExposure)
@@ -664,7 +657,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         def updateGain():
             return self.changeParameter(self.setGain)
-#        updateGain = lambda: self.changeParameter(self.setGain)
         self.PreGainPar.sigValueChanged.connect(updateGain)
         self.GainPar = self.tree.p.param('Gain').param('EM gain')
         self.GainPar.sigValueChanged.connect(updateGain)
@@ -693,7 +685,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         def loadPresetFunction():
             return guitools.loadPreset(self)
-#        loadPresetFunction = lambda: guitools.loadPreset(self)
         self.loadPresetButton.pressed.connect(loadPresetFunction)
 
         # Liveview functionality
@@ -706,6 +697,9 @@ class TormentaGUI(QtGui.QMainWindow):
         self.liveviewButton.setEnabled(False)
         self.viewtimer = QtCore.QTimer()
         self.viewtimer.timeout.connect(self.updateView)
+        self.liveShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+Space'),
+                                            self, self.liveviewKey)
+        self.liveShortcut.setEnabled(False)
 
         # viewBox custom Tools
         self.gridButton = QtGui.QPushButton('Grid')
