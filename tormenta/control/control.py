@@ -61,7 +61,7 @@ class RecordingWidget(QtGui.QFrame):
         self.snapButton.setStyleSheet("font-size:16px")
         self.snapButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
-        self.snapButton.setTooltip('Ctrl+S')
+        self.snapButton.setToolTip('Ctrl+S')
         self.snapButton.clicked.connect(self.snap)
 
         # REC button
@@ -70,7 +70,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setCheckable(True)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
-        self.recButton.setTooltip('Ctrl+D')
+        self.recButton.setToolTip('Ctrl+D')
         self.recButton.clicked.connect(self.startRecording)
 
         # Number of frames and measurement timing
