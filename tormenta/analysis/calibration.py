@@ -19,6 +19,8 @@ from tormenta.analysis.stack import Stack
 
 def loadStacks(ask, folder=None):
     # Get filenames from user
+    if not(os.path.exists(folder)):
+        folder = None
     try:
         root = Tk()
         stacksNames = filedialog.askopenfilenames(parent=root, title=ask,
@@ -30,11 +32,12 @@ def loadStacks(ask, folder=None):
     # Fix for names with whitespace.
     # Taken from: http://stackoverflow.com/questions/9227859/
     # tkfiledialog-not-converting-results-to-a-python-list-on-windows
-    folder = os.path.split(stacksNames[0])[0]
     if isinstance(stacksNames, list) or isinstance(stacksNames, tuple):
-        return stacksNames, folder
+        pass
     else:
-        return stacksNames.strip('{}').split('} {'), folder
+        stacksNames = stacksNames.strip('{}').split('} {')
+    folder = os.path.split(stacksNames[0])[0]
+    return stacksNames, folder
 
 
 def beamProfile(ask, folder=None, shape=(512, 512), th=None):
@@ -44,7 +47,6 @@ def beamProfile(ask, folder=None, shape=(512, 512), th=None):
     n = len(stacks)
     profile = np.zeros(shape)
     norm = 0
-
     for filename in stacks:
         print(filename)
         if filename.endswith('.hdf5'):
@@ -93,7 +95,7 @@ def frame(image, center=(256, 256), shape=(128, 128)):
                  center[1] - int(shape[1] / 2):center[1] + int(shape[1] / 2)]
 
 
-def analyzeBeam(th=None):
+def analyzeBeam(th=None, initialdir=None):
     """
     Script for loading EPI and TIRF images of homogeneous samples for
     measuring the illumination beam profile.
@@ -102,7 +104,7 @@ def analyzeBeam(th=None):
     """
 
     profileEPI, normEPI, folder = beamProfile('Select EPI profiles',
-                                              th=th)
+                                              th=th, folder=initialdir)
     profileTIRF, normTIRF, folder = beamProfile('Select TIRF profiles', folder,
                                                 th=th)
     TIRFactor = normTIRF / normEPI
@@ -200,11 +202,11 @@ def intensityCalibration(area, fFactor, objectiveT=0.9, neutralFilter=1000,
     return coef
 
 
-def powerCalibration(th=None):
-    area, fFactor = analyzeBeam(th)
+def powerCalibration(th=None, initialdir=None):
+    area, fFactor = analyzeBeam(th, initialdir)
     return intensityCalibration(area, fFactor)
 
 if __name__ == "__main__":
 
-    coef = powerCalibration(9)
+    coef = powerCalibration(9, initialdir=r'C:\Users\Usuario\Documents\Data')
     print('Coefficients for mW --> kW/cm^2 conversion: ', coef)

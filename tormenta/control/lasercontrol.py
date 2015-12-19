@@ -33,9 +33,10 @@ class UpdatePowers(QtCore.QObject):
 
 class LaserWidget(QtGui.QFrame):
 
-    def __init__(self, lasers, daq, *args, **kwargs):
+    def __init__(self, main, lasers, daq, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        self.main = main
         self.redlaser, self.bluelaser, self.greenlaser = lasers
         self.mW = Q_(1, 'mW')
         self.V = Q_(1, 'V')
@@ -94,6 +95,8 @@ class LaserWidget(QtGui.QFrame):
 
     def getIntensities(self):
         # Flip measurement mirror
+        self.main.flipperInPath(True)
+        time.sleep(0.5)
         self.daq.digital_IO[3] = False
 
         # Worker in separate thread to keep the GUI responsive
@@ -108,6 +111,7 @@ class LaserWidget(QtGui.QFrame):
 
         # Flip measurement mirror back
         self.daq.digital_IO[3] = True
+        self.main.flipperInPath(False)
 
         for d in data:
             for c in self.controls:
