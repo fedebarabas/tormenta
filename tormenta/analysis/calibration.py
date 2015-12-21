@@ -26,18 +26,18 @@ def loadStacks(ask, folder=None):
         stacksNames = filedialog.askopenfilenames(parent=root, title=ask,
                                                   initialdir=folder)
         root.destroy()
-    except OSError:
-        print("No files selected!")
+        # Fix for names with whitespace.
+        # Taken from: http://stackoverflow.com/questions/9227859/
+        # tkfiledialog-not-converting-results-to-a-python-list-on-windows
+        if isinstance(stacksNames, list) or isinstance(stacksNames, tuple):
+            pass
+        else:
+            stacksNames = stacksNames.strip('{}').split('} {')
+        folder = os.path.split(stacksNames[0])[0]
+        return stacksNames, folder
 
-    # Fix for names with whitespace.
-    # Taken from: http://stackoverflow.com/questions/9227859/
-    # tkfiledialog-not-converting-results-to-a-python-list-on-windows
-    if isinstance(stacksNames, list) or isinstance(stacksNames, tuple):
-        pass
-    else:
-        stacksNames = stacksNames.strip('{}').split('} {')
-    folder = os.path.split(stacksNames[0])[0]
-    return stacksNames, folder
+    except:
+        print("No files selected!")
 
 
 def beamProfile(ask, folder=None, shape=(512, 512), th=None):
@@ -58,15 +58,20 @@ def beamProfile(ask, folder=None, shape=(512, 512), th=None):
             meanFrame = tfile.asarray()
             tfile.close()
 
-        # Beam identification
+        # First mask is for correctly estimating the std
         hist, edg = np.histogram(meanFrame, bins=100)
         if th is None:
-            thres = edg[argrelextrema(hist, np.less)[0][0] + 1]
+            thres = edg[argrelextrema(hist, np.less)[0][0]]
         else:
             thres = th
-
         beamMask = np.zeros(shape=meanFrame.shape, dtype=bool)
         beamMask[meanFrame < thres] = True
+        beamFrame = np.ma.masked_array(meanFrame, beamMask)
+
+        # Second mask truly delimits the beam
+        thres2 = 0.5*np.max(beamFrame) - np.std(beamFrame)
+        beamMask = np.zeros(shape=meanFrame.shape, dtype=bool)
+        beamMask[meanFrame < thres2] = True
         beamFrame = np.ma.masked_array(meanFrame, beamMask)
 
         # Normalization
@@ -76,14 +81,21 @@ def beamProfile(ask, folder=None, shape=(512, 512), th=None):
 
     norm /= n
 
+    # First mask is for correctly estimating the std
     hist, edg = np.histogram(profile, bins=100)
     if th is None:
-        thres = edg[argrelextrema(hist, np.less)[0][0] + 2]
+        thres = edg[argrelextrema(hist, np.less)[0][0]]
     else:
         thres = th
     beam_mask = np.zeros(shape=profile.shape, dtype=bool)
     beam_mask[profile < thres] = True
     beamProfile = np.ma.masked_array(profile, beam_mask)
+
+    # Second mask truly delimits the beam
+    thres2 = 0.5*np.max(beamProfile)  # - np.std(beamProfile)
+    beamMask = np.zeros(shape=beamProfile.shape, dtype=bool)
+    beamMask[profile < thres2] = True
+    beamProfile = np.ma.masked_array(profile, beamMask)
 
     return beamProfile, norm, folder
 
@@ -152,61 +164,66 @@ def analyzeBeam(th=None, initialdir=None):
     plt.show()
     area = (TIRarea + EPIarea) / 2
     fFactor = (TIRFrameFactor + EPIFrameFactor) / 2
-    return area, fFactor
+    return area, fFactor, folder
 
 
-def intensityCalibration(area, fFactor, objectiveT=0.9, neutralFilter=1000,
-                         umPerPx=0.132):
+def intensityCalibration(area, fFactor, folder=None,
+                         objectiveT=0.9, neutralFilter=1, umPerPx=0.132):
 
     # Get filenames from user
     try:
         root = Tk()
         dialogTitle = 'Load laser calibration table'
-        filename = filedialog.askopenfilename(parent=root, title=dialogTitle)
+        filename = filedialog.askopenfilename(parent=root, title=dialogTitle,
+                                              initialdir=folder)
         root.destroy()
-    except OSError:
+
+        # Data loading
+        with open(filename, 'r') as ff:
+            titlePlot = ff.readlines()[:2]
+            titlePlot = [t.replace('\n', '') for t in titlePlot]
+        xlabel = 'photodiode [V]'
+        ylabel = 'bfp [mW]'
+        tt = np.loadtxt(filename,
+                        dtype=[('bfp [mW]', float), ('photodiode [V]', float)],
+                        skiprows=3)
+
+        # Fitting and plotting
+        coef = np.polyfit(tt['photodiode [V]'], tt['bfp [mW]'], 1)
+
+        # Conversion mW --> kW at the sample
+        iFactor = objectiveT * neutralFilter * fFactor / 1000000
+        # Conversion px^2 --> cm^2
+        area *= (umPerPx * 10**(-4))**2
+        # Conversion mW --> kW/cm^2
+        factor = iFactor/area
+        coef *= factor
+
+        x = np.arange(0, 1.1 * np.max(tt[xlabel]))
+        y = np.polynomial.polynomial.polyval(x, coef[::-1])
+        plt.scatter(tt[xlabel], tt[ylabel] * factor)
+        plt.plot(x, y, 'r',
+                 label='V*({0:.2}) + ({1:.2})'.format(coef[0], coef[1]))
+        plt.grid()
+        plt.title(titlePlot)
+        plt.xlabel('Photodiode [V]')
+        plt.ylabel('Power [kW/cm^2]')
+        plt.xlim(xmin=0)
+        plt.ylim(ymin=0)
+        plt.legend(loc=2)
+        plt.show()
+
+        return coef
+
+    except:
         print("No files selected!")
-
-    # Data loading
-    with open(filename, 'r') as ff:
-        titlePlot = ff.readlines()[:2]
-        titlePlot = [t.replace('\n', '') for t in titlePlot]
-    xlabel = 'photodiode [V]'
-    ylabel = 'bfp [mW]'
-    tt = np.loadtxt(filename,
-                    dtype=[('bfp [mW]', float), ('photodiode [V]', float)],
-                    skiprows=3)
-
-    # Fitting and plotting
-    coef = np.polyfit(tt['photodiode [V]'], tt['bfp [mW]'], 1)
-
-    # Conversion mW --> kW at the sample
-    iFactor = objectiveT * neutralFilter * fFactor / 1000000
-    # Conversion px^2 --> cm^2
-    area *= (umPerPx * 10**(-4))**2
-    # Conversion mW --> kW/cm^2
-    factor = iFactor/area
-    coef *= factor
-
-    x = np.arange(0, 1.1 * np.max(tt[xlabel]))
-    y = np.polynomial.polynomial.polyval(x, coef[::-1])
-    plt.scatter(tt[xlabel], tt[ylabel] * factor)
-    plt.plot(x, y, 'r', label='V*({0:.2}) + ({1:.2})'.format(coef[0], coef[1]))
-    plt.grid()
-    plt.title(titlePlot)
-    plt.xlabel('Photodiode [V]')
-    plt.ylabel('Power [kW/cm^2]')
-    plt.legend(loc=2)
-    plt.show()
-
-    return coef
 
 
 def powerCalibration(th=None, initialdir=None):
-    area, fFactor = analyzeBeam(th, initialdir)
-    return intensityCalibration(area, fFactor)
+    area, fFactor, folder = analyzeBeam(th, initialdir)
+    return intensityCalibration(area, fFactor, folder)
 
 if __name__ == "__main__":
 
-    coef = powerCalibration(9, initialdir=r'C:\Users\Usuario\Documents\Data')
+    coef = powerCalibration(initialdir=r'C:\Users\Usuario\Documents\Data')
     print('Coefficients for mW --> kW/cm^2 conversion: ', coef)
