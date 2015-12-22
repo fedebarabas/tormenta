@@ -92,7 +92,7 @@ def beamProfile(ask, folder=None, shape=(512, 512), th=None):
     beamProfile = np.ma.masked_array(profile, beam_mask)
 
     # Second mask truly delimits the beam
-    thres2 = 0.5*np.max(beamProfile)  # - np.std(beamProfile)
+    thres2 = 0.5*np.max(beamProfile)
     beamMask = np.zeros(shape=beamProfile.shape, dtype=bool)
     beamMask[profile < thres2] = True
     beamProfile = np.ma.masked_array(profile, beamMask)
@@ -203,7 +203,7 @@ def intensityCalibration(area, fFactor, folder=None,
         y = np.polynomial.polynomial.polyval(x, coef[::-1])
         plt.scatter(tt[xlabel], tt[ylabel] * factor)
         plt.plot(x, y, 'r',
-                 label='V*({0:.2}) + ({1:.2})'.format(coef[0], coef[1]))
+                 label='{0:.2} + V*({1:.2})'.format(coef[1], coef[0]))
         plt.grid()
         plt.title(titlePlot)
         plt.xlabel('Photodiode [V]')

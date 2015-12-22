@@ -8,7 +8,6 @@ Created on Tue Aug 12 11:51:21 2014
 import numpy as np
 import time
 from PyQt4 import QtGui, QtCore
-import matplotlib.pyplot as plt
 from lantz import Q_
 from tormenta.control.instruments import daqStream
 
@@ -300,6 +299,9 @@ class LaserControl(QtGui.QFrame):
     def closeEvent(self, *args, **kwargs):
         super().closeEvent(*args, **kwargs)
 
+#filename = r'/home/federico/codigo/tormenta/tormenta/control/calibration.txt'
+#tt = np.loadtxt(filename, dtype=[('laser', int), ('p0', float), ('p1', float)], skiprows=1)
+#np.where(tt['laser'] ==640)[0][0]
 
 if __name__ == '__main__':
 
