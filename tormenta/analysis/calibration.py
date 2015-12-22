@@ -3,7 +3,7 @@
 Created on Mon Apr 14 19:19:37 2014
 Created on Wed May 13 23:35:23 2015
 
-@author: federico
+@author: Federico Barabas
 """
 import os
 import numpy as np
