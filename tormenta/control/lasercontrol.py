@@ -5,6 +5,8 @@ Created on Tue Aug 12 11:51:21 2014
 @author: Federico Barabas
 """
 
+import os
+
 import numpy as np
 import time
 from PyQt4 import QtGui, QtCore
@@ -16,7 +18,6 @@ class UpdatePowers(QtCore.QObject):
 
     def __init__(self, laserwidget, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.widget = laserwidget
 
     def update(self):
@@ -42,19 +43,19 @@ class LaserWidget(QtGui.QFrame):
         self.daq = daq
         self.daq.digital_IO[3] = True
 
-        self.redControl = LaserControl(self.redlaser,
-                                       '<h3>MPB 642nm</h3>',
+        calibrationFilename = r'tormenta/control/calibration.txt'
+        self.calibrationPath = os.path.join(os.getcwd(), calibrationFilename)
+
+        self.redControl = LaserControl(self.redlaser, '<h3>642nm</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
                                        tickInterval=100, singleStep=10,
                                        daq=self.daq, port=1)
 
-        self.blueControl = LaserControl(self.bluelaser,
-                                        '<h3>RGB 405nm</h3>',
+        self.blueControl = LaserControl(self.bluelaser, '<h3>405nm</h3>',
                                         color=(73, 0, 188), prange=(0, 53),
                                         tickInterval=5, singleStep=0.1)
 
-        self.greenControl = LaserControl(self.greenlaser,
-                                         '<h3>Ventus 532nm</h3>',
+        self.greenControl = LaserControl(self.greenlaser, '<h3>532nm</h3>',
                                          color=(80, 255, 0), prange=(0, 1500),
                                          tickInterval=10, singleStep=1,
                                          daq=self.daq, port=0, invert=False)
@@ -99,7 +100,7 @@ class LaserWidget(QtGui.QFrame):
         self.daq.digital_IO[3] = False
 
         # Worker in separate thread to keep the GUI responsive
-        self.worker = IntensityWorker(self, 20, 3)
+        self.worker = IntensityWorker(self, 20, 3, self.calibrationPath)
         self.worker.updateSignal.connect(self.updateIntensities)
         self.intensityThread = QtCore.QThread()
         self.worker.moveToThread(self.intensityThread)
@@ -108,15 +109,16 @@ class LaserWidget(QtGui.QFrame):
 
     def updateIntensities(self, data):
 
-        # Flip measurement mirror back
-        self.daq.digital_IO[3] = True
-        self.main.flipperInPath(False)
-
         for d in data:
             for c in self.controls:
                 if c.name.text() == d['laser']:
                     c.intensityEdit.setText(str(d['intensity']))
+                    c.calibrationBox.setChecked(d['calibrated'])
         self.intensityThread.quit()
+
+        # Flip measurement mirror back
+        self.daq.digital_IO[3] = True
+        self.main.flipperInPath(False)
 
     def closeShutters(self):
         for control in self.shuttLasers:
@@ -132,12 +134,16 @@ class IntensityWorker(QtCore.QObject):
 
     # This signal carries the photodiode's measured voltages
     updateSignal = QtCore.pyqtSignal(np.ndarray)
+    doneSignal = QtCore.pyqtSignal()
 
-    def __init__(self, main, scansPerS, port, *args, **kwargs):
+    def __init__(self, main, scansPerS, port, calPath, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.main = main
         self.scansPerS = scansPerS
         self.port = port
+
+        cal_dt = [('laser', int), ('p0', float), ('p1', float)]
+        self.calibration = np.loadtxt(calPath, dtype=cal_dt, skiprows=1)
 
     def start(self):
         self.stream = daqStream(self.main.daq, self.scansPerS, self.port)
@@ -149,7 +155,9 @@ class IntensityWorker(QtCore.QObject):
         enabledControls = shuttLasers[enabledLasers]
 
         # Results signal
-        dt = np.dtype([('laser', np.str_, 30), ('intensity', float)])
+        dt = np.dtype([('laser', int),
+                       ('intensity', float),
+                       ('calibrated', bool)])
         signal = np.zeros(len(enabledControls), dtype=dt)
 
         # Record shutters state
@@ -177,8 +185,13 @@ class IntensityWorker(QtCore.QObject):
                 mean = np.mean(trace)
                 dev = np.std(trace)
 
-            # Store intensity measurement
-            signal[j] = (control.name.text(), mean)
+            # Store intensity measurement using calibrated voltages
+            laser = int(control.name.text()[4:7])
+            row = np.where(self.calibration['laser'] == laser)[0][0]
+            calibration = self.calibration[row]
+            intensity = calibration['p0'] + mean * calibration['p1']
+            calibrated = calibration['p1'] != 1
+            signal[j] = (laser, intensity, calibrated)
             j += 1
 
         # Stop DAQ streaming
@@ -191,6 +204,7 @@ class IntensityWorker(QtCore.QObject):
             i += 1
 
         self.updateSignal.emit(signal)
+        self.doneSignal.emit()
 
 
 class LaserControl(QtGui.QFrame):
@@ -198,6 +212,7 @@ class LaserControl(QtGui.QFrame):
     def __init__(self, laser, name, color, prange, tickInterval, singleStep,
                  daq=None, port=None, invert=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         self.laser = laser
         self.mW = Q_(1, 'mW')
@@ -206,26 +221,41 @@ class LaserControl(QtGui.QFrame):
 
         self.name = QtGui.QLabel(name)
         self.name.setTextFormat(QtCore.Qt.RichText)
+        self.name.setAlignment(QtCore.Qt.AlignCenter)
 
         # Power widget
         self.setPointLabel = QtGui.QLabel('Setpoint')
         self.setPointEdit = QtGui.QLineEdit(str(self.laser.power_sp.magnitude))
         self.setPointEdit.setFixedWidth(100)
         self.powerLabel = QtGui.QLabel('Power')
-        self.powerIndicator = QtGui.QLineEdit('{:~}'.format(self.laser.power))
-        self.powerIndicator.setReadOnly(True)
+        self.powerIndicator = QtGui.QLabel('{:~}'.format(self.laser.power))
         self.powerIndicator.setFixedWidth(100)
         self.intensityLabel = QtGui.QLabel('Intensity')
-        self.intensityEdit = QtGui.QLineEdit()
+        self.intensityEdit = QtGui.QLabel('0')
+        self.calibratedCheck = QtGui.QCheckBox('Calibrated')
         powerWidget = QtGui.QWidget()
         powerGrid = QtGui.QGridLayout()
         powerWidget.setLayout(powerGrid)
         powerGrid.addWidget(self.setPointLabel, 0, 0)
-        powerGrid.addWidget(self.setPointEdit, 1, 0)
-        powerGrid.addWidget(self.powerLabel, 2, 0)
-        powerGrid.addWidget(self.powerIndicator, 3, 0)
-        powerGrid.addWidget(self.intensityLabel, 4, 0)
-        powerGrid.addWidget(self.intensityEdit, 5, 0)
+        powerGrid.addWidget(self.setPointEdit, 0, 1)
+        powerGrid.addWidget(self.powerLabel, 1, 0)
+        powerGrid.addWidget(self.powerIndicator, 1, 1)
+        powerGrid.addWidget(self.intensityLabel, 2, 0)
+        powerGrid.addWidget(self.intensityEdit, 2, 1)
+        powerGrid.addWidget(self.calibratedCheck, 3, 0, 1, 2)
+
+        # Shutter port
+        if self.port is not None:
+            self.shutterBox = QtGui.QCheckBox('Shutter open')
+            powerGrid.addWidget(self.shutterBox, 4, 0, 1, 2)
+            self.shutterBox.stateChanged.connect(self.shutterAction)
+
+            if invert:
+                self.daq.digital_IO[self.port] = True
+                self.states = {2: False, 0: True}
+            else:
+                self.daq.digital_IO[self.port] = False
+                self.states = {2: True, 0: False}
 
         # Slider
         self.maxpower = QtGui.QLabel(str(prange[1]))
@@ -250,7 +280,7 @@ class LaserControl(QtGui.QFrame):
 
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(self.name, 0, 0)
+        grid.addWidget(self.name, 0, 0, 1, 2)
         grid.addWidget(powerWidget, 3, 0)
         grid.addWidget(self.maxpower, 1, 1)
         grid.addWidget(self.slider, 2, 1, 5, 1)
@@ -261,19 +291,6 @@ class LaserControl(QtGui.QFrame):
         self.enableButton.toggled.connect(self.toggleLaser)
         self.slider.valueChanged[int].connect(self.changeSlider)
         self.setPointEdit.returnPressed.connect(self.changeEdit)
-
-        # Shutter port
-        if self.port is not None:
-            self.shutterBox = QtGui.QCheckBox('Shutter open')
-            powerGrid.addWidget(self.shutterBox, 6, 0)
-            self.shutterBox.stateChanged.connect(self.shutterAction)
-
-            if invert:
-                self.daq.digital_IO[self.port] = True
-                self.states = {2: False, 0: True}
-            else:
-                self.daq.digital_IO[self.port] = False
-                self.states = {2: True, 0: False}
 
     def shutterAction(self, state):
         self.daq.digital_IO[self.port] = self.states[state]
@@ -299,9 +316,6 @@ class LaserControl(QtGui.QFrame):
     def closeEvent(self, *args, **kwargs):
         super().closeEvent(*args, **kwargs)
 
-#filename = r'/home/federico/codigo/tormenta/tormenta/control/calibration.txt'
-#tt = np.loadtxt(filename, dtype=[('laser', int), ('p0', float), ('p1', float)], skiprows=1)
-#np.where(tt['laser'] ==640)[0][0]
 
 if __name__ == '__main__':
 

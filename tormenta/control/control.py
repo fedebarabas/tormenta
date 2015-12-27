@@ -71,7 +71,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
         self.recButton.setToolTip('Ctrl+D')
-        self.recButton.clicked.connect(self.startRecording)
+        self.recButton.clicked.connect(self.waitForSignal)
 
         # Number of frames and measurement timing
         self.currentFrame = QtGui.QLabel('0 /')
@@ -200,9 +200,11 @@ class RecordingWidget(QtGui.QFrame):
                       ('element_size_um', (1, 0.120, 0.120)),
                       ('NA', 1.42),
                       ('lambda_em', 670)])
-        for laserControl in self.main.laserWidgets.controls:
-            name = re.sub('<[^<]+?>', '', laserControl.name.text())
-            attrs.append((name, laserControl.laser.power))
+        for c in self.main.laserWidgets.controls:
+            name = re.sub('<[^<]+?>', '', c.name.text())
+            attrs.append((name + '_power', c.laser.power),
+                         (name + '_intensity', c.intensityEdit.text()),
+                         (name + '_calibrated', c.calibratedBox.isChecked()))
         return attrs
 
     def snap(self):
@@ -262,7 +264,12 @@ class RecordingWidget(QtGui.QFrame):
 
         else:
             self.recButton.setChecked(True)
-            self.startRecording()
+            self.waitForSignal()
+
+    # Waits for the signal indicating intensity measurement has finished
+    def waitForSignal(self):
+        self.laserWidgets.worker.doneSignal.connect(self.startRecording)
+        self.laserWidgets.getIntensities()
 
     def startRecording(self):
 
@@ -331,6 +338,7 @@ class RecordingWidget(QtGui.QFrame):
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveviewStart(update=False)
+        self.laserWidgets.worker.doneSignal.disconnect()
 
 
 class RecWorker(QtCore.QObject):
