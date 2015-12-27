@@ -21,12 +21,12 @@ class UpdatePowers(QtCore.QObject):
         self.widget = laserwidget
 
     def update(self):
-        redpower = '{:~}'.format(np.round(self.widget.redlaser.power, 1))
-        bluepower = '{:~}'.format(self.widget.bluelaser.power)
-        greenpower = '{:~}'.format(self.widget.greenlaser.power)
-        self.widget.redControl.powerIndicator.setText(redpower)
-        self.widget.blueControl.powerIndicator.setText(bluepower)
-        self.widget.greenControl.powerIndicator.setText(greenpower)
+        redPower = np.round(self.widget.redlaser.power.magnitude, 1)
+        bluePower = np.round(self.widget.bluelaser.power.magnitude, 1)
+        greenPower = np.round(self.widget.greeblaser.power.magnitude, 1)
+        self.widget.redControl.powerIndicator.setText(str(redPower))
+        self.widget.blueControl.powerIndicator.setText(str(bluePower))
+        self.widget.greenControl.powerIndicator.setText(str(greenPower))
         time.sleep(1)
         QtCore.QTimer.singleShot(1, self.update)
 
@@ -226,28 +226,41 @@ class LaserControl(QtGui.QFrame):
         # Power widget
         self.setPointLabel = QtGui.QLabel('Setpoint')
         self.setPointEdit = QtGui.QLineEdit(str(self.laser.power_sp.magnitude))
-        self.setPointEdit.setFixedWidth(100)
+        self.setPointEdit.setFixedWidth(80)
+        self.setPointEdit.setAlignment(QtCore.Qt.AlignRight)
+        self.mWLabel = QtGui.QLabel('mW')
+
         self.powerLabel = QtGui.QLabel('Power')
-        self.powerIndicator = QtGui.QLabel('{:~}'.format(self.laser.power))
-        self.powerIndicator.setFixedWidth(100)
+        powerMag = self.laser.power.magnitude
+        self.powerIndicator = QtGui.QLabel(str(powerMag))
+        self.powerIndicator.setFixedWidth(80)
+        self.powerIndicator.setAlignment(QtCore.Qt.AlignRight)
+        self.mWLabel2 = QtGui.QLabel('mW')
+
         self.intensityLabel = QtGui.QLabel('Intensity')
         self.intensityEdit = QtGui.QLabel('0')
+        self.intensityEdit.setAlignment(QtCore.Qt.AlignRight)
+        self.kWcm2Label = QtGui.QLabel('kW/cm^2')
+
         self.calibratedCheck = QtGui.QCheckBox('Calibrated')
         powerWidget = QtGui.QWidget()
         powerGrid = QtGui.QGridLayout()
         powerWidget.setLayout(powerGrid)
-        powerGrid.addWidget(self.setPointLabel, 0, 0)
-        powerGrid.addWidget(self.setPointEdit, 0, 1)
-        powerGrid.addWidget(self.powerLabel, 1, 0)
-        powerGrid.addWidget(self.powerIndicator, 1, 1)
-        powerGrid.addWidget(self.intensityLabel, 2, 0)
-        powerGrid.addWidget(self.intensityEdit, 2, 1)
-        powerGrid.addWidget(self.calibratedCheck, 3, 0, 1, 2)
+        powerGrid.addWidget(self.setPointLabel, 0, 0, 1, 2)
+        powerGrid.addWidget(self.setPointEdit, 1, 0)
+        powerGrid.addWidget(self.mWLabel, 1, 1)
+        powerGrid.addWidget(self.powerLabel, 2, 0, 1, 2)
+        powerGrid.addWidget(self.powerIndicator, 3, 0)
+        powerGrid.addWidget(self.mWLabel2, 3, 1)
+        powerGrid.addWidget(self.intensityLabel, 4, 0, 1, 2)
+        powerGrid.addWidget(self.intensityEdit, 5, 0)
+        powerGrid.addWidget(self.kWcm2Label, 5, 1)
+        powerGrid.addWidget(self.calibratedCheck, 6, 0, 1, 2)
 
         # Shutter port
         if self.port is not None:
             self.shutterBox = QtGui.QCheckBox('Shutter open')
-            powerGrid.addWidget(self.shutterBox, 4, 0, 1, 2)
+            powerGrid.addWidget(self.shutterBox, 7, 0, 1, 2)
             self.shutterBox.stateChanged.connect(self.shutterAction)
 
             if invert:
