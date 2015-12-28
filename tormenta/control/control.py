@@ -98,8 +98,6 @@ class RecordingWidget(QtGui.QFrame):
                                    QtGui.QSizePolicy.Expanding)
         buttonGrid.addWidget(self.recButton, 0, 2)
 
-        self.measurementBox = QtGui.QCheckBox('Intensity measurement')
-
         recGrid = QtGui.QGridLayout()
         self.setLayout(recGrid)
 
@@ -113,11 +111,9 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
         recGrid.addWidget(self.currentFrame, 5, 1)
         recGrid.addWidget(self.numExpositionsEdit, 5, 2)
-#        recGrid.addWidget(self.tElapsed, 5, 3)
         recGrid.addWidget(self.progressBar, 5, 3, 1, 2)
         recGrid.addWidget(self.tRemaining, 5, 3, 1, 2)
         recGrid.addWidget(buttonWidget, 6, 0, 1, 5)
-        recGrid.addWidget(self.measurementBox, 7, 0, 1, 5)
 
         recGrid.setColumnMinimumWidth(0, 70)
         recGrid.setRowMinimumHeight(6, 40)
@@ -202,9 +198,9 @@ class RecordingWidget(QtGui.QFrame):
                       ('lambda_em', 670)])
         for c in self.main.laserWidgets.controls:
             name = re.sub('<[^<]+?>', '', c.name.text())
-            attrs.append((name + '_power', c.laser.power),
-                         (name + '_intensity', c.intensityEdit.text()),
-                         (name + '_calibrated', c.calibratedBox.isChecked()))
+            attrs.extend([(name+'_power', c.laser.power),
+                          (name+'_intensity', c.intensityEdit.text()),
+                          (name+'_calibrated', c.calibratedCheck.isChecked())])
         return attrs
 
     def snap(self):
@@ -268,8 +264,14 @@ class RecordingWidget(QtGui.QFrame):
 
     # Waits for the signal indicating intensity measurement has finished
     def waitForSignal(self):
-        self.laserWidgets.worker.doneSignal.connect(self.startRecording)
-        self.laserWidgets.getIntensities()
+        laserWidgets = self.main.laserWidgets
+        laserWidgets.worker.doneSignal.connect(self.startRecording)
+        powerChanged = [c.powerChanged for c in laserWidgets.controls]
+        print(powerChanged)
+        if np.any(np.array(powerChanged)):
+            laserWidgets.getIntensities()
+        else:
+            laserWidgets.worker.doneSignal.emit()
 
     def startRecording(self):
 
@@ -338,7 +340,9 @@ class RecordingWidget(QtGui.QFrame):
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveviewStart(update=False)
-        self.laserWidgets.worker.doneSignal.disconnect()
+        self.main.laserWidgets.worker.doneSignal.disconnect()
+        for c in self.main.laserWidgets.controls:
+            c.powerChanged = False
 
 
 class RecWorker(QtCore.QObject):
@@ -964,7 +968,8 @@ class TormentaGUI(QtGui.QMainWindow):
         if status != ('Camera is idle, waiting for instructions.'):
             self.andor.start_acquisition()
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
-            self.viewtimer.start(0)
+            # 35ms ~ video-rate
+            self.viewtimer.start(35)
 
     def updateLevels(self, image):
         std = np.std(image)
@@ -1132,7 +1137,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.img.setImage(image, autoLevels=False, lut=self.lut)
         if update:
             self.updateLevels(image)
-        self.viewtimer.start(0)
+        self.viewtimer.start(35)
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
         self.grid2Button.setEnabled(True)

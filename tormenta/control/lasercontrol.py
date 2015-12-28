@@ -23,7 +23,7 @@ class UpdatePowers(QtCore.QObject):
     def update(self):
         redPower = np.round(self.widget.redlaser.power.magnitude, 1)
         bluePower = np.round(self.widget.bluelaser.power.magnitude, 1)
-        greenPower = np.round(self.widget.greeblaser.power.magnitude, 1)
+        greenPower = np.round(self.widget.greenlaser.power.magnitude, 1)
         self.widget.redControl.powerIndicator.setText(str(redPower))
         self.widget.blueControl.powerIndicator.setText(str(bluePower))
         self.widget.greenControl.powerIndicator.setText(str(greenPower))
@@ -93,27 +93,26 @@ class LaserWidget(QtGui.QFrame):
         self.updateThread.start()
         self.updateThread.started.connect(self.updatePowers.update)
 
-    def getIntensities(self):
-        # Flip measurement mirror
-        self.main.flipperInPath(True)
-        time.sleep(0.5)
-        self.daq.digital_IO[3] = False
-
-        # Worker in separate thread to keep the GUI responsive
+        # Intensity measurement in separate thread to keep the GUI responsive
         self.worker = IntensityWorker(self, 20, 3, self.calibrationPath)
         self.worker.updateSignal.connect(self.updateIntensities)
         self.intensityThread = QtCore.QThread()
         self.worker.moveToThread(self.intensityThread)
         self.intensityThread.started.connect(self.worker.start)
+
+    def getIntensities(self):
+        # Flip measurement mirror
+        self.main.flipperInPath(True)
+        time.sleep(0.5)
+        self.daq.digital_IO[3] = False
         self.intensityThread.start()
 
     def updateIntensities(self, data):
-
         for d in data:
             for c in self.controls:
-                if c.name.text() == d['laser']:
-                    c.intensityEdit.setText(str(d['intensity']))
-                    c.calibrationBox.setChecked(d['calibrated'])
+                if int(c.name.text()[4:7]) == d['laser']:
+                    c.intensityEdit.setText(str(np.round(d['intensity'], 1)))
+                    c.calibratedCheck.setChecked(d['calibrated'])
         self.intensityThread.quit()
 
         # Flip measurement mirror back
@@ -226,14 +225,14 @@ class LaserControl(QtGui.QFrame):
         # Power widget
         self.setPointLabel = QtGui.QLabel('Setpoint')
         self.setPointEdit = QtGui.QLineEdit(str(self.laser.power_sp.magnitude))
-        self.setPointEdit.setFixedWidth(80)
+        self.setPointEdit.setFixedWidth(50)
         self.setPointEdit.setAlignment(QtCore.Qt.AlignRight)
         self.mWLabel = QtGui.QLabel('mW')
 
         self.powerLabel = QtGui.QLabel('Power')
         powerMag = self.laser.power.magnitude
         self.powerIndicator = QtGui.QLabel(str(powerMag))
-        self.powerIndicator.setFixedWidth(80)
+        self.powerIndicator.setFixedWidth(50)
         self.powerIndicator.setAlignment(QtCore.Qt.AlignRight)
         self.mWLabel2 = QtGui.QLabel('mW')
 
@@ -243,6 +242,7 @@ class LaserControl(QtGui.QFrame):
         self.kWcm2Label = QtGui.QLabel('kW/cm^2')
 
         self.calibratedCheck = QtGui.QCheckBox('Calibrated')
+
         powerWidget = QtGui.QWidget()
         powerGrid = QtGui.QGridLayout()
         powerWidget.setLayout(powerGrid)
@@ -304,6 +304,7 @@ class LaserControl(QtGui.QFrame):
         self.enableButton.toggled.connect(self.toggleLaser)
         self.slider.valueChanged[int].connect(self.changeSlider)
         self.setPointEdit.returnPressed.connect(self.changeEdit)
+        self.powerChanged = True
 
     def shutterAction(self, state):
         self.daq.digital_IO[self.port] = self.states[state]
@@ -311,20 +312,24 @@ class LaserControl(QtGui.QFrame):
     def toggleLaser(self):
         if self.enableButton.isChecked():
             self.laser.enabled = True
+            self.powerChanged = True
         else:
             self.laser.enabled = False
 
     def enableLaser(self):
         self.laser.enabled = True
         self.laser.power_sp = float(self.setPointEdit.text()) * self.mW
+        self.powerChanged = True
 
     def changeSlider(self, value):
         self.laser.power_sp = self.slider.value() * self.mW
         self.setPointEdit.setText(str(self.laser.power_sp.magnitude))
+        self.powerChanged = True
 
     def changeEdit(self):
         self.laser.power_sp = float(self.setPointEdit.text()) * self.mW
         self.slider.setValue(self.laser.power_sp.magnitude)
+        self.powerChanged = True
 
     def closeEvent(self, *args, **kwargs):
         super().closeEvent(*args, **kwargs)
