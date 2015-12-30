@@ -182,8 +182,8 @@ class FocusWidget(QtGui.QFrame):
 class ProcessData(pg.GraphicsLayoutWidget):
 
     def __init__(self, webcam, *args, **kwargs):
-
         super().__init__(*args, **kwargs)
+
         self.webcam = webcam
         image = self.webcam.get_image()
         self.sensorSize = np.array(pygame.surfarray.array2d(image).shape)

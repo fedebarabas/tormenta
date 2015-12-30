@@ -969,7 +969,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.andor.start_acquisition()
             time.sleep(np.min((5 * self.t_exp_real.magnitude, 1)))
             # 35ms ~ video-rate
-            self.viewtimer.start(35)
+            self.viewtimer.start(20)
 
     def updateLevels(self, image):
         std = np.std(image)
@@ -1137,7 +1137,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.img.setImage(image, autoLevels=False, lut=self.lut)
         if update:
             self.updateLevels(image)
-        self.viewtimer.start(35)
+        self.viewtimer.start(20)
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
         self.grid2Button.setEnabled(True)
