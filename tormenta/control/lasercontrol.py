@@ -113,6 +113,7 @@ class LaserWidget(QtGui.QFrame):
                 if int(c.name.text()[4:7]) == d['laser']:
                     c.intensityEdit.setText(str(np.round(d['intensity'], 1)))
                     c.calibratedCheck.setChecked(d['calibrated'])
+                    c.voltageLabel.setText(str(np.round(d['voltage'], 2)))
         self.intensityThread.quit()
 
         # Flip measurement mirror back
@@ -156,7 +157,8 @@ class IntensityWorker(QtCore.QObject):
         # Results signal
         dt = np.dtype([('laser', int),
                        ('intensity', float),
-                       ('calibrated', bool)])
+                       ('calibrated', bool),
+                       ('voltage', float)])
         signal = np.zeros(len(enabledControls), dtype=dt)
 
         # Record shutters state
@@ -190,7 +192,7 @@ class IntensityWorker(QtCore.QObject):
             calibration = self.calibration[row]
             intensity = calibration['p0'] + mean * calibration['p1']
             calibrated = calibration['p1'] != 1
-            signal[j] = (laser, intensity, calibrated)
+            signal[j] = (laser, intensity, calibrated, mean)
             j += 1
 
         # Stop DAQ streaming
@@ -240,6 +242,9 @@ class LaserControl(QtGui.QFrame):
         self.intensityEdit = QtGui.QLabel('0')
         self.intensityEdit.setAlignment(QtCore.Qt.AlignRight)
         self.kWcm2Label = QtGui.QLabel('kW/cm^2')
+        self.voltageLabel = QtGui.QLabel('0')
+        self.voltageLabel.setAlignment(QtCore.Qt.AlignRight)
+        self.VLabel = QtGui.QLabel('V')
 
         self.calibratedCheck = QtGui.QCheckBox('Calibrated')
 
@@ -255,12 +260,14 @@ class LaserControl(QtGui.QFrame):
         powerGrid.addWidget(self.intensityLabel, 4, 0, 1, 2)
         powerGrid.addWidget(self.intensityEdit, 5, 0)
         powerGrid.addWidget(self.kWcm2Label, 5, 1)
-        powerGrid.addWidget(self.calibratedCheck, 6, 0, 1, 2)
+        powerGrid.addWidget(self.voltageLabel, 6, 0)
+        powerGrid.addWidget(self.VLabel, 6, 1)
+        powerGrid.addWidget(self.calibratedCheck, 7, 0, 1, 2)
 
         # Shutter port
         if self.port is not None:
             self.shutterBox = QtGui.QCheckBox('Shutter open')
-            powerGrid.addWidget(self.shutterBox, 7, 0, 1, 2)
+            powerGrid.addWidget(self.shutterBox, 8, 0, 1, 2)
             self.shutterBox.stateChanged.connect(self.shutterAction)
 
             if invert:
