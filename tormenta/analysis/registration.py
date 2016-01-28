@@ -19,7 +19,7 @@ def points_registration(tiff_file):
     """Points registration routine. It takes a calibration tiff file 128x266
     in size and calculates the affine transformation between the channels."""
 
-    images = np.zeros((2, 128, 128), dtype=np.uint16)
+    images = np.zeros((2, 128, 288), dtype=np.uint16)
 
     with tiff.TiffFile(tiff_file) as ff:
         images[0] = ff.asarray()[:128, :]
@@ -236,4 +236,4 @@ def homo_affine_transform(image, H):
 
 if __name__ == '__main__':
 
-    points_registration('/home/federico/Desktop/Data/filename_snap_7.tiff')
+    points_registration('/home/federico/Desktop/PtsReg/filename_snap_7.tiff')

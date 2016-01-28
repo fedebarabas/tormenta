@@ -38,6 +38,7 @@ class Maxima():
 
     def __init__(self, image, fit_par=None, dt=0, fw=None, win_size=None,
                  kernel=None, xkernel=None, bkg_image=None):
+
         self.image = image
         self.bkg_image = bkg_image
 
@@ -56,6 +57,9 @@ class Maxima():
             self.kernel = tools.kernel(self.fwhm)
             self.xkernel = tools.xkernel(self.fwhm)
             self.image_conv = convolve(self.image.astype(float), self.kernel)
+
+        if self.bkg_image is None:
+            self.bkg_image = self.image_conv
 
         self.fit_par = fit_par
         self.dt = dt
