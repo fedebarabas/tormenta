@@ -5,6 +5,7 @@ Created on Tue Dec  8 20:51:54 2015
 @author: federico
 """
 import numpy as np
+import matplotlib.pyplot as plt
 import math
 from scipy.ndimage import affine_transform
 import tifffile as tiff
@@ -16,25 +17,35 @@ _EPS = np.finfo(float).eps * 4.0
 
 
 def points_registration(tiff_file):
-    """Points registration routine. It takes a calibration tiff file 128x266
+    """Points registration routine. It takes a calibration tiff file 288x288
     in size and calculates the affine transformation between the channels."""
 
-    images = np.zeros((2, 128, 128), dtype=np.uint16)
+    images = np.zeros((2, 128, 288), dtype=np.uint16)
 
     with tiff.TiffFile(tiff_file) as ff:
-        images[0] = ff.asarray()[:128, :]
-        images[1] = ff.asarray()[-128:, :]
+        arr = ff.asarray()
+        center = int(0.5*arr.shape[0])
+        images[0] = arr[center - 5 - 128:center - 5, :]
+        images[1] = arr[center + 5:center + 5 + 128, :]
 
     points = []
     for im in images:
         mm = Maxima(im)
-        mm.find()
+        mm.find(alpha=1.5)
         mm.getParameters()
         mm.fit()
         pp = np.zeros((len(mm.results['fit_x']), 2))
         pp[:, 0] = mm.results['fit_x']
         pp[:, 1] = mm.results['fit_y']
         points.append(pp)
+
+        plt.figure()
+        plt.imshow(mm.image, interpolation='None')
+        plt.autoscale(False)
+#        plt.plot(mm.results['maxima_y'], mm.results['maxima_x'], 'ro')
+        plt.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
+        plt.colorbar()
+        plt.show()
 
     return points
 

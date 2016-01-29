@@ -155,8 +155,9 @@ class Maxima():
 
     def drop_border(self):
         """ Drop near-the-edge spots. """
-        keep = ((self.positions[:, 0] < 126) & (self.positions[:, 0] > 1) &
-                (self.positions[:, 1] < 126) & (self.positions[:, 1] > 1))
+        sh = self.image.shape
+        keep = ((self.positions[:, 0] < sh[0]) & (self.positions[:, 0] > 1) &
+                (self.positions[:, 1] < sh[1]) & (self.positions[:, 1] > 1))
         self.positions = self.positions[keep]
 
     def getParameters(self):
