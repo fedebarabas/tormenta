@@ -31,7 +31,7 @@ def points_registration(tiff_file):
     points = []
     for im in images:
         mm = Maxima(im)
-        mm.find(alpha=1.5)
+        mm.find(alpha=2.5)
         mm.getParameters()
         mm.fit()
         pp = np.zeros((len(mm.results['fit_x']), 2))
@@ -42,11 +42,16 @@ def points_registration(tiff_file):
         plt.figure()
         plt.imshow(mm.image, interpolation='None')
         plt.autoscale(False)
-#        plt.plot(mm.results['maxima_y'], mm.results['maxima_x'], 'ro')
         plt.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
         plt.colorbar()
         plt.show()
 
+    return points
+
+
+def remove_bad_points(points):
+    print('Channel 1', points[0])
+    print('Channel 1', points[0])
     return points
 
 
@@ -250,4 +255,5 @@ if __name__ == '__main__':
 
     path = '/home/federico/Desktop/PtsReg/filename_snap_7.tiff'
     pp = points_registration(path)
-    print(pp)
+    print(pp[0])
+    print(pp[1])
