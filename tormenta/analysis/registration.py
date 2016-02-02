@@ -28,6 +28,8 @@ def points_registration(tiff_file):
         images[0] = arr[center - 5 - 128:center - 5, :]
         images[1] = arr[center + 5:center + 5 + 128, :]
 
+    fig = plt.figure()
+    i = 211
     points = []
     for im in images:
         mm = Maxima(im)
@@ -39,19 +41,50 @@ def points_registration(tiff_file):
         pp[:, 1] = mm.results['fit_y']
         points.append(pp)
 
-        plt.figure()
-        plt.imshow(mm.image, interpolation='None')
-        plt.autoscale(False)
-        plt.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
-        plt.colorbar()
+        # Image plot
+        ax = fig.add_subplot(i)
+        im = ax.imshow(mm.image, interpolation='None', aspect='auto')
+        ax.autoscale(False)
+        fig.colorbar(im)
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
+        ax.set_adjustable('box-forced')
+
+        i += 1
+
+    plt.show()
+    return points, images
+
+
+def remove_bad_points(points, images):
+
+    print('Channel 0')
+    print(points[0])
+    print('Channel 1')
+    print(points[1])
+
+    if len(points[0]) != len(points[1]):
+        channel = 0 if len(points[0]) > len(points[1]) else 1
+        print('Number of registration points mismatch')
+        print('Removing points from channel {}'.format(channel))
+        bpoints = input('Bad registration points: ')
+        bpoints = list(map(int, [l for l in bpoints]))
+        points[channel] = np.delete(points[channel], bpoints, 0)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(211)
+        im = ax.imshow(images[0], interpolation='None', aspect='auto')
+        ax.autoscale(False)
+        fig.colorbar(im)
+        ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'ro')
+        ax.set_adjustable('box-forced')
+        ax1 = fig.add_subplot(212)
+        im1 = ax1.imshow(images[1], interpolation='None', aspect='auto')
+        ax1.autoscale(False)
+        ax1.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'ro')
+        fig.colorbar(im1)
+        ax1.set_adjustable('box-forced')
         plt.show()
 
-    return points
-
-
-def remove_bad_points(points):
-    print('Channel 1', points[0])
-    print('Channel 1', points[0])
     return points
 
 
@@ -254,6 +287,6 @@ def homo_affine_transform(image, H):
 if __name__ == '__main__':
 
     path = '/home/federico/Desktop/PtsReg/filename_snap_7.tiff'
-    pp = points_registration(path)
-    print(pp[0])
-    print(pp[1])
+    pp, images = points_registration(path)
+
+    remove_bad_points(pp, images)
