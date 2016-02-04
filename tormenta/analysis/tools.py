@@ -42,7 +42,7 @@ def get_fwhm(wavelength, NA):
 def airy_vs_gauss():
 
     wavelength = 670        # nm
-    NA = 1.4
+    NA = 1.42
 
     x = np.arange(-2, 2, 0.01)
     y = airy(x)
@@ -89,7 +89,7 @@ def dropOverlapping(maxx, d):
 
 def kernel(fwhm):
     """ Returns the kernel of a convolution used for finding objects of a
-    full width half maximum fwhm in an image."""
+    full width half maximum fwhm (in pixels) in an image."""
     window = np.ceil(fwhm) + 3
 #    window = int(np.ceil(fwhm)) + 2
     x = np.arange(0, window)

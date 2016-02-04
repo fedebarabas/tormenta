@@ -70,21 +70,6 @@ def remove_bad_points(points, images):
         bpoints = list(map(int, [l for l in bpoints]))
         points[channel] = np.delete(points[channel], bpoints, 0)
 
-#        fig = plt.figure()
-#        ax = fig.add_subplot(211)
-#        im = ax.imshow(images[0], interpolation='None', aspect='auto')
-#        ax.autoscale(False)
-#        fig.colorbar(im)
-#        ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'ro')
-#        ax.set_adjustable('box-forced')
-#        ax1 = fig.add_subplot(212)
-#        im1 = ax1.imshow(images[1], interpolation='None', aspect='auto')
-#        ax1.autoscale(False)
-#        ax1.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'ro')
-#        fig.colorbar(im1)
-#        ax1.set_adjustable('box-forced')
-#        plt.show()
-
     return points
 
 
