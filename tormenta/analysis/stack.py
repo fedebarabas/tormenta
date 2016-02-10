@@ -6,7 +6,6 @@ Created on Sun Dec 22 16:44:59 2013
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import h5py as hdf
 import multiprocessing as mp
 
@@ -185,9 +184,16 @@ def localize_chunk(args, index=0):
 
     return results[0:index]
 
-#if __name__ == "__main__":
+if __name__ == "__main__":
 
-#    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt
+    se = Stack(r'/home/federico/Desktop/PtsReg/muestra43.hdf5')
+    mm = maxima.Maxima(se.imageData[10], se.fwhm)
+    mm.find()
+    print(mm.area(9))
+    plt.imshow(mm.area(9), interpolation='None')
+    plt.colorbar()
+    plt.show()
 
 #    stack = Stack()
 #    maxima = Peaks(stack.image[10], stack.fwhm)
@@ -196,9 +202,6 @@ def localize_chunk(args, index=0):
 #    plt.colorbar()
 #    plt.plot(maxima.positions[:, 1], maxima.positions[:, 0],
 #             'ro', markersize=10, alpha=0.5)
-#
-#    image = stack.image[10]
-#    pico = maxima.get_peak(10)
 #
 #    maxima.fit()
 #    print(maxima.results)

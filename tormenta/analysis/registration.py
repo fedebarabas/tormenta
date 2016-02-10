@@ -5,6 +5,7 @@ Created on Tue Dec  8 20:51:54 2015
 @author: federico
 """
 import numpy as np
+import matplotlib.pyplot as plt
 import math
 from scipy.ndimage import affine_transform
 import tifffile as tiff
@@ -16,26 +17,96 @@ _EPS = np.finfo(float).eps * 4.0
 
 
 def points_registration(tiff_file):
-    """Points registration routine. It takes a calibration tiff file 128x266
+    """Points registration routine. It takes a calibration tiff file 288x288
     in size and calculates the affine transformation between the channels."""
 
-    images = np.zeros((2, 128, 128), dtype=np.uint16)
+    images = np.zeros((2, 128, 288), dtype=np.uint16)
 
     with tiff.TiffFile(tiff_file) as ff:
-        images[0] = ff.asarray()[:128, :]
-        images[1] = ff.asarray()[-128:, :]
+        arr = ff.asarray()
+        center = int(0.5*arr.shape[0])
+        images[0] = arr[center - 5 - 128:center - 5, :]
+        images[1] = arr[center + 5:center + 5 + 128, :]
 
+    fig = plt.figure()
+    i = 211
     points = []
     for im in images:
         mm = Maxima(im)
-        mm.find()
+        mm.find(alpha=2.5)
+        mm.getParameters()
         mm.fit()
         pp = np.zeros((len(mm.results['fit_x']), 2))
         pp[:, 0] = mm.results['fit_x']
         pp[:, 1] = mm.results['fit_y']
         points.append(pp)
 
+        # Image plot
+        ax = fig.add_subplot(i)
+        im = ax.imshow(mm.image, interpolation='None', aspect='auto')
+        ax.autoscale(False)
+        fig.colorbar(im)
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
+        ax.set_adjustable('box-forced')
+
+        i += 1
+
+    plt.show()
+    return points, images
+
+
+def remove_bad_points(points, images):
+
+    print('Channel 0')
+    print(points[0])
+    print('Channel 1')
+    print(points[1])
+
+    if len(points[0]) != len(points[1]):
+        channel = 0 if len(points[0]) > len(points[1]) else 1
+        print('Number of registration points mismatch')
+        print('Removing points from channel {}'.format(channel))
+        bpoints = input('Bad registration points: ')
+        bpoints = list(map(int, [l for l in bpoints]))
+        points[channel] = np.delete(points[channel], bpoints, 0)
+
     return points
+
+
+def transformation_check(images, H, alpha):
+    images2 = np.zeros((2, 128, 288), dtype=np.uint16)
+    images2[0] = images[0]
+    images2[1] = homo_affine_transform(images[1], H)
+
+    fig = plt.figure()
+    i = 211
+    points = []
+    for im in images2:
+        mm = Maxima(im)
+        mm.find(alpha=alpha)
+        mm.getParameters()
+        mm.fit()
+        pp = np.zeros((len(mm.results['fit_x']), 2))
+        pp[:, 0] = mm.results['fit_x']
+        pp[:, 1] = mm.results['fit_y']
+        points.append(pp)
+
+        # Image plot
+        ax = fig.add_subplot(i)
+        im = ax.imshow(mm.image, interpolation='None', aspect='auto')
+        ax.autoscale(False)
+        fig.colorbar(im)
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
+        ax.set_adjustable('box-forced')
+
+        i += 1
+
+    points = remove_bad_points(points, images2)
+    it = np.arange(len(points[0]))
+    dist = [np.linalg.norm(points[0][i] - points[1][i]) for i in it]
+    print(dist, 'Mean distance: ', np.mean(dist))
+
+    plt.show()
 
 
 def affine_matrix_from_points(v0, v1, shear=True, scale=True, usesvd=True):
@@ -236,4 +307,11 @@ def homo_affine_transform(image, H):
 
 if __name__ == '__main__':
 
-    points_registration('/home/federico/Desktop/Data/filename_snap_7.tiff')
+    path = '/home/federico/Desktop/PtsReg/filename_snap_7.tiff'
+
+    pp, images = points_registration(path)
+    points = remove_bad_points(pp, images)
+    H = affine_matrix_from_points(points[0], points[1])
+    print('Transformation matrix 1 --> 0')
+    print(H)
+    transformation_check(images, H, 2)

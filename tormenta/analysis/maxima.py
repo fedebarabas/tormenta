@@ -38,6 +38,7 @@ class Maxima():
 
     def __init__(self, image, fit_par=None, dt=0, fw=None, win_size=None,
                  kernel=None, xkernel=None, bkg_image=None):
+
         self.image = image
         self.bkg_image = bkg_image
 
@@ -56,6 +57,10 @@ class Maxima():
             self.kernel = tools.kernel(self.fwhm)
             self.xkernel = tools.xkernel(self.fwhm)
             self.image_conv = convolve(self.image.astype(float), self.kernel)
+
+        # TODO: FIXME
+        if self.bkg_image is None:
+            self.bkg_image = self.image_conv
 
         self.fit_par = fit_par
         self.dt = dt
@@ -151,8 +156,9 @@ class Maxima():
 
     def drop_border(self):
         """ Drop near-the-edge spots. """
-        keep = ((self.positions[:, 0] < 126) & (self.positions[:, 0] > 1) &
-                (self.positions[:, 1] < 126) & (self.positions[:, 1] > 1))
+        sh = self.image.shape
+        keep = ((self.positions[:, 0] < sh[0]) & (self.positions[:, 0] > 1) &
+                (self.positions[:, 1] < sh[1]) & (self.positions[:, 1] > 1))
         self.positions = self.positions[keep]
 
     def getParameters(self):
@@ -249,7 +255,7 @@ def start_point(area, bkg):
 
 
 # TODO: run calibration routine for better fwhm estimate
-def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), x=np.arange(5)):
+def fit_area(area, fwhm, bkg, fit_results=np.zeros(4)):
 
     # TODO: get error of each parameter from the fit
     fit_results = minimize(logll, start_point(area, bkg), args=(fwhm, area),
@@ -257,6 +263,21 @@ def fit_area(area, fwhm, bkg, fit_results=np.zeros(4), x=np.arange(5)):
                                    (0, np.min(area))],
                            method='L-BFGS-B', jac=ll_jac).x
     return fit_results
+
+
+def fit_GME(area, fwhm, xx=np.arange(0.5, 5.5)):
+
+    xt = np.zeros(200)
+    yt = np.zeros(200)
+
+    x0, y0 = center_of_mass(area)
+    for i in np.arange(200):
+        pp = integratedPSF(x0, y0, 0.6*fwhm, np.arange(5))
+        x0 = np.sum(area * xx * pp) / np.sum(area * pp)
+        y0 = np.sum(area * xx[:, np.newaxis] * pp) / np.sum(area * pp)
+
+        xt[i] = x0
+        yt[i] = y0
 
 
 # TODO: Doesn't work with A and bkg
@@ -317,7 +338,7 @@ def derf(x0, sigma, x):
     return 0.5 * (erf(a + 1/sigma) - erf(a))
 
 
-def derfs(x0, y0, sigma, xy):
+def integratedPSF(x0, y0, sigma, xy):
     """ Auxiliary  function. x, x0 and sigma are in px units. """
     ax = (xy - x0) / sigma
     ay = (xy - y0) / sigma
@@ -326,10 +347,10 @@ def derfs(x0, y0, sigma, xy):
 
 
 def logll(parameters, *args, xy=np.arange(5)):
-    """ (-1) * Log-likelihood function for an area of size size**2 around a local
-    maximum with respect with a 2d symmetric gaussian of A amplitude centered
-    in (x0, y0) with full-width half maximum fwhm on top of a background bkg
-    as the model PSF. x, x0 and sigma are in px units.
+    """ (-1) * Log-likelihood function for an area of size size**2 around a
+    local maximum with respect with a 2d symmetric gaussian of A amplitude
+    centered in (x0, y0) with full-width half maximum fwhm on top of a
+    background bkg as the model PSF. x, x0 and sigma are in px units.
     """
     A, x0, y0, bkg = parameters
     fwhm, area = args
@@ -337,7 +358,7 @@ def logll(parameters, *args, xy=np.arange(5)):
 #    fwhm *= 0.5*(np.log(2))**(-1/2)
 #    fwhm *= 0.6
 
-    lambda_p = A * derfs(x0, y0, fwhm * 0.6, xy) + bkg
+    lambda_p = A * integratedPSF(x0, y0, fwhm * 0.6, xy) + bkg
     return np.sum(lambda_p - area * np.log(lambda_p))
 
 
@@ -353,7 +374,7 @@ def logll0(parameters, *args, xy=np.arange(5)):
 #    fwhm *= 0.5*(np.log(2))**(-1/2)
 #    fwhm *= 0.6
 
-    lambda_p = A * derfs(x0, y0, fwhm * 0.6, xy) + bkg
+    lambda_p = A * integratedPSF(x0, y0, fwhm * 0.6, xy) + bkg
     return np.sum(area * np.log(lambda_p) - lambda_p)
 
 
@@ -614,7 +635,7 @@ def ll_hess(params, *args, xy=np.arange(5), hess=np.zeros((4, 4, 5, 5))):
 #    return hess
 
 
-# if __name__ == "__main__":
+#if __name__ == "__main__":
 
 #    import matplotlib.pyplot as plt
 #    se = stack.Stack(r'/home/federico/data/20150706 Unsain/muestra43.hdf5')
