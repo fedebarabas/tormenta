@@ -180,11 +180,13 @@ class IntensityWorker(QtCore.QObject):
             # Wait until intensity fluctuations are below 0.5%
             mean = np.mean(trace)
             dev = np.std(trace)
-            while dev / mean > 0.005:
+            it = 0
+            while dev / mean > 0.005 and it < 100:
                 trace[:-1] = trace[1:]
                 trace[-1] = self.stream.getNewData()
                 mean = np.mean(trace)
                 dev = np.std(trace)
+                it += 1
 
             # Store intensity measurement using calibrated voltages
             laser = int(control.name.text()[4:7])
