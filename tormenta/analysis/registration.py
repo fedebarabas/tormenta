@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import math
 from scipy.ndimage import affine_transform
 import tifffile as tiff
+import h5py as hdf
 
 from tormenta.analysis.maxima import Maxima
 
@@ -16,17 +17,31 @@ from tormenta.analysis.maxima import Maxima
 _EPS = np.finfo(float).eps * 4.0
 
 
-def points_registration(tiff_file):
-    """Points registration routine. It takes a calibration tiff file 288x288
-    in size and calculates the affine transformation between the channels."""
+def load_tiff(filename):
 
-    images = np.zeros((2, 128, 288), dtype=np.uint16)
+    with tiff.TiffFile(filename) as ff:
+        return split_images(ff.asarray())
 
-    with tiff.TiffFile(tiff_file) as ff:
-        arr = ff.asarray()
-        center = int(0.5*arr.shape[0])
-        images[0] = arr[center - 5 - 128:center - 5, :]
-        images[1] = arr[center + 5:center + 5 + 128, :]
+
+def load_hdf(filename):
+
+    with hdf.File(filename, 'r') as ff:
+        return split_images(np.mean(ff['data'].value, 0))
+
+
+def split_images(arr):
+
+    images = np.zeros((2, 128, 266), dtype=np.uint16)
+    center = int(0.5*arr.shape[0])
+    images[0] = arr[center - 5 - 128:center - 5, :]
+    images[1] = arr[center + 5:center + 5 + 128, :]
+
+    return images
+
+
+def points_registration(images):
+    """Points registration routine. It takes a tetraspeck image of each channel
+    and calculates the affine transformation between them."""
 
     fig = plt.figure()
     i = 211
@@ -46,35 +61,40 @@ def points_registration(tiff_file):
         im = ax.imshow(mm.image, interpolation='None', aspect='auto')
         ax.autoscale(False)
         fig.colorbar(im)
-        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
+                'rx', mew=2, ms=5)
         ax.set_adjustable('box-forced')
 
         i += 1
 
-    plt.show()
-    return points, images
-
-
-def remove_bad_points(points, images):
-
-    print('Channel 0')
-    print(points[0])
-    print('Channel 1')
-    print(points[1])
-
     if len(points[0]) != len(points[1]):
-        channel = 0 if len(points[0]) > len(points[1]) else 1
-        print('Number of registration points mismatch')
-        print('Removing points from channel {}'.format(channel))
-        bpoints = input('Bad registration points: ')
-        bpoints = list(map(int, [l for l in bpoints]))
-        points[channel] = np.delete(points[channel], bpoints, 0)
+        print('Channel 0')
+        print(points[0])
+        print('Channel 1')
+        print(points[1])
+        plt.show()
+        points = remove_bad_points(points)
+
+    else:
+        plt.show()
+
+    return points
+
+
+def remove_bad_points(points):
+
+    ch = 0 if len(points[0]) > len(points[1]) else 1
+    print('Number of registration points mismatch')
+    print('Removing points from channel {} (0-{})'.format(ch, len(points[ch])))
+    bpoints = input('Bad registration points: ')
+    bpoints = list(map(int, [l for l in bpoints]))
+    points[ch] = np.delete(points[ch], bpoints, 0)
 
     return points
 
 
 def transformation_check(images, H, alpha):
-    images2 = np.zeros((2, 128, 288), dtype=np.uint16)
+    images2 = np.zeros((2, 128, 266), dtype=np.uint16)
     images2[0] = images[0]
     images2[1] = homo_affine_transform(images[1], H)
 
@@ -96,15 +116,23 @@ def transformation_check(images, H, alpha):
         im = ax.imshow(mm.image, interpolation='None', aspect='auto')
         ax.autoscale(False)
         fig.colorbar(im)
-        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 'ro')
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
+                'rx', mew=2, ms=5)
         ax.set_adjustable('box-forced')
 
         i += 1
 
-    points = remove_bad_points(points, images2)
+    if len(points[0]) != len(points[1]):
+        print('Channel 0')
+        print(points[0])
+        print('Channel 1')
+        print(points[1])
+        plt.show()
+        points = remove_bad_points(points)
     it = np.arange(len(points[0]))
     dist = [np.linalg.norm(points[0][i] - points[1][i]) for i in it]
-    print(dist, 'Mean distance: ', np.mean(dist))
+    print('Mean distance: ', np.mean(dist))
+    print('Maximum distance: ', np.max(dist))
 
     plt.show()
 
@@ -307,10 +335,10 @@ def homo_affine_transform(image, H):
 
 if __name__ == '__main__':
 
-    path = '/home/federico/Desktop/PtsReg/filename_snap_7.tiff'
-
-    pp, images = points_registration(path)
-    points = remove_bad_points(pp, images)
+    path = '/home/federico/Desktop/20160212 Tetraspeck registration/'
+    filename = 'filename_9.hdf5'
+    images = load_hdf(path + filename)
+    points = points_registration(images)
     H = affine_matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
     print(H)
