@@ -43,6 +43,7 @@ def split_two_colors(files):
     for name in files:
 
         with hdf.File(name, 'r') as ff:
+            print(name)
 
             center = int(0.5*ff['data'].value.shape[1])
 
