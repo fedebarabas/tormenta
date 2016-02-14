@@ -269,11 +269,11 @@ def fit_area(area, fwhm, bkg, fit_results=np.zeros(4)):
 
 def fit_GME(area, fwhm, xx=np.arange(0.5, 5.5)):
 
-    xt = np.zeros(200)
-    yt = np.zeros(200)
+    xt = np.zeros(400)
+    yt = np.zeros(400)
 
     x0, y0 = center_of_mass(area)
-    for i in np.arange(200):
+    for i in np.arange(400):
         pp = integratedPSF(x0, y0, 0.6*fwhm, np.arange(5))
         x0 = np.sum(area * xx * pp) / np.sum(area * pp)
         y0 = np.sum(area * xx[:, np.newaxis] * pp) / np.sum(area * pp)
@@ -281,6 +281,7 @@ def fit_GME(area, fwhm, xx=np.arange(0.5, 5.5)):
         xt[i] = x0
         yt[i] = y0
 
+    return x0, y0
 
 # TODO: Doesn't work with A and bkg
 def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.3,

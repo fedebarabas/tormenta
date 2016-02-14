@@ -9,15 +9,48 @@ import numpy as np
 import h5py as hdf
 import multiprocessing as mp
 
+import matplotlib.pyplot as plt
 from scipy.ndimage.filters import uniform_filter
+
+from tkinter import Tk, filedialog
 
 import tormenta.analysis.tools as tools
 import tormenta.analysis.maxima as maxima
+from tormenta.tools import insertSuffix
 
 
 def convert(word):
     splitted = word.split(' ')
     return splitted[0] + ''.join(x.capitalize() for x in splitted[1:])
+
+
+def ask_files(title):
+    root = Tk()
+    filename = filedialog.askopenfilenames(parent=root, title=title)
+    root.destroy()
+    return filename
+
+
+def ask_file(title):
+    root = Tk()
+    filename = filedialog.askopenfilename(parent=root, title=title)
+    root.destroy()
+    return filename
+
+
+def split_two_colors(files):
+
+    for name in files:
+
+        with hdf.File(name, 'r') as ff:
+
+            center = int(0.5*ff['data'].value.shape[1])
+
+            with hdf.File(insertSuffix(name, '_ch0'), 'w') as ff0:
+                ff0['data'] = ff['data'][:, center - 5 - 128:center - 5, :]
+
+            with hdf.File(insertSuffix(name, '_ch1'), 'w') as ff1:
+                ff1['data'] = ff['data'][:, center + 5:center + 5 + 128, :]
 
 
 class Stack(object):
@@ -26,14 +59,7 @@ class Stack(object):
     def __init__(self, filename=None, imagename='data'):
 
         if filename is None:
-
-            import tkFileDialog as filedialog
-            from Tkinter import Tk
-
-            root = Tk()
-            filename = filedialog.askopenfilename(parent=root,
-                                                  title='Select hdf5 file')
-            root.destroy()
+            filename = ask_file('Select hdf5 file')
 
         self.file = hdf.File(filename, 'r')
 
@@ -186,14 +212,23 @@ def localize_chunk(args, index=0):
 
 if __name__ == "__main__":
 
-    import matplotlib.pyplot as plt
-    se = Stack(r'/home/federico/Desktop/PtsReg/muestra43.hdf5')
-    mm = maxima.Maxima(se.imageData[10], se.fwhm)
-    mm.find()
-    print(mm.area(9))
-    plt.imshow(mm.area(9), interpolation='None')
-    plt.colorbar()
-    plt.show()
+#    import matplotlib.pyplot as plt
+#    se = Stack(r'/home/federico/Desktop/20160212 Tetraspeck registration/filename_9.hdf5')
+#    mm = maxima.Maxima(se.imageData[10], se.fwhm)
+#    mm.find()
+#    peak = mm.area(mm.image, 5)
+#    plt.imshow(peak, interpolation='None')
+#    gme = maxima.fit_GME(peak, mm.fwhm)
+#    mle = maxima.fit_area(peak, mm.fwhm, np.min(peak))
+#    print(mle)
+#    print(gme)
+#
+#    plt.plot(mle[2] - 0.5, mle[1] - 0.5, 'rx', mew=2, ms=5)
+#    plt.plot(gme[0] - 0.5, gme[1] - 0.5, 'bs', mew=1, ms=5, markerfacecolor='none')
+#    plt.colorbar()
+#    plt.show()
+
+    split_two_colors(ask_files('Select hdf5 file'))
 
 #    stack = Stack()
 #    maxima = Peaks(stack.image[10], stack.fwhm)

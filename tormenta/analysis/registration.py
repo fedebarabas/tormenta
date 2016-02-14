@@ -44,7 +44,7 @@ def points_registration(images):
     and calculates the affine transformation between them."""
 
     fig = plt.figure()
-    i = 211
+    i = 311
     points = []
     for im in images:
         mm = Maxima(im)
@@ -58,14 +58,25 @@ def points_registration(images):
 
         # Image plot
         ax = fig.add_subplot(i)
-        im = ax.imshow(mm.image, interpolation='None', aspect='auto')
+        im = ax.imshow(mm.image, interpolation='None', aspect='equal',
+                       cmap='cubehelix', vmin=0, vmax=700)
         ax.autoscale(False)
-        fig.colorbar(im)
         ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
                 'rx', mew=2, ms=5)
         ax.set_adjustable('box-forced')
 
         i += 1
+
+    # superposition of channels plot
+    ax = fig.add_subplot(i)
+    ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=2, ms=5)
+    ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
+            markerfacecolor='None')
+    ax.set_aspect('equal')
+    ax.set_xlim(0, 266)
+    ax.set_ylim(128, 0)
+
+    plt.tight_layout()
 
     if len(points[0]) != len(points[1]):
         print('Channel 0')
@@ -99,7 +110,7 @@ def transformation_check(images, H, alpha):
     images2[1] = homo_affine_transform(images[1], H)
 
     fig = plt.figure()
-    i = 211
+    i = 311
     points = []
     for im in images2:
         mm = Maxima(im)
@@ -113,14 +124,23 @@ def transformation_check(images, H, alpha):
 
         # Image plot
         ax = fig.add_subplot(i)
-        im = ax.imshow(mm.image, interpolation='None', aspect='auto')
+        im = ax.imshow(mm.image, interpolation='None', aspect='equal',
+                       cmap='cubehelix', vmin=0, vmax=700)
         ax.autoscale(False)
-        fig.colorbar(im)
         ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
                 'rx', mew=2, ms=5)
         ax.set_adjustable('box-forced')
 
         i += 1
+
+    # superposition of channels plot
+    ax = fig.add_subplot(i)
+    ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=2, ms=5)
+    ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
+            markerfacecolor='none')
+    ax.set_xlim(0, 266)
+    ax.set_ylim(128, 0)
+    ax.set_aspect('equal')
 
     if len(points[0]) != len(points[1]):
         print('Channel 0')
@@ -134,6 +154,7 @@ def transformation_check(images, H, alpha):
     print('Mean distance: ', np.mean(dist))
     print('Maximum distance: ', np.max(dist))
 
+    plt.tight_layout()
     plt.show()
 
 
