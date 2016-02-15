@@ -33,8 +33,8 @@ def split_images(arr):
 
     images = np.zeros((2, 128, 266), dtype=np.uint16)
     center = int(0.5*arr.shape[0])
-    images[0] = arr[center - 5 - 128:center - 5, :]
-    images[1] = arr[center + 5:center + 5 + 128, :]
+    images[0] = arr[:center - 5, :]
+    images[1] = arr[center + 5:, :]
 
     return images
 

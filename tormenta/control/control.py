@@ -267,7 +267,6 @@ class RecordingWidget(QtGui.QFrame):
         laserWidgets = self.main.laserWidgets
         laserWidgets.worker.doneSignal.connect(self.startRecording)
         powerChanged = [c.powerChanged for c in laserWidgets.controls]
-        print(powerChanged)
         if np.any(np.array(powerChanged)):
             laserWidgets.getIntensities()
         else:
@@ -294,7 +293,9 @@ class RecordingWidget(QtGui.QFrame):
                 self.startTime = ptime.time()
 
                 shape = (self.n(), self.main.shape[0], self.main.shape[1])
-                self.worker = RecWorker(self.main.andor, shape,
+                frameOption = self.main.tree.p.param('Image frame')
+                twoColors = frameOption.param('Shape').value() == 'Two-colors'
+                self.worker = RecWorker(self.main.andor, shape, twoColors,
                                         self.main.t_exp_real, self.savename,
                                         self.dataname, self.getAttrs())
                 self.worker.updateSignal.connect(self.updateGUI)
@@ -350,16 +351,19 @@ class RecWorker(QtCore.QObject):
     updateSignal = QtCore.pyqtSignal(np.ndarray)
     doneSignal = QtCore.pyqtSignal()
 
-    def __init__(self, andor, shape, t_exp, savename, dataname, attrs,
-                 *args, **kwargs):
+    def __init__(self, andor, shape, twoColors, t_exp, savename, dataname,
+                 attrs, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.andor = andor
         self.shape = shape
+        self.twoColors = twoColors
         self.t_exp = t_exp
         self.savename = savename
         self.dataname = dataname
         self.attrs = attrs
         self.pressed = True
+        self.frameShape = (self.shape[1], self.shape[2])
+        self.n = self.shape[0]
 
     def start(self):
 
@@ -378,34 +382,77 @@ class RecWorker(QtCore.QObject):
         self.andor.start_acquisition()
         time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
 
-        self.store_file = hdf.File(self.savename, "w")
-        self.store_file.create_dataset(name=self.dataname, shape=self.shape,
-                                       maxshape=self.shape, dtype=np.uint16)
-        self.dataset = self.store_file[self.dataname]
-        self.startTime = ptime.time()
+        if self.twoColors:
+            self.twoColorRec()
+        else:
+            self.singleColorRec()
 
-        while self.j < self.shape[0] and self.pressed:
-
-            time.sleep(self.t_exp.magnitude)
-            if self.andor.n_images_acquired > self.j:
-                i, self.j = self.andor.new_images_index
-                newImages = self.andor.images16(i, self.j, (self.shape[1],
-                                                            self.shape[2]),
-                                                1, self.shape[0])
-                self.updateSignal.emit(np.transpose(newImages[-1]))
-                self.dataset[i - 1:self.j] = newImages[:, ::-1]
-
-        # Crop dataset if it's stopped before finishing
-        if self.j < self.shape[0]:
-            self.dataset.resize((self.j, self.shape[1], self.shape[2]))
-
-        # Saving parameters
-        for item in self.attrs:
-            if item[1] is not None:
-                self.dataset.attrs[item[0]] = item[1]
-
-        self.store_file.close()
         self.doneSignal.emit()
+
+    def singleColorRec(self):
+
+        with hdf.File(self.savename, "w") as storeFile:
+            storeFile.create_dataset(name=self.dataname, shape=self.shape,
+                                     maxshape=self.shape, dtype=np.uint16)
+            dataset = storeFile[self.dataname]
+
+            while self.j < self.shape[0] and self.pressed:
+
+                time.sleep(self.t_exp.magnitude)
+                if self.andor.n_images_acquired > self.j:
+                    i, self.j = self.andor.new_images_index
+                    newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                    1, self.n)
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    dataset[i - 1:self.j] = newImages[:, ::-1]
+
+            # Crop dataset if it's stopped before finishing
+            if self.j < self.shape[0]:
+                dataset.resize((self.j, self.shape[1], self.shape[2]))
+
+            # Saving parameters
+            for item in self.attrs:
+                if item[1] is not None:
+                    dataset.attrs[item[0]] = item[1]
+
+    def twoColorRec(self):
+
+        ch0Savename = guitools.insertSuffix(self.savename, '_ch0')
+        ch1Savename = guitools.insertSuffix(self.savename, '_ch1')
+        c = int(0.5*self.shape[1])
+        singleShape = (self.shape[0], 128, self.shape[2])
+
+        with hdf.File(ch0Savename, "w") as ch0File, \
+                hdf.File(ch1Savename, "w") as ch1File:
+            ch0File.create_dataset(name=self.dataname, shape=singleShape,
+                                   maxshape=self.shape, dtype=np.uint16)
+            ch1File.create_dataset(name=self.dataname, shape=singleShape,
+                                   maxshape=self.shape, dtype=np.uint16)
+            ch0Dataset = ch0File[self.dataname]
+            ch1Dataset = ch1File[self.dataname]
+
+            while self.j < self.shape[0] and self.pressed:
+
+                time.sleep(self.t_exp.magnitude)
+                if self.andor.n_images_acquired > self.j:
+                    i, self.j = self.andor.new_images_index
+                    newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                    1, self.n)
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    newImages = newImages[:, ::-1]
+                    ch0Dataset[i - 1:self.j] = newImages[:, :c - 5, :]
+                    ch1Dataset[i - 1:self.j] = newImages[:, c + 5:, :]
+
+            # Crop dataset if it's stopped before finishing
+            if self.j < self.shape[0]:
+                ch0Dataset.resize((self.j, singleShape[1], singleShape[2]))
+                ch1Dataset.resize((self.j, singleShape[1], singleShape[2]))
+
+            # Saving parameters
+            for item in self.attrs:
+                if item[1] is not None:
+                    ch0Dataset.attrs[item[0]] = item[1]
+                    ch1Dataset.attrs[item[0]] = item[1]
 
 
 class TemperatureStabilizer(QtCore.QObject):

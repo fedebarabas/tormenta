@@ -16,8 +16,6 @@ from tkinter import Tk, filedialog, simpledialog
 
 from lantz import Q_
 
-from tormenta.tools import insertSuffix
-
 
 # Check for same name conflict
 def getUniqueName(name):
@@ -31,6 +29,14 @@ def getUniqueName(name):
         n += 1
 
     return name
+
+
+def insertSuffix(filename, suffix, newExt=None):
+    names = os.path.splitext(filename)
+    if newExt is None:
+        return names[0] + suffix + names[1]
+    else:
+        return names[0] + suffix + newExt
 
 
 def attrsToTxt(filename, attrs):

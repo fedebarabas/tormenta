@@ -283,6 +283,7 @@ def fit_GME(area, fwhm, xx=np.arange(0.5, 5.5)):
 
     return x0, y0
 
+
 # TODO: Doesn't work with A and bkg
 def minimize_newton(func, jac, hess, area, fwhm, bkg_estimate, step_size=0.3,
                     num_iter=100, tol=0.000001):
