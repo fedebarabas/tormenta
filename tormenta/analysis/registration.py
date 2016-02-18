@@ -107,7 +107,7 @@ def remove_bad_points(points):
 def transformation_check(images, H, alpha):
     images2 = np.zeros((2, 128, 266), dtype=np.uint16)
     images2[0] = images[0]
-    images2[1] = homo_affine_transform(images[1], H)
+    images2[1] = h_affine_transform(images[1], H)
 
     fig = plt.figure()
     i = 311
@@ -343,7 +343,7 @@ def vector_norm(data, axis=None, out=None):
         np.sqrt(out, out)
 
 
-def homo_affine_transform(image, H):
+def h_affine_transform(image, H):
     """ Transforms the image with the affine transformation matrix H.
 
     References:
@@ -354,13 +354,28 @@ def homo_affine_transform(image, H):
     return affine_transform(image, H[:2, :2], (H[0, 2], H[1, 2]))
 
 
+def apply_to_stack(H, filename):
+    """ Transforms all frames of channel 1 using matrix H."""
+
+    with hdf.File(filename, 'r') as f0, \
+            hdf.File(filename + 'corrected', 'w') as f1:
+        dat0 = f0['data']
+        f1.create_dataset(name='data', shape=(256, 266), dtype=np.uint16)
+        dat1 = f1['data']
+        for frame in np.arange(len(f1['data'])):
+            dat1[frame, :128, :] = dat0[frame, :128, :]
+            dat1[frame, -128:, :] = h_affine_transform(dat0[frame, -128:, :])
+
+
 if __name__ == '__main__':
 
-    path = '/home/federico/Desktop/20160212 Tetraspeck registration/'
+    path = r'/home/federico/Desktop/20160212 Tetraspeck registration/'
     filename = 'filename_9.hdf5'
     images = load_hdf(path + filename)
     points = points_registration(images)
     H = affine_matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
     print(H)
-    transformation_check(images, H, 2)
+#    transformation_check(images, H, 2)
+    stack = r'568+647_632+640_muestra1_1.hdf5'
+    apply_to_stack(H, path + filename)

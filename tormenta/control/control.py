@@ -382,10 +382,12 @@ class RecWorker(QtCore.QObject):
         self.andor.start_acquisition()
         time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
 
-        if self.twoColors:
-            self.twoColorRec()
-        else:
-            self.singleColorRec()
+#        if self.twoColors:
+#            self.twoColorRec()
+#        else:
+#            self.singleColorRec()
+
+        self.singleColorRec()
 
         self.doneSignal.emit()
 
