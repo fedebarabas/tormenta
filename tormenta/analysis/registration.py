@@ -362,6 +362,7 @@ def apply_to_stack(H, filename):
         dat0 = f0['data']
         f1.create_dataset(name='data', shape=(256, 266), dtype=np.uint16)
         dat1 = f1['data']
+        print(len(f1['data']))
         for frame in np.arange(len(f1['data'])):
             dat1[frame, :128, :] = dat0[frame, :128, :]
             dat1[frame, -128:, :] = h_affine_transform(dat0[frame, -128:, :])
@@ -378,4 +379,4 @@ if __name__ == '__main__':
     print(H)
 #    transformation_check(images, H, 2)
     stack = r'568+647_632+640_muestra1_1.hdf5'
-    apply_to_stack(H, path + filename)
+    apply_to_stack(H, path + stack)
