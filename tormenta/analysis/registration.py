@@ -12,6 +12,7 @@ import tifffile as tiff
 import h5py as hdf
 
 from tormenta.analysis.maxima import Maxima
+from tormenta.control.guitools import insertSuffix
 
 # epsilon for testing whether a number is close to zero
 _EPS = np.finfo(float).eps * 4.0
@@ -358,14 +359,15 @@ def apply_to_stack(H, filename):
     """ Transforms all frames of channel 1 using matrix H."""
 
     with hdf.File(filename, 'r') as f0, \
-            hdf.File(filename + 'corrected', 'w') as f1:
+            hdf.File(insertSuffix(filename, 'corrected'), 'w') as f1:
         dat0 = f0['data']
-        f1.create_dataset(name='data', shape=(256, 266), dtype=np.uint16)
+        f1.create_dataset(name='data', shape=(len(f0['data']), 256, 266),
+                          dtype=np.uint16)
         dat1 = f1['data']
-        print(len(f1['data']))
         for frame in np.arange(len(f1['data'])):
             dat1[frame, :128, :] = dat0[frame, :128, :]
-            dat1[frame, -128:, :] = h_affine_transform(dat0[frame, -128:, :])
+            transf = h_affine_transform(dat0[frame, -128:, :], H)
+            dat1[frame, -128:, :] = transf
 
 
 if __name__ == '__main__':
