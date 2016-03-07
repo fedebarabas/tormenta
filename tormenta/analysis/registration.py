@@ -87,6 +87,21 @@ def points_registration(images):
         plt.show()
         points = remove_bad_points(points)
 
+        fig = plt.figure()
+        # Image plot
+        ax = fig.add_subplot(311)
+        im = ax.imshow(images[0], interpolation='None', aspect='equal',
+                       cmap='cubehelix', vmin=0, vmax=700)
+        ax.autoscale(False)
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
+                'rx', mew=2, ms=5)
+        ax.set_adjustable('box-forced')
+
+        print('Channel 0')
+        print(points[0])
+        print('Channel 1')
+        print(points[1])
+
     else:
         plt.show()
 
@@ -98,8 +113,8 @@ def remove_bad_points(points):
     ch = 0 if len(points[0]) > len(points[1]) else 1
     print('Number of registration points mismatch')
     print('Removing points from channel {} (0-{})'.format(ch, len(points[ch])))
-    bpoints = input('Bad registration points: ')
-    bpoints = list(map(int, [l for l in bpoints]))
+    bpoints = input('Bad registration points: (ej: 1-7) ')
+    bpoints = list(map(int, [l for l in bpoints.split('-')]))
     points[ch] = np.delete(points[ch], bpoints, 0)
 
     return points
@@ -372,13 +387,13 @@ def apply_to_stack(H, filename):
 
 if __name__ == '__main__':
 
-    path = r'/home/federico/Desktop/20160212 Tetraspeck registration/'
-    filename = 'filename_9.hdf5'
+    path = r'/home/federico/Desktop/data/'
+    filename = 'tetraspeck.hdf5'
     images = load_hdf(path + filename)
     points = points_registration(images)
     H = affine_matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
     print(H)
-#    transformation_check(images, H, 2)
-    stack = r'568+647_632+640_muestra1_1.hdf5'
-    apply_to_stack(H, path + stack)
+    transformation_check(images, H, 2)
+#    stack = r'568+647_632+640_muestra1_1.hdf5'
+#    apply_to_stack(H, path + stack)
