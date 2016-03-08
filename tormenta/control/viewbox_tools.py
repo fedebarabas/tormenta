@@ -108,9 +108,9 @@ class TwoColorGrid():
         pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
         pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
 
-        self.rectT = QtGui.QGraphicsRectItem(192, 192, 128, 128)
+        self.rectT = QtGui.QGraphicsRectItem(128, 192, 256, 128)
         self.rectT.setPen(pen)
-        self.rectR = QtGui.QGraphicsRectItem(192, 54, 128, 128)
+        self.rectR = QtGui.QGraphicsRectItem(128, 54, 256, 128)
         self.rectR.setPen(pen)
         self.yLine = pg.InfiniteLine(pos=0.5*self.shape[0], pen=pen2)
         self.xLine = pg.InfiniteLine(pos=0.5*self.shape[1], pen=pen2, angle=0)
