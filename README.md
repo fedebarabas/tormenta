@@ -8,7 +8,7 @@ Measurement control and analysis for optical microscopy
 
 ### Installation (Ubuntu)
 ```
-$ sudo apt-get install python3-pip python3-h5py 
+$ sudo apt-get install python3-pip python3-h5py git
 $ sudo pip3 install git+https://github.com/fedebarabas/lantz tifffile pyqtgraph
 $ git clone https://github.com/fedebarabas/Tormenta
 ```
