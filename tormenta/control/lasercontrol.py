@@ -101,8 +101,10 @@ class LaserWidget(QtGui.QFrame):
         self.intensityThread.started.connect(self.worker.start)
 
     def getIntensities(self):
-        # Flip measurement mirror
+        # Get initial flipper mirror state and put it on path
+        self.flipState = not(self.main.flipperButton.isChecked())
         self.main.flipperInPath(True)
+
         time.sleep(0.5)
         self.daq.digital_IO[3] = False
         self.intensityThread.start()
@@ -116,9 +118,9 @@ class LaserWidget(QtGui.QFrame):
                     c.voltageLabel.setText(str(np.round(d['voltage'], 2)))
         self.intensityThread.quit()
 
-        # Flip measurement mirror back
+        # Put flipper in initial state
         self.daq.digital_IO[3] = True
-        self.main.flipperInPath(False)
+        self.main.flipperInPath(self.flipState)
 
     def closeShutters(self):
         for control in self.shuttLasers:
