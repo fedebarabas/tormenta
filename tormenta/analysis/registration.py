@@ -45,7 +45,7 @@ def points_registration(images):
     and calculates the affine transformation between them."""
 
     fig = plt.figure()
-    i = 311
+    k = 311
     points = []
     for im in images:
         mm = Maxima(im)
@@ -58,7 +58,7 @@ def points_registration(images):
         points.append(pp)
 
         # Image plot
-        ax = fig.add_subplot(i)
+        ax = fig.add_subplot(k)
         im = ax.imshow(mm.image, interpolation='None', aspect='equal',
                        cmap='cubehelix', vmin=0, vmax=700)
         ax.autoscale(False)
@@ -66,10 +66,14 @@ def points_registration(images):
                 'rx', mew=2, ms=5)
         ax.set_adjustable('box-forced')
 
-        i += 1
+        for i in np.arange(len(mm.results['fit_y'])):
+            ax.annotate(str(i), xy=(mm.results['fit_y'][i] - 0.1,
+                                    mm.results['fit_x'][i] - 0.1))
+
+        k += 1
 
     # superposition of channels plot
-    ax = fig.add_subplot(i)
+    ax = fig.add_subplot(k)
     ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=2, ms=5)
     ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
             markerfacecolor='None')
@@ -87,20 +91,38 @@ def points_registration(images):
         plt.show()
         points = remove_bad_points(points)
 
+        # Replotting images
         fig = plt.figure()
-        # Image plot
-        ax = fig.add_subplot(311)
-        im = ax.imshow(images[0], interpolation='None', aspect='equal',
-                       cmap='cubehelix', vmin=0, vmax=700)
-        ax.autoscale(False)
-        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
-                'rx', mew=2, ms=5)
-        ax.set_adjustable('box-forced')
 
-        print('Channel 0')
-        print(points[0])
-        print('Channel 1')
-        print(points[1])
+        orden = input('Reorden de points[1]: ')
+        points[1] = points[1][orden]
+        for k in [0, 1]:
+            # Image plot
+            ax = fig.add_subplot(311 + k)
+            im = ax.imshow(images[k], interpolation='None', aspect='equal',
+                           cmap='cubehelix', vmin=0, vmax=700)
+            ax.autoscale(False)
+            ax.plot(points[k][:, 1] - 0.5, points[k][:, 0] - 0.5,
+                    'rx', mew=2, ms=5)
+            ax.set_adjustable('box-forced')
+
+            for i in np.arange(len(points[k])):
+                ax.annotate(str(i), xy=(points[k][:, 1][i] - 0.5 - 0.1,
+                                        points[k][:, 0][i] - 0.5 - 0.1))
+
+        # superposition of channels plot
+        ax = fig.add_subplot(313)
+        ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5,
+                'rx', mew=2, ms=5)
+        ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5,
+                'bs', mew=1, ms=5, markerfacecolor='None')
+        ax.set_aspect('equal')
+        ax.set_xlim(0, 266)
+        ax.set_ylim(128, 0)
+
+        plt.tight_layout()
+
+        plt.show()
 
     else:
         plt.show()
@@ -165,6 +187,7 @@ def transformation_check(images, H, alpha):
         print(points[1])
         plt.show()
         points = remove_bad_points(points)
+
     it = np.arange(len(points[0]))
     dist = [np.linalg.norm(points[0][i] - points[1][i]) for i in it]
     print('Mean distance: ', np.mean(dist))
@@ -394,6 +417,6 @@ if __name__ == '__main__':
     H = affine_matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
     print(H)
-    transformation_check(images, H, 2)
+#    transformation_check(images, H, 2)
 #    stack = r'568+647_632+640_muestra1_1.hdf5'
 #    apply_to_stack(H, path + stack)
