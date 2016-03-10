@@ -74,13 +74,7 @@ def points_registration(images):
 
     # superposition of channels plot
     ax = fig.add_subplot(k)
-    ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=2, ms=5)
-    ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
-            markerfacecolor='None')
-    ax.set_aspect('equal')
-    ax.set_xlim(0, 266)
-    ax.set_ylim(128, 0)
-
+    ch_superposition(ax, points)
     plt.tight_layout()
 
     if len(points[0]) != len(points[1]):
@@ -88,46 +82,67 @@ def points_registration(images):
         print(points[0])
         print('Channel 1')
         print(points[1])
-        plt.show()
+        fig.set_size_inches(7, 25, forward=True)
+        plt.show(block=False)
         points = remove_bad_points(points)
+        plt.close()
 
         # Replotting images
         fig = plt.figure()
+        plot_points(images, points, fig)
+        plt.show(block=False)
 
-        orden = input('Reorden de points[1]: ')
-        points[1] = points[1][orden]
-        for k in [0, 1]:
-            # Image plot
-            ax = fig.add_subplot(311 + k)
-            im = ax.imshow(images[k], interpolation='None', aspect='equal',
-                           cmap='cubehelix', vmin=0, vmax=700)
-            ax.autoscale(False)
-            ax.plot(points[k][:, 1] - 0.5, points[k][:, 0] - 0.5,
-                    'rx', mew=2, ms=5)
-            ax.set_adjustable('box-forced')
+        # points[1] must have the same order as points[0]
+        order = input('Reorden de points[1]: (ej: 0-1-4-3-2) ')
+        try:
+            order = list(map(int, [l for l in order.split('-')]))
+            points[1] = points[1][order]
+            plt.close()
 
-            for i in np.arange(len(points[k])):
-                ax.annotate(str(i), xy=(points[k][:, 1][i] - 0.5 - 0.1,
-                                        points[k][:, 0][i] - 0.5 - 0.1))
-
-        # superposition of channels plot
-        ax = fig.add_subplot(313)
-        ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5,
-                'rx', mew=2, ms=5)
-        ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5,
-                'bs', mew=1, ms=5, markerfacecolor='None')
-        ax.set_aspect('equal')
-        ax.set_xlim(0, 266)
-        ax.set_ylim(128, 0)
-
-        plt.tight_layout()
-
-        plt.show()
+            # Last check
+            fig = plt.figure()
+            plot_points(images, points, fig)
+            plt.show()
+        except:
+            plt.close()
 
     else:
         plt.show()
 
     return points
+
+
+def plot_points(images, points, fig):
+
+    for k in [0, 1]:
+        # Image plot
+        ax = fig.add_subplot(311 + k)
+        ax.imshow(images[k], interpolation='None', aspect='equal',
+                  cmap='cubehelix', vmin=0, vmax=700)
+        ax.autoscale(False)
+        ax.plot(points[k][:, 1] - 0.5, points[k][:, 0] - 0.5,
+                'rx', mew=2, ms=5)
+        ax.set_adjustable('box-forced')
+
+        for i in np.arange(len(points[k])):
+            ax.annotate(str(i), xy=(points[k][:, 1][i] - 0.5 - 0.1,
+                                    points[k][:, 0][i] - 0.5 - 0.1))
+
+    # superposition of channels plot
+    ax = fig.add_subplot(313)
+    ch_superposition(ax, points)
+    plt.tight_layout()
+    fig.set_size_inches(7, 25, forward=True)
+
+
+def ch_superposition(ax, points):
+    # superposition of channels plot
+    ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=2, ms=5)
+    ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
+            markerfacecolor='None')
+    ax.set_aspect('equal')
+    ax.set_xlim(0, 266)
+    ax.set_ylim(128, 0)
 
 
 def remove_bad_points(points):
@@ -417,6 +432,6 @@ if __name__ == '__main__':
     H = affine_matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
     print(H)
-#    transformation_check(images, H, 2)
+    transformation_check(images, H, 2)
 #    stack = r'568+647_632+640_muestra1_1.hdf5'
 #    apply_to_stack(H, path + stack)
