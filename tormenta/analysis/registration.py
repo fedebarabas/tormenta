@@ -40,11 +40,7 @@ def split_images(arr):
     return images
 
 
-def points_registration(images):
-    """Points registration routine. It takes a tetraspeck image of each channel
-    and calculates the affine transformation between them."""
-
-    fig = plt.figure()
+def fit_and_plot(images, fig):
     k = 311
     points = []
     for im in images:
@@ -76,6 +72,16 @@ def points_registration(images):
     ax = fig.add_subplot(k)
     ch_superposition(ax, points)
     plt.tight_layout()
+
+    return points
+
+
+def points_registration(images):
+    """Points registration routine. It takes a tetraspeck image of each channel
+    and calculates the affine transformation between them."""
+
+    fig = plt.figure()
+    points = fit_and_plot(images, fig)
 
     if len(points[0]) != len(points[1]):
         print('Channel 0')
@@ -163,37 +169,7 @@ def transformation_check(images, H, alpha):
     images2[1] = h_affine_transform(images[1], H)
 
     fig = plt.figure()
-    i = 311
-    points = []
-    for im in images2:
-        mm = Maxima(im)
-        mm.find(alpha=alpha)
-        mm.getParameters()
-        mm.fit()
-        pp = np.zeros((len(mm.results['fit_x']), 2))
-        pp[:, 0] = mm.results['fit_x']
-        pp[:, 1] = mm.results['fit_y']
-        points.append(pp)
-
-        # Image plot
-        ax = fig.add_subplot(i)
-        im = ax.imshow(mm.image, interpolation='None', aspect='equal',
-                       cmap='cubehelix', vmin=0, vmax=700)
-        ax.autoscale(False)
-        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
-                'rx', mew=2, ms=5)
-        ax.set_adjustable('box-forced')
-
-        i += 1
-
-    # superposition of channels plot
-    ax = fig.add_subplot(i)
-    ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=2, ms=5)
-    ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
-            markerfacecolor='none')
-    ax.set_xlim(0, 266)
-    ax.set_ylim(128, 0)
-    ax.set_aspect('equal')
+    points = fit_and_plot(images2, fig)
 
     if len(points[0]) != len(points[1]):
         print('Channel 0')
@@ -432,6 +408,8 @@ if __name__ == '__main__':
     H = affine_matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
     print(H)
-    transformation_check(images, H, 2)
+    Hfilename = path + 'Htransformation'
+    np.save(Hfilename)
+    transformation_check(images, np.load(Hfilename), 2)
 #    stack = r'568+647_632+640_muestra1_1.hdf5'
 #    apply_to_stack(H, path + stack)
