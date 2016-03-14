@@ -33,6 +33,8 @@ import tormenta.control.ontime as ontime
 import tormenta.control.guitools as guitools
 import tormenta.control.viewbox_tools as viewbox_tools
 
+import tormenta.analysis.registration as registration
+
 
 class RecordingWidget(QtGui.QFrame):
 
@@ -685,6 +687,12 @@ class TormentaGUI(QtGui.QMainWindow):
         exitAction.triggered.connect(QtGui.QApplication.closeAllWindows)
         fileMenu.addAction(exitAction)
 
+        regMenu = menubar.addMenu('&Registration')
+        getHAction = QtGui.QAction('Get affine matrix from points', self)
+        getHAction.triggered.connect(registration.)
+        # TODO: sss
+        regMenu.addAction(getHAction)
+
         self.tree = CamParamTree(self.andor)
 
         # Frame signals
@@ -938,6 +946,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         layout.setRowMinimumHeight(2, 40)
         layout.setColumnMinimumWidth(2, 1000)
+        self.showMaximized()
 
     def mouseMoved(self, pos):
         if self.vb.sceneBoundingRect().contains(pos):
