@@ -9,13 +9,13 @@ Measurement control and analysis for optical microscopy
 
  - Ubuntu
 
-Download and install [pygame](http://pygame.org/wiki/index). Then:
+     - Download and install [pygame](http://pygame.org/wiki/index). Then:
 
-```
-$ sudo apt-get install python3-pip python3-h5py git
-$ sudo pip3 install git+https://github.com/fedebarabas/lantz tifffile pyqtgraph
-$ git clone https://github.com/fedebarabas/Tormenta
-```
+    ```
+    $ sudo apt-get install python3-pip python3-h5py git
+    $ sudo pip3 install git+https://github.com/fedebarabas/lantz tifffile pyqtgraph
+    $ git clone https://github.com/fedebarabas/Tormenta
+    ```
 
  - Windows
 
