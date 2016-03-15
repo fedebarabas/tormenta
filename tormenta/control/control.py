@@ -689,7 +689,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         regMenu = menubar.addMenu('&Registration')
         getHAction = QtGui.QAction('Get affine matrix from points', self)
-        getHAction.triggered.connect(registration.)
+#        getHAction.triggered.connect(registration.)
         # TODO: sss
         regMenu.addAction(getHAction)
 
