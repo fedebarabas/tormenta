@@ -21,15 +21,15 @@ $ git clone https://github.com/fedebarabas/Tormenta
 
      - Install [WinPython 3.4](https://sourceforge.net/projects/winpython/files/).
      - Clone [lantz repo](https://github.com/fedebarabas/lantz). Open WinPython Command Prompt, go to its directory and run
-```
-$ python setup.py install
-```
+    ```
+    $ python setup.py install
+    ```
      - Copy `lantz\lantz\drivers\labjack\internal` directory to `WinPython-64bit-3.4.4.1\python-3.4.4.amd64\Lib\site-packages\Lantz-0.3.dev0-py3.4.egg\lantz\drivers\labjack`
      - Download pygame from [http://www.lfd.uci.edu/~gohlke/pythonlibs/] for Python 3.4 to `WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
      - Open WinPython Command Prompt and run:
-```
-$ pip install pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile 
-```
+    ```
+    $ pip install pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile 
+    ```
      - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta)
 
 ### Launch Tormenta
