@@ -1,13 +1,13 @@
 # Tormenta
 Measurement control and analysis for optical microscopy
 
-## Installation
+### Installation
 
-### Prerequisites
+#### Prerequisites
  - [LJM Library](https://labjack.com/support/software/installers/ljm)
  - [LJM Library Python wrapper](https://labjack.com/support/software/examples/ljm/python)
 
-### Ubuntu
+#### Ubuntu
  - Download and install [pygame](http://pygame.org/wiki/index). 
  - Run in terminal:
     ```
@@ -16,8 +16,7 @@ Measurement control and analysis for optical microscopy
     $ git clone https://github.com/fedebarabas/Tormenta
     ```
 
-### Windows
-
+#### Windows
 - Install [WinPython 3.4](https://sourceforge.net/projects/winpython/files/).
 - Clone [lantz repo](https://github.com/fedebarabas/lantz). Open WinPython Command Prompt, go to lantz directory and run
     ```
@@ -30,8 +29,7 @@ Measurement control and analysis for optical microscopy
     ```
 - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta)
 
-## Launch Tormenta
-
+### Launch Tormenta
  - Open WinPython Command Prompt, go to tormenta's repository directory and run
     ```
     $ python -m tormenta
