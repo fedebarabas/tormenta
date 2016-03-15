@@ -6,6 +6,7 @@ Created on Fri Feb  6 13:20:02 2015
 """
 import os
 import time
+import numpy as np
 import h5py as hdf
 import tifffile as tiff
 import configparser
@@ -15,6 +16,8 @@ from PyQt4 import QtCore
 from tkinter import Tk, filedialog, simpledialog
 
 from lantz import Q_
+
+import tormenta.analysis.registration as reg
 
 
 # Check for same name conflict
@@ -224,3 +227,17 @@ class TiffConverter(QtCore.QObject):
         # for opening attributes this should work:
         # myprops = dict(line.strip().split('=') for line in
         #                open('/Path/filename.txt'))
+
+    def transformStack(H, filename):
+        """ Transforms all frames of channel 1 using matrix H."""
+
+        with hdf.File(filename, 'r') as f0, \
+                hdf.File(insertSuffix(filename, 'corrected'), 'w') as f1:
+            dat0 = f0['data']
+            f1.create_dataset(name='data', shape=(len(f0['data']), 256, 266),
+                              dtype=np.uint16)
+            dat1 = f1['data']
+            for frame in np.arange(len(f1['data'])):
+                dat1[frame, :128, :] = dat0[frame, :128, :]
+                transf = reg.h_affine_transform(dat0[frame, -128:, :], H)
+                dat1[frame, -128:, :] = transf

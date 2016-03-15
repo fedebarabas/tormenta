@@ -30,7 +30,7 @@ Measurement control and analysis for optical microscopy
     ```
     $ pip install pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile 
     ```
-- Clone [Tormenta repo](https://github.com/fedebarabas/tormenta)
+- Clone [Tormenta repo](https://github.com/fedebarabas/tormenta).
 
 ### Launch Tormenta
  - Open WinPython Command Prompt, go to tormenta's repository directory and run:

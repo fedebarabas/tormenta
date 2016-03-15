@@ -33,7 +33,7 @@ import tormenta.control.ontime as ontime
 import tormenta.control.guitools as guitools
 import tormenta.control.viewbox_tools as viewbox_tools
 
-import tormenta.analysis.registration as registration
+import tormenta.analysis.registration as reg
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -687,12 +687,6 @@ class TormentaGUI(QtGui.QMainWindow):
         exitAction.triggered.connect(QtGui.QApplication.closeAllWindows)
         fileMenu.addAction(exitAction)
 
-        regMenu = menubar.addMenu('&Registration')
-        getHAction = QtGui.QAction('Get affine matrix from points', self)
-#        getHAction.triggered.connect(registration.)
-        # TODO: sss
-        regMenu.addAction(getHAction)
-
         self.tree = CamParamTree(self.andor)
 
         # Frame signals
@@ -824,6 +818,16 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+D'), self,
                                            self.recWidget.startRecording)
         self.recShortcut.setEnabled(False)
+
+        # Channel registration menu
+        regMenu = menubar.addMenu('&Registration')
+        getHAction = QtGui.QAction('Get affine matrix from bead sample', self)
+        folder = self.recWidget.filenameEdit.text()
+
+        def matrixFromStack():
+            reg.matrix_from_stack(None, folder)
+        getHAction.triggered.connect(matrixFromStack)
+        regMenu.addAction(getHAction)
 
         # Image Widget
         imageWidget = pg.GraphicsLayoutWidget()
@@ -1127,7 +1131,6 @@ class TormentaGUI(QtGui.QMainWindow):
         ROISize = self.ROI.size()
         self.shape = (int(ROISize[0]), int(ROISize[1]))
         self.frameStart = (int(self.ROI.pos()[0]), int(self.ROI.pos()[1]))
-        print(self.shape, self.frameStart)
 
         self.changeParameter(self.adjustFrame)
         self.ROI.hide()

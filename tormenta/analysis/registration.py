@@ -2,17 +2,19 @@
 """
 Created on Tue Dec  8 20:51:54 2015
 
-@author: federico
+@author: Federico Barabas
 """
+
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import math
 from scipy.ndimage import affine_transform
 import tifffile as tiff
 import h5py as hdf
+from tkinter import Tk, filedialog
 
 from tormenta.analysis.maxima import Maxima
-from tormenta.control.guitools import insertSuffix
 
 # epsilon for testing whether a number is close to zero
 _EPS = np.finfo(float).eps * 4.0
@@ -24,7 +26,13 @@ def load_tiff(filename):
         return split_images(ff.asarray())
 
 
-def load_hdf(filename):
+def load_hdf(filename=None, folder=None):
+
+    if filename is None:
+        root = Tk()
+        root.withdraw()
+        filename = filedialog.askopenfilename(parent=root, initialdir=folder)
+        root.destroy()
 
     with hdf.File(filename, 'r') as ff:
         return split_images(np.mean(ff['data'].value, 0))
@@ -81,39 +89,33 @@ def points_registration(images):
     and calculates the affine transformation between them."""
 
     fig = plt.figure()
+    fig.set_size_inches(7, 25, forward=True)
     points = fit_and_plot(images, fig)
 
     if len(points[0]) != len(points[1]):
-        print('Channel 0')
-        print(points[0])
-        print('Channel 1')
-        print(points[1])
-        fig.set_size_inches(7, 25, forward=True)
         plt.show(block=False)
         points = remove_bad_points(points)
+
+    plt.close()
+
+    # Replotting images
+    fig = plt.figure()
+    plot_points(images, points, fig)
+    plt.show(block=False)
+
+    # points[1] must have the same order as points[0]
+    order = input('Reorden de points[1]: (ej: 0-1-4-3-2) ')
+    try:
+        order = list(map(int, [l for l in order.split('-')]))
+        points[1] = points[1][order]
         plt.close()
 
-        # Replotting images
+        # Last check
         fig = plt.figure()
         plot_points(images, points, fig)
-        plt.show(block=False)
-
-        # points[1] must have the same order as points[0]
-        order = input('Reorden de points[1]: (ej: 0-1-4-3-2) ')
-        try:
-            order = list(map(int, [l for l in order.split('-')]))
-            points[1] = points[1][order]
-            plt.close()
-
-            # Last check
-            fig = plt.figure()
-            plot_points(images, points, fig)
-            plt.show()
-        except:
-            plt.close()
-
-    else:
         plt.show()
+    except:
+        plt.close()
 
     return points
 
@@ -168,27 +170,16 @@ def transformation_check(images, H, alpha):
     images2[0] = images[0]
     images2[1] = h_affine_transform(images[1], H)
 
-    fig = plt.figure()
-    points = fit_and_plot(images2, fig)
-
-    if len(points[0]) != len(points[1]):
-        print('Channel 0')
-        print(points[0])
-        print('Channel 1')
-        print(points[1])
-        plt.show()
-        points = remove_bad_points(points)
+    points = points_registration(images2)
 
     it = np.arange(len(points[0]))
-    dist = [np.linalg.norm(points[0][i] - points[1][i]) for i in it]
+    dist = np.array([np.linalg.norm(points[0][i] - points[1][i]) for i in it])
+    print(dist)
     print('Mean distance: ', np.mean(dist))
     print('Maximum distance: ', np.max(dist))
 
-    plt.tight_layout()
-    plt.show()
 
-
-def affine_matrix_from_points(v0, v1, shear=True, scale=True, usesvd=True):
+def matrix_from_points(v0, v1, shear=True, scale=True, usesvd=True):
     """Return affine transform matrix to register two point sets.
 
     v0 and v1 are shape (\*, ndims) arrays of at least ndims non-homogeneous
@@ -384,32 +375,23 @@ def h_affine_transform(image, H):
     return affine_transform(image, H[:2, :2], (H[0, 2], H[1, 2]))
 
 
-def apply_to_stack(H, filename):
-    """ Transforms all frames of channel 1 using matrix H."""
-
-    with hdf.File(filename, 'r') as f0, \
-            hdf.File(insertSuffix(filename, 'corrected'), 'w') as f1:
-        dat0 = f0['data']
-        f1.create_dataset(name='data', shape=(len(f0['data']), 256, 266),
-                          dtype=np.uint16)
-        dat1 = f1['data']
-        for frame in np.arange(len(f1['data'])):
-            dat1[frame, :128, :] = dat0[frame, :128, :]
-            transf = h_affine_transform(dat0[frame, -128:, :], H)
-            dat1[frame, -128:, :] = transf
-
+def matrix_from_stack(filename=None, path=None, Hfilename=None):
+    images, path = load_hdf(filename, path)
+    points = points_registration(images)
+    H = matrix_from_points(points[0], points[1])
+    print('Transformation matrix 1 --> 0')
+    print(H)
+    np.save(Hfilename, H)
 
 if __name__ == '__main__':
 
-    path = r'/home/federico/Desktop/data/'
-    filename = 'tetraspeck.hdf5'
-    images = load_hdf(path + filename)
-    points = points_registration(images)
-    H = affine_matrix_from_points(points[0], points[1])
-    print('Transformation matrix 1 --> 0')
-    print(H)
-    Hfilename = path + 'Htransformation'
-    np.save(Hfilename)
-    transformation_check(images, np.load(Hfilename), 2)
-#    stack = r'568+647_632+640_muestra1_1.hdf5'
-#    apply_to_stack(H, path + stack)
+    path = r'C:\Users\mdborde\Desktop\20160303 cruzi 568+647'
+#    path = r'/home/federico/Desktop/data/'
+    filename = 'tetraspeck_1.hdf5'
+    Hfilename = os.path.join(path, 'Htransformation')
+    matrix_from_stack(os.path.join(path, filename))
+
+    print('Transformation checking')
+    filename1 = 'tetraspeck.hdf5'
+    images = load_hdf(os.path.join(path, filename1))
+    transformation_check(images, np.load(Hfilename + '.npy'), 2)
