@@ -24,7 +24,7 @@ Measurement control and analysis for optical microscopy
     ```
     $ python setup.py install
     ```
-     - Download pygame from [http://www.lfd.uci.edu/~gohlke/pythonlibs/] for Python 3.4 to `WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
+     - Download pygame from [Laboratory for Fluorescence Dynamics](http://www.lfd.uci.edu/~gohlke/pythonlibs/) for Python 3.4 to `WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
      - Open WinPython Command Prompt and run:
     ```
     $ pip install pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile 
