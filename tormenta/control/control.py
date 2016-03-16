@@ -819,16 +819,6 @@ class TormentaGUI(QtGui.QMainWindow):
                                            self.recWidget.startRecording)
         self.recShortcut.setEnabled(False)
 
-        # Channel registration menu
-        regMenu = menubar.addMenu('&Registration')
-        getHAction = QtGui.QAction('Get affine matrix from bead sample', self)
-        folder = self.recWidget.filenameEdit.text()
-
-        def matrixFromStack():
-            reg.matrix_from_stack(None, folder)
-        getHAction.triggered.connect(matrixFromStack)
-        regMenu.addAction(getHAction)
-
         # Image Widget
         imageWidget = pg.GraphicsLayoutWidget()
         self.vb = imageWidget.addViewBox(row=1, col=1)

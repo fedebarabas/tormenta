@@ -12,7 +12,6 @@ import math
 from scipy.ndimage import affine_transform
 import tifffile as tiff
 import h5py as hdf
-from tkinter import Tk, filedialog
 
 from tormenta.analysis.maxima import Maxima
 
@@ -26,13 +25,7 @@ def load_tiff(filename):
         return split_images(ff.asarray())
 
 
-def load_hdf(filename=None, folder=None):
-
-    if filename is None:
-        root = Tk()
-        root.withdraw()
-        filename = filedialog.askopenfilename(parent=root, initialdir=folder)
-        root.destroy()
+def load_hdf(filename):
 
     with hdf.File(filename, 'r') as ff:
         return split_images(np.mean(ff['data'].value, 0))
@@ -375,8 +368,27 @@ def h_affine_transform(image, H):
     return affine_transform(image, H[:2, :2], (H[0, 2], H[1, 2]))
 
 
-def matrix_from_stack(filename=None, path=None, Hfilename=None):
-    images, path = load_hdf(filename, path)
+def matrix_from_stack(filename=None, Hfilename=None):
+
+            root = Tk()
+            root.withdraw()
+            folder = self.recWidget.filenameEdit.text()
+            types = [('hdf5 files', '.hdf5'), ('tiff files', '.tiff'),
+                     ('all files', '.*')]
+            filename = filedialog.askopenfilename(filetypes=types, parent=root,
+                                                  initialdir=folder,
+                                                  title='Load bead stack')
+            folder = os.path.split(filename)[0]
+            arrayType = [('numpy array', '.npy')]
+            Hname = filedialog.asksaveasfilename(filetypes=arrayType,
+                                                 parent=root,
+                                                 initialdir=folder,
+                                                 title='Save affine matrix')
+            Hname = Hname + '.npy'
+            root.destroy()
+            reg.matrix_from_stack(filename, Hname)
+
+    images = load_hdf(filename)
     points = points_registration(images)
     H = matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
@@ -389,7 +401,8 @@ if __name__ == '__main__':
 #    path = r'/home/federico/Desktop/data/'
     filename = 'tetraspeck_1.hdf5'
     Hfilename = os.path.join(path, 'Htransformation')
-    matrix_from_stack(os.path.join(path, filename))
+
+    matrix_from_stack(os.path.join(path, filename), Hfilename)
 
     print('Transformation checking')
     filename1 = 'tetraspeck.hdf5'
