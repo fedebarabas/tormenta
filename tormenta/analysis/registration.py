@@ -12,6 +12,7 @@ import math
 from scipy.ndimage import affine_transform
 import tifffile as tiff
 import h5py as hdf
+from tkinter import Tk, filedialog
 
 from tormenta.analysis.maxima import Maxima
 
@@ -156,20 +157,6 @@ def remove_bad_points(points):
     points[ch] = np.delete(points[ch], bpoints, 0)
 
     return points
-
-
-def transformation_check(images, H, alpha):
-    images2 = np.zeros((2, 128, 266), dtype=np.uint16)
-    images2[0] = images[0]
-    images2[1] = h_affine_transform(images[1], H)
-
-    points = points_registration(images2)
-
-    it = np.arange(len(points[0]))
-    dist = np.array([np.linalg.norm(points[0][i] - points[1][i]) for i in it])
-    print(dist)
-    print('Mean distance: ', np.mean(dist))
-    print('Maximum distance: ', np.max(dist))
 
 
 def matrix_from_points(v0, v1, shear=True, scale=True, usesvd=True):
@@ -368,43 +355,68 @@ def h_affine_transform(image, H):
     return affine_transform(image, H[:2, :2], (H[0, 2], H[1, 2]))
 
 
-def matrix_from_stack(filename=None, Hfilename=None):
-
-            root = Tk()
-            root.withdraw()
-            folder = self.recWidget.filenameEdit.text()
-            types = [('hdf5 files', '.hdf5'), ('tiff files', '.tiff'),
-                     ('all files', '.*')]
-            filename = filedialog.askopenfilename(filetypes=types, parent=root,
-                                                  initialdir=folder,
-                                                  title='Load bead stack')
-            folder = os.path.split(filename)[0]
-            arrayType = [('numpy array', '.npy')]
-            Hname = filedialog.asksaveasfilename(filetypes=arrayType,
-                                                 parent=root,
-                                                 initialdir=folder,
-                                                 title='Save affine matrix')
-            Hname = Hname + '.npy'
-            root.destroy()
-            reg.matrix_from_stack(filename, Hname)
+def matrix_from_stack(filename, Hfilename):
 
     images = load_hdf(filename)
+
     points = points_registration(images)
     H = matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
     print(H)
     np.save(Hfilename, H)
 
+    return H
+
+
+def transformation_check(H, filename):
+    """ Applies affine transformation H to the images in filename hdf5 file to
+    check for the performance of H."""
+
+    images = load_hdf(filename)
+
+    images2 = np.zeros((2, 128, 266), dtype=np.uint16)
+    images2[0] = images[0]
+    images2[1] = h_affine_transform(images[1], H)
+
+    points = points_registration(images2)
+
+    it = np.arange(len(points[0]))
+    dist = np.array([np.linalg.norm(points[0][i] - points[1][i]) for i in it])
+    print('Mean distance: ', np.mean(dist))
+    print('Maximum distance: ', np.max(dist))
+
 if __name__ == '__main__':
 
-    path = r'C:\Users\mdborde\Desktop\20160303 cruzi 568+647'
+    root = Tk()
+    root.withdraw()
+    types = [('hdf5 files', '.hdf5'), ('tiff files', '.tiff'),
+             ('all files', '.*')]
+    filename = filedialog.askopenfilename(filetypes=types, parent=root,
+                                          title='Load bead stack')
+    folder = os.path.split(filename)[0]
+    arrayType = [('numpy array', '.npy')]
+    Hfilename = filedialog.asksaveasfilename(filetypes=arrayType,
+                                             parent=root, initialdir=folder,
+                                             title='Save affine matrix')
+    root.destroy()
+
+#    path = r'C:\Users\mdborde\Desktop\20160303 cruzi 568+647'
 #    path = r'/home/federico/Desktop/data/'
-    filename = 'tetraspeck_1.hdf5'
-    Hfilename = os.path.join(path, 'Htransformation')
+#    filename = 'tetraspeck_1.hdf5'
+#    Hfilename = os.path.join(path, 'Htransformation')
 
-    matrix_from_stack(os.path.join(path, filename), Hfilename)
+    H = matrix_from_stack(filename, Hfilename)
 
-    print('Transformation checking')
-    filename1 = 'tetraspeck.hdf5'
-    images = load_hdf(os.path.join(path, filename1))
-    transformation_check(images, np.load(Hfilename + '.npy'), 2)
+    check = input('Do you want to check the transformation? (y/n) ') == 'y'
+    if check:
+        print('Transformation checking')
+
+        root = Tk()
+        root.withdraw()
+        types = [('hdf5 files', '.hdf5'), ('tiff files', '.tiff'),
+                 ('all files', '.*')]
+        title = 'Load stack to test the affine transformation H'
+        filename = filedialog.askopenfilename(filetypes=types, parent=root,
+                                              initialdir=folder, title=title)
+        root.destroy()
+        transformation_check(H, filename)

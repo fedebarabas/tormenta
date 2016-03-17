@@ -57,12 +57,24 @@ def nFramesPerChunk(shape):
     return int(1.8 * 2**29 / (shape[1] * shape[2]))
 
 
-def getFilenames(title, filetypes):
+def getFilename(title, types, initialdir=None):
     try:
         root = Tk()
         root.withdraw()
-        filenames = filedialog.askopenfilenames(title=title,
-                                                filetypes=filetypes)
+        filename = filedialog.askopenfilename(title=title, filetypes=types,
+                                              initialdir=initialdir)
+        root.destroy()
+        return filename
+    except OSError:
+        print("No file selected!")
+
+
+def getFilenames(title, types, initialdir=None):
+    try:
+        root = Tk()
+        root.withdraw()
+        filenames = filedialog.askopenfilenames(title=title, filetypes=types,
+                                                initialdir=initialdir)
         root.destroy()
         return root.tk.splitlist(filenames)
     except OSError:
@@ -228,16 +240,46 @@ class TiffConverter(QtCore.QObject):
         # myprops = dict(line.strip().split('=') for line in
         #                open('/Path/filename.txt'))
 
-    def transformStack(H, filename):
-        """ Transforms all frames of channel 1 using matrix H."""
 
-        with hdf.File(filename, 'r') as f0, \
-                hdf.File(insertSuffix(filename, 'corrected'), 'w') as f1:
-            dat0 = f0['data']
-            f1.create_dataset(name='data', shape=(len(f0['data']), 256, 266),
-                              dtype=np.uint16)
-            dat1 = f1['data']
-            for frame in np.arange(len(f1['data'])):
-                dat1[frame, :128, :] = dat0[frame, :128, :]
-                transf = reg.h_affine_transform(dat0[frame, -128:, :], H)
-                dat1[frame, -128:, :] = transf
+class HtransformerThread(QtCore.QThread):
+
+    def __init__(self):
+        super().__init__()
+
+        self.transformer = HtransformStack(self)
+        self.transformer.moveToThread(self)
+        self.started.connect(self.transformer.run)
+        self.start()
+
+
+class HtransformStack(QtCore.QObject):
+    """ Transforms all frames of channel 1 using matrix H."""
+
+    def __init__(self, thread, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.thread = thread
+
+    def run(self):
+        Hname = getFilename("Select affine transformation matrix",
+                            [('npy files', '.npy')])
+        H = np.load(Hname)
+        filenames = getFilenames("Select HDF5 files for affine transformation",
+                                 [('HDF5 files', '.hdf5')],
+                                 os.path.split(Hname[0]))
+        for filename in filenames:
+            with hdf.File(filename, 'r') as f0, \
+                    hdf.File(insertSuffix(filename, '_corrected'), 'w') as f1:
+                stime = time.strftime("%Y-%m-%d %H:%M:%S")
+                filen = os.path.split(filename)[1]
+                print(stime + ' Transforming stack ' + filen)
+                dat0 = f0['data']
+                f1.create_dataset(name='data', dtype=np.uint16,
+                                  shape=(len(f0['data']), 256, 266))
+                dat1 = f1['data']
+                for frame in np.arange(len(f1['data'])):
+                    dat1[frame, :128, :] = dat0[frame, :128, :]
+                    transf = reg.h_affine_transform(dat0[frame, -128:, :], H)
+                    dat1[frame, -128:, :] = transf
+                print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
+
+        self.thread.terminate()

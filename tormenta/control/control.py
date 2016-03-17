@@ -33,8 +33,6 @@ import tormenta.control.ontime as ontime
 import tormenta.control.guitools as guitools
 import tormenta.control.viewbox_tools as viewbox_tools
 
-import tormenta.analysis.registration as reg
-
 
 class RecordingWidget(QtGui.QFrame):
 
@@ -681,6 +679,14 @@ class TormentaGUI(QtGui.QMainWindow):
         fileMenu.addAction(self.exportlastAction)
         fileMenu.addSeparator()
 
+        self.HtransformAction = QtGui.QAction('Affine transform stacks...',
+                                              self)
+        self.HtransformAction.setStatusTip('Correct stacks using an affine ' +
+                                           'transformation matrix')
+        self.HtransformAction.triggered.connect(guitools.HtransformerThread)
+        fileMenu.addAction(self.HtransformAction)
+
+        fileMenu.addSeparator()
         exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
