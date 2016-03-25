@@ -48,10 +48,10 @@ class FocusWidget(QtGui.QFrame):
         self.ProcessData = ProcessData(self.webcam)
 
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit('-0.002')
+        self.kpEdit = QtGui.QLineEdit('5')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('-0.000006')
+        self.kiEdit = QtGui.QLineEdit('0.015')
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')
@@ -61,11 +61,9 @@ class FocusWidget(QtGui.QFrame):
                                       QtGui.QSizePolicy.Expanding)
 
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
-
         self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
 
         self.graph = FocusLockGraph(self, main)
-#        self.webcamgraph = WebcamGraph(self)
 
         self.focusTime = 1000 / self.scansPerS
         self.focusTimer = QtCore.QTimer()
@@ -95,8 +93,7 @@ class FocusWidget(QtGui.QFrame):
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(self.graph, 0, 0, 1, 6)
-#        grid.addWidget(self.webcamgraph, 0, 3, 1, 3)
+        grid.addWidget(self.graph, 0, 0, 1, 4)
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
         grid.addWidget(self.kpLabel, 1, 3)
@@ -106,10 +103,16 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.lockButton, 1, 5, 2, 1)
         grid.addWidget(self.focusDataBox, 1, 2)
 
+        self.webcamgraph = WebcamGraph(self)
+        grid.addWidget(self.webcamgraph, 0, 4, 1, 2)
+
     def update(self):
-        self.ProcessData.update()
-        self.graph.update()
-#        self.webcamgraph.update()
+        try:
+            self.ProcessData.update()
+            self.graph.update()
+            self.webcamgraph.update()
+        except:
+            pass
 
         if self.locked:
             self.updatePI()
@@ -118,7 +121,7 @@ class FocusWidget(QtGui.QFrame):
         if self.lockButton.isChecked():
             self.setPoint = self.ProcessData.focusSignal
             self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
-            self.PI = pi.PI(self.setPoint,
+            self.PI = pi.PI(self.setPoint, 0.001,
                             np.float(self.kpEdit.text()),
                             np.float(self.kiEdit.text()))
 
@@ -189,19 +192,11 @@ class ProcessData(pg.GraphicsLayoutWidget):
         self.sensorSize = np.array(pygame.surfarray.array2d(image).shape)
         self.focusSignal = 0
 
-# ==============================================================================
-#         self.img = pg.ImageItem(border='w')
-#         self.view = self.addViewBox(invertY=True, invertX=False)
-#         self.view.setAspectLocked(True)  # square pixels
-#         self.view.addItem(self.img)
-# ==============================================================================
-
     def update(self):
 
         runs = 1
         imageArray = np.zeros((runs, self.sensorSize[0], self.sensorSize[1]),
                               np.float)
-
         # mucha CPU
         for i in range(runs):
             image = self.webcam.get_image()
@@ -215,13 +210,9 @@ class ProcessData(pg.GraphicsLayoutWidget):
         self.massCenter = np.array(ndi.measurements.center_of_mass(finalImage))
         self.massCenter[0] = self.massCenter[0] - self.sensorSize[0] / 2
         self.massCenter[1] = self.massCenter[1] - self.sensorSize[1] / 2
-
         self.focusSignal = self.massCenter[0]
 
-# ==============================================================================
-#         self.img.setImage(finalImage)
-#         self.focusSignal = (self.massCenter[0] - self.sensorSize[0] / 2)
-# ==============================================================================
+        self.image = finalImage
 
 
 class FocusLockGraph(pg.GraphicsWindow):
@@ -299,27 +290,20 @@ class WebcamGraph(pg.GraphicsWindow):
         super().__init__(*args, **kwargs)
         self.focusWidget = focusWidget
 
-        self.plot = self.addPlot(row=0, col=0)
-        self.plot.setLabels(bottom=('x', 'px'), left=('y', 'px'))
-        self.plot.showGrid(x=True, y=True)
-
-        self.massCenterPlot = self.plot.plot([0], [0], pen=(200, 200, 200))
-
-        self.addItem(self.plot)
-        self.plot.enableAutoRange('xy', False)
-        self.plot.setRange(xRange=(-200, 200), yRange=(-100, 100))
+        self.img = pg.ImageItem(border='w')
+        self.view = self.addViewBox(invertY=True, invertX=False)
+        self.view.setAspectLocked(True)  # square pixels
+        self.view.addItem(self.img)
 
     def update(self):
-        self.massCenter = self.focusWidget.ProcessData.massCenter
-        self.massCenterPlot.setData([self.massCenter[0]], [self.massCenter[1]],
-                                    brush=(255, 0, 0), pen='w')
+        self.img.setImage(self.focusWidget.ProcessData.image)
 
 
 class FocusCalibration(QtCore.QObject):
 
     def __init__(self, mainwidget, *args, **kwargs):
 
-        super(FocusCalibration, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self.signalData = []
         self.positionData = []
@@ -342,8 +326,7 @@ class FocusCalibration(QtCore.QObject):
         self.signalData = self.signalData[self.argmin:self.argmax]
         self.positionData = self.positionData[self.argmin:self.argmax]
 
-        self.poly = np.polyfit(self.positionData,
-                               self.signalData, 1)
+        self.poly = np.polyfit(self.positionData, self.signalData, 1)
         self.calibrationResult = np.around(self.poly, 2)
         self.export()
 
@@ -364,7 +347,6 @@ if __name__ == '__main__':
     app = QtGui.QApplication([])
 
     with instruments.ScanZ(12) as z:
-
         win = FocusWidget(z)
         win.show()
         app.exec_()

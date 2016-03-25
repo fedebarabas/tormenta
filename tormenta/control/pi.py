@@ -27,11 +27,12 @@ class PI(object):
     Discrete PI control
     """
 
-    def __init__(self, setPoint, kp=0, ki=0):
+    def __init__(self, setPoint, multiplier, kp=0, ki=0):
 
-        self._kp = kp
-        self._ki = ki
+        self._kp = multiplier * kp
+        self._ki = multiplier * ki
         self._setPoint = setPoint
+        self.multiplier = multiplier
 
 #        self._maxError = maxError
         self.error = 0.0
@@ -47,11 +48,11 @@ class PI(object):
 
         if self.started:
             self.dError = self.error - self.lastError
-            self.out = self.out - self.kp * self.dError - self.ki * self.error
+            self.out = self.out + self.kp * self.dError + self.ki * self.error
 
         else:
             # This only runs in the first step
-            self.out = - self.kp * self.error
+            self.out = self.kp * self.error
             self.started = True
 
         self.lastError = self.error
