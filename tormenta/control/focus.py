@@ -11,6 +11,7 @@ import scipy.ndimage as ndi
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
+from pyqtgraph.dockarea import Dock, DockArea
 import pyqtgraph.ptime as ptime
 import pygame
 
@@ -22,7 +23,6 @@ import tormenta.control.pi as pi
 
 class FocusWidget(QtGui.QFrame):
 
-    # def __init__(self, DAQ, scanZ, main=None, *args, **kwargs):
     def __init__(self, scanZ, main=None, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
@@ -90,10 +90,20 @@ class FocusWidget(QtGui.QFrame):
 
         self.calibrationDisplay.setReadOnly(False)
 
+        self.webcamgraph = WebcamGraph(self)
+
+        dockArea = DockArea()
+        graphDock = Dock("Laser position", size=(400, 200))
+        graphDock.addWidget(self.graph)
+        dockArea.addDock(graphDock)
+        webcamDock = Dock("Webcam view", size=(200, 200))
+        webcamDock.addWidget(self.webcamgraph)
+        dockArea.addDock(webcamDock, 'right', graphDock)
+
         # GUI layout
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(self.graph, 0, 0, 1, 4)
+        grid.addWidget(dockArea, 0, 0, 1, 6)
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
         grid.addWidget(self.kpLabel, 1, 3)
@@ -102,9 +112,6 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.kiEdit, 2, 4)
         grid.addWidget(self.lockButton, 1, 5, 2, 1)
         grid.addWidget(self.focusDataBox, 1, 2)
-
-        self.webcamgraph = WebcamGraph(self)
-        grid.addWidget(self.webcamgraph, 0, 4, 1, 2)
 
     def update(self):
         try:
@@ -139,7 +146,7 @@ class FocusWidget(QtGui.QFrame):
 
     def updatePI(self):
 
-        # TODO: explain ifs
+        # Safety unlocking
         self.distance = self.z.position - self.initialZ
         out = self.PI.update(self.ProcessData.focusSignal)
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
@@ -165,11 +172,10 @@ class FocusWidget(QtGui.QFrame):
             self.mean += (self.ProcessData.focusSignal - self.mean)/self.n
             self.mean2 += (self.ProcessData.focusSignal**2 - self.mean2)/self.n
 
+        # Stats
         self.std = np.sqrt(self.mean2 - self.mean**2)
-
         self.max_dev = np.max([self.max_dev,
                               self.ProcessData.focusSignal - self.setPoint])
-
         statData = 'std = {}    max_dev = {}'.format(np.round(self.std, 3),
                                                      np.round(self.max_dev, 3))
         self.graph.statistics.setText(statData)
@@ -241,7 +247,7 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.addItem(self.statistics)
         self.statistics.setText('---')
         self.plot = self.addPlot(row=1, col=0)
-        self.plot.setLabels(bottom=('Tiempo', 's'),
+        self.plot.setLabels(bottom=('Time', 's'),
                             left=('Laser position', 'px'))
         self.plot.showGrid(x=True, y=True)
         self.focusCurve = self.plot.plot(pen='y')

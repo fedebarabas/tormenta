@@ -732,12 +732,12 @@ class TormentaGUI(QtGui.QMainWindow):
         updateGain()        # Set default values
 
         # Camera settings widget
-        cameraWidget = QtGui.QFrame()
-        cameraWidget.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+        self.cameraWidget = QtGui.QFrame()
+        self.cameraWidget.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
         cameraTitle.setTextFormat(QtCore.Qt.RichText)
         cameraGrid = QtGui.QGridLayout()
-        cameraWidget.setLayout(cameraGrid)
+        self.cameraWidget.setLayout(cameraGrid)
         cameraGrid.addWidget(cameraTitle, 0, 0)
         cameraGrid.addWidget(self.tree, 1, 0)
 
@@ -824,6 +824,13 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+D'), self,
                                            self.recWidget.startRecording)
         self.recShortcut.setEnabled(False)
+
+        # Hide button
+        self.hideColumnButton = QtGui.QPushButton()
+        self.hideColumnButton.setFixedWidth(10)
+        self.hideColumnButton.setFixedHeight(60)
+        self.hideColumnButton.setCheckable(True)
+        self.hideColumnButton.clicked.connect(self.hideColumn)
 
         # Image Widget
         imageWidget = pg.GraphicsLayoutWidget()
@@ -928,25 +935,39 @@ class TormentaGUI(QtGui.QMainWindow):
         self.setCentralWidget(self.cwidget)
 
         # Widgets' layout
-        layout = QtGui.QGridLayout()
-        self.cwidget.setLayout(layout)
-        layout.setColumnMinimumWidth(0, 350)
-        layout.setColumnMinimumWidth(2, 600)
-        layout.setColumnMinimumWidth(3, 200)
-        layout.setRowMinimumHeight(1, 720)
-        layout.setRowMinimumHeight(2, 910)
-        layout.setRowMinimumHeight(3, 30)
-        layout.addWidget(self.presetsMenu, 0, 0)
-        layout.addWidget(self.loadPresetButton, 0, 1)
-        layout.addWidget(cameraWidget, 1, 0, 2, 2)
-        layout.addWidget(self.viewCtrl, 3, 0, 1, 2)
-        layout.addWidget(self.recWidget, 4, 0, 1, 2)
-        layout.addWidget(imageWidget, 0, 2, 5, 1)
-        layout.addWidget(dockArea, 0, 3, 5, 1)
+        self.layout = QtGui.QGridLayout()
+        self.cwidget.setLayout(self.layout)
+        self.layout.setColumnMinimumWidth(0, 350)
+        self.layout.setColumnMinimumWidth(3, 1000)
+        self.layout.setRowMinimumHeight(1, 720)
+        self.layout.setRowMinimumHeight(2, 40)
+        self.layout.setRowMinimumHeight(3, 30)
+        self.layout.addWidget(self.presetsMenu, 0, 0)
+        self.layout.addWidget(self.loadPresetButton, 0, 1)
+        self.layout.addWidget(self.cameraWidget, 1, 0, 2, 2)
+        self.layout.addWidget(self.viewCtrl, 3, 0, 1, 2)
+        self.layout.addWidget(self.recWidget, 4, 0, 1, 2)
+        self.layout.addWidget(self.hideColumnButton, 0, 2, 4, 1)
+        self.layout.addWidget(imageWidget, 0, 3, 5, 1)
+        self.layout.addWidget(dockArea, 0, 4, 5, 1)
 
-        layout.setRowMinimumHeight(2, 40)
-        layout.setColumnMinimumWidth(2, 1000)
         self.showMaximized()
+
+    def hideColumn(self):
+        if self.hideColumnButton.isChecked():
+            self.presetsMenu.hide()
+            self.loadPresetButton.hide()
+            self.cameraWidget.hide()
+            self.viewCtrl.hide()
+            self.recWidget.hide()
+            self.layout.setColumnMinimumWidth(0, 0)
+        else:
+            self.presetsMenu.show()
+            self.loadPresetButton.show()
+            self.cameraWidget.show()
+            self.viewCtrl.show()
+            self.recWidget.show()
+            self.layout.setColumnMinimumWidth(0, 350)
 
     def mouseMoved(self, pos):
         if self.vb.sceneBoundingRect().contains(pos):

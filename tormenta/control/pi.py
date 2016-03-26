@@ -2,7 +2,7 @@
 """
 Created on Fri Dec 19 10:41:21 2014
 
-@author: federico
+@author: Federico Barabas
 """
 # Taken from
 # http://code.activestate.com/recipes/577231-discrete-pid-controller/
@@ -27,7 +27,7 @@ class PI(object):
     Discrete PI control
     """
 
-    def __init__(self, setPoint, multiplier, kp=0, ki=0):
+    def __init__(self, setPoint, multiplier=1, kp=0, ki=0):
 
         self._kp = multiplier * kp
         self._ki = multiplier * ki
