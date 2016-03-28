@@ -191,15 +191,12 @@ class TiffConverter(QtCore.QObject):
 
     def run(self):
 
-        if self.filenames is None:
-            self.filenames = getFilenames("Select HDF5 files",
-                                          [('HDF5 files', '.hdf5')])
-
-        else:
-            self.filenames = [self.filenames]
+        self.filenames = getFilenames("Select HDF5 files",
+                                      [('HDF5 files', '.hdf5')])
 
         if len(self.filenames) > 0:
             for filename in self.filenames:
+                print('Exporting ', os.path.split(filename)[1])
 
                 file = hdf.File(filename, mode='r')
 
@@ -232,8 +229,8 @@ class TiffConverter(QtCore.QObject):
                                         software='Tormenta')
 
                 file.close()
+                print('done')
 
-        print(self.filenames, 'exported to TIFF')
         self.filenames = None
         self.thread.terminate()
         # for opening attributes this should work:
