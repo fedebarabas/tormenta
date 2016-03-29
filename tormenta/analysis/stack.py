@@ -102,8 +102,8 @@ class Stack(object):
 
         cpus = mp.cpu_count()
         step = (ran[1] - ran[0]) // cpus
-        chunks = [[i*step, (i + 1)*step - 1] for i in np.arange(cpus)]
-        chunks[-1][1] = ran[1] - 1
+        chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
+        chunks[-1][1] = ran[1]
 
         max_args = (self.fit_parameters, self.dt, self.fwhm, self.win_size,
                     self.kernel, self.xkernel)

@@ -258,17 +258,27 @@ class HtransformStack(QtCore.QObject):
                 filen = os.path.split(filename)[1]
                 print(stime + ' Transforming stack ' + filen)
                 dat0 = f0['data']
+                n = len(dat0)
+#                output = np.zeros((len(f0['data']), 256, 266),
+#                                  dtype=np.uint16)
+#                output[:, :128, :] = dat0[:, :128, :]
+                f1.create_dataset(name='data',
+                                  data=np.append(dat0[:, :128, :],
+                                                 np.zeros((n, 128, 266),
+                                                          dtype=np.uint16),
+                                                 1))
+#                dat1 = f1['data']
+#                dat1[:, :128, :] = dat0[:, :128, :]
 
                 # Multiprocessing
-                ran = len(dat0)
                 cpus = mp.cpu_count()
-                step = ran // cpus
-                chunks = [[i*step, (i + 1)*step - 1] for i in np.arange(cpus)]
-                chunks[-1][1] = ran - 1
-                args = [[dat0[i:j], H] for i, j in chunks]
+                step = n // cpus
+                chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
+                chunks[-1][1] = n
+                args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
                 pool = mp.Pool(processes=cpus)
                 results = pool.map(transformChunk, args)
-                f1['data'] = np.concatenate(results[:])
+                f1['data'][:, -128:, :] = np.concatenate(results[:])
 
                 print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
 
@@ -280,9 +290,8 @@ def transformChunk(args):
     data, H = args
 
     n = len(data)
-    out = np.zeros((n, 256, 266), dtype=np.uint16)
-    out[:, :128, :] = data[:, :128, :]
+    out = np.zeros((n, 128, 266), dtype=np.uint16)
     for f in np.arange(n):
-        out[f, -128:, :] = reg.h_affine_transform(out[f, -128:, :], H)
+        out[f] = reg.h_affine_transform(data[f], H)
 
     return out
