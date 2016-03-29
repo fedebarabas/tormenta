@@ -385,6 +385,7 @@ def transformation_check(H, filename):
     print('Mean distance: ', np.mean(dist))
     print('Maximum distance: ', np.max(dist))
 
+
 if __name__ == '__main__':
 
     root = Tk()

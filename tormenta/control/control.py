@@ -683,8 +683,14 @@ class TormentaGUI(QtGui.QMainWindow):
                                               self)
         self.HtransformAction.setStatusTip('Correct stacks using an affine ' +
                                            'transformation matrix')
-        self.HtransformAction.triggered.connect(guitools.HtransformerThread)
         fileMenu.addAction(self.HtransformAction)
+
+        self.transformerThread = QtCore.QThread()
+        self.transformer = guitools.HtransformStack()
+        self.transformer.moveToThread(self.transformerThread)
+        self.transformer.finished.connect(self.transformerThread.quit)
+        self.transformerThread.started.connect(self.transformer.run)
+        self.HtransformAction.triggered.connect(self.transformerThread.start)
 
         fileMenu.addSeparator()
         exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)

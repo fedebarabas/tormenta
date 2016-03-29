@@ -2,7 +2,7 @@
 """
 Created on Sun Dec 22 16:44:59 2013
 
-@author: federico
+@author: Federico Barabas
 """
 
 import numpy as np
