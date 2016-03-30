@@ -70,7 +70,7 @@ def getFilename(title, types, initialdir=None):
         print("No file selected!")
 
 
-def getFilenames(title, types, initialdir=None):
+def getFilenames(title, types=[], initialdir=None):
     try:
         root = Tk()
         root.withdraw()
@@ -248,39 +248,48 @@ class HtransformStack(QtCore.QObject):
         Hname = getFilename("Select affine transformation matrix",
                             [('npy files', '.npy')])
         H = np.load(Hname)
-        filenames = getFilenames("Select HDF5 files for affine transformation",
-                                 [('HDF5 files', '.hdf5')],
-                                 os.path.split(Hname)[0])
+        filenames = getFilenames("Select files for affine transformation",
+                                 initialdir=os.path.split(Hname)[0])
         for filename in filenames:
-            with hdf.File(filename, 'r') as f0, \
-                    hdf.File(insertSuffix(filename, '_corrected'), 'w') as f1:
-                stime = time.strftime("%Y-%m-%d %H:%M:%S")
-                filen = os.path.split(filename)[1]
-                print(stime + ' Transforming stack ' + filen)
-                dat0 = f0['data']
-                n = len(dat0)
-#                output = np.zeros((len(f0['data']), 256, 266),
-#                                  dtype=np.uint16)
-#                output[:, :128, :] = dat0[:, :128, :]
-                f1.create_dataset(name='data',
-                                  data=np.append(dat0[:, :128, :],
-                                                 np.zeros((n, 128, 266),
-                                                          dtype=np.uint16),
-                                                 1))
-#                dat1 = f1['data']
-#                dat1[:, :128, :] = dat0[:, :128, :]
 
-                # Multiprocessing
-                cpus = mp.cpu_count()
-                step = n // cpus
-                chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
-                chunks[-1][1] = n
-                args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
-                pool = mp.Pool(processes=cpus)
-                results = pool.map(transformChunk, args)
-                f1['data'][:, -128:, :] = np.concatenate(results[:])
+            ext = os.path.splitext(filename)[1]
 
-                print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
+            if ext == '.hdf5':
+                filename2 = insertSuffix(filename, '_corrected')
+                with hdf.File(filename, 'r') as f0, \
+                        hdf.File(filename2, 'w') as f1:
+
+                    print(time.strftime("%Y-%m-%d %H:%M:%S") +
+                          ' Transforming stack ' + os.path.split(filename)[1])
+
+                    dat0 = f0['data']
+                    n = len(dat0)
+                    f1.create_dataset(name='data',
+                                      data=np.append(dat0[:, :128, :],
+                                                     np.zeros((n, 128, 266),
+                                                              dtype=np.uint16),
+                                                     1))
+
+                    # Multiprocessing
+                    cpus = mp.cpu_count()
+                    step = n // cpus
+                    chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
+                    chunks[-1][1] = n
+                    args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
+                    pool = mp.Pool(processes=cpus)
+                    results = pool.map(transformChunk, args)
+                    pool.close()
+                    pool.join()
+                    f1['data'][:, -128:, :] = np.concatenate(results[:])
+
+                    print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
+
+            elif ext in ['.tiff', '.tif']:
+                with tiff.TiffFile(filename) as tt:
+                    data = tt.asarray()
+                    tiff.imsave(insertSuffix(filename, '_ch0'), data[:128, :])
+                    tiff.imsave(insertSuffix(filename, '_ch1'),
+                                reg.h_affine_transform(data[-128:, :], H))
 
         self.finished.emit()
 

@@ -112,6 +112,8 @@ class Stack(object):
 
         pool = mp.Pool(processes=cpus)
         results = pool.map(localize_chunk, args)
+        pool.close()
+        pool.join()
         self.molecules = np.concatenate(results[:])
 
     def scatter_plot(self):
