@@ -52,7 +52,7 @@ class RecordingWidget(QtGui.QFrame):
         self.folderEdit = QtGui.QLineEdit(self.initialDir)
         openFolderButton = QtGui.QPushButton('Open')
         openFolderButton.clicked.connect(self.openFolder)
-        loadFolderButton = QtGui.QPushButton('Load...')
+        loadFolderButton = QtGui.QPushButton('Browse')
         loadFolderButton.clicked.connect(self.loadFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
 
@@ -662,6 +662,7 @@ class TormentaGUI(QtGui.QMainWindow):
             return guitools.savePreset(self)
         self.savePresetAction.triggered.connect(savePresetFunction)
         fileMenu.addAction(self.savePresetAction)
+
         fileMenu.addSeparator()
 
         self.exportTiffAction = QtGui.QAction('Export HDF5 to Tiff...', self)
@@ -677,14 +678,21 @@ class TormentaGUI(QtGui.QMainWindow):
         self.exportlastAction.setStatusTip('Export last recording to Tiff ' +
                                            'format')
         fileMenu.addAction(self.exportlastAction)
+
         fileMenu.addSeparator()
 
+        self.loadHAction = QtGui.QAction('Load affine matrix...', self)
+        self.loadHAction.setStatusTip('Load the affine matrix between ' +
+                                      'channels for online transformation ' +
+                                      'while recording two-color stacks')
+        fileMenu.addAction(self.loadHAction)
+        self.loadHAction.triggered.connect(self.loadH)
+        self.Hname = None
         self.HtransformAction = QtGui.QAction('Affine transform stacks...',
                                               self)
         self.HtransformAction.setStatusTip('Correct stacks using an affine ' +
                                            'transformation matrix')
         fileMenu.addAction(self.HtransformAction)
-
         self.transformerThread = QtCore.QThread()
         self.transformer = guitools.HtransformStack()
         self.transformer.moveToThread(self.transformerThread)
@@ -739,7 +747,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Camera settings widget
         self.cameraWidget = QtGui.QFrame()
-        self.cameraWidget.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
+        self.cameraWidget.setFrameStyle(QtGui.QFrame.Panel |
+                                        QtGui.QFrame.Raised)
         cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
         cameraTitle.setTextFormat(QtCore.Qt.RichText)
         cameraGrid = QtGui.QGridLayout()
@@ -836,7 +845,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hideColumnButton.setFixedWidth(10)
         self.hideColumnButton.setFixedHeight(60)
         self.hideColumnButton.setCheckable(True)
-        self.hideColumnButton.clicked.connect(self.hideColumn)
+
+        def hideColumn():
+            guitools.hideColumn(self)
+        self.hideColumnButton.clicked.connect(hideColumn)
 
         # Image Widget
         imageWidget = pg.GraphicsLayoutWidget()
@@ -959,27 +971,10 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.showMaximized()
 
-    def hideColumn(self):
-        if self.hideColumnButton.isChecked():
-            self.presetsMenu.hide()
-            self.loadPresetButton.hide()
-            self.cameraWidget.hide()
-            self.viewCtrl.hide()
-            self.recWidget.hide()
-            self.layout.setColumnMinimumWidth(0, 0)
-        else:
-            self.presetsMenu.show()
-            self.loadPresetButton.show()
-            self.cameraWidget.show()
-            self.viewCtrl.show()
-            self.recWidget.show()
-            self.layout.setColumnMinimumWidth(0, 350)
-
-    def mouseMoved(self, pos):
-        if self.vb.sceneBoundingRect().contains(pos):
-            mousePoint = self.vb.mapSceneToView(pos)
-            x, y = int(mousePoint.x()), int(self.shape[1] - mousePoint.y())
-            self.cursorPos.setText('{}, {}'.format(x, y))
+    def loadH(self):
+        self.Hname = guitools.getFilename('Load affine matrix',
+                                          [('.npy', 'Numpy arrays')],
+                                          self.recWidget.folderEdit.text())
 
     def flipperInPath(self, value):
         self.flipperButton.setChecked(not(value))
@@ -1198,6 +1193,9 @@ class TormentaGUI(QtGui.QMainWindow):
 
         else:
             self.liveviewStop()
+
+    def mouseMoved(self, pos):
+        guitools.mouseMoved(self, pos)
 
     def liveviewStart(self, update):
 

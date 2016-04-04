@@ -171,6 +171,30 @@ def loadPreset(main, filename=None):
     tree.param('Gain').param('EM gain').setValue(int(configCam['EM gain']))
 
 
+def hideColumn(main):
+    if main.hideColumnButton.isChecked():
+        main.presetsMenu.hide()
+        main.loadPresetButton.hide()
+        main.cameraWidget.hide()
+        main.viewCtrl.hide()
+        main.recWidget.hide()
+        main.layout.setColumnMinimumWidth(0, 0)
+    else:
+        main.presetsMenu.show()
+        main.loadPresetButton.show()
+        main.cameraWidget.show()
+        main.viewCtrl.show()
+        main.recWidget.show()
+        main.layout.setColumnMinimumWidth(0, 350)
+
+
+def mouseMoved(main, pos):
+    if main.vb.sceneBoundingRect().contains(pos):
+        mousePoint = main.vb.mapSceneToView(pos)
+        x, y = int(mousePoint.x()), int(main.shape[1] - mousePoint.y())
+        main.cursorPos.setText('{}, {}'.format(x, y))
+
+
 # HDF <--> Tiff converter
 class TiffConverterThread(QtCore.QThread):
 
