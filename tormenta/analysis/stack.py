@@ -16,7 +16,7 @@ from tkinter import Tk, filedialog
 
 import tormenta.analysis.tools as tools
 import tormenta.analysis.maxima as maxima
-from tormenta.tools import insertSuffix
+from tormenta.control.guitools import insertSuffix
 
 
 def convert(word):

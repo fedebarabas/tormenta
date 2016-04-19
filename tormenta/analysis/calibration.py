@@ -8,7 +8,7 @@ Created on Wed May 13 23:35:23 2015
 import os
 import numpy as np
 from scipy.signal import argrelextrema
-from tkinter import Tk, filedialog
+from tkinter import Tk, filedialog, simpledialog
 from PIL import Image
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -48,7 +48,7 @@ def beamProfile(ask, folder=None, shape=(512, 512), th=None):
     profile = np.zeros(shape)
     norm = 0
     for filename in stacks:
-        print(filename)
+        print(os.path.split(filename)[1])
         if filename.endswith('.hdf5'):
             stack = Stack(filename=filename)
             meanFrame = stack.imageData.mean(0)
@@ -107,7 +107,7 @@ def frame(image, center=(256, 256), shape=(128, 128)):
                  center[1] - int(shape[1] / 2):center[1] + int(shape[1] / 2)]
 
 
-def analyzeBeam(th=None, initialdir=None):
+def analyzeBeam(savename, th=None, initialdir=None):
     """
     Script for loading EPI and TIRF images of homogeneous samples for
     measuring the illumination beam profile.
@@ -133,9 +133,9 @@ def analyzeBeam(th=None, initialdir=None):
 
     # Profile images saving
     im = Image.fromarray(profileEPI)
-    im.save(os.path.join(folder, 'profileEPI.tiff'))
+    im.save(os.path.join(folder, savename + '_profileEPI.tiff'))
     im = Image.fromarray(profileTIRF)
-    im.save(os.path.join(folder, 'profileTIRF.tiff'))
+    im.save(os.path.join(folder, savename + '_profileTIRF.tiff'))
 
     # EPI profile
     plt.subplot(2,  2, 1)
@@ -161,14 +161,16 @@ def analyzeBeam(th=None, initialdir=None):
     plt.text(800, 300,
              'TIRF intensity factor={}'.format(np.round(TIRFactor, 2)))
 
+    plt.savefig(os.path.join(folder, savename + '_profiles.png'),
+                bbox_inches='tight')
     plt.show()
     area = (TIRarea + EPIarea) / 2
     fFactor = (TIRFrameFactor + EPIFrameFactor) / 2
     return area, fFactor, folder
 
 
-def intensityCalibration(area, fFactor, folder=None,
-                         objectiveT=0.9, neutralFilter=1, umPerPx=0.132):
+def intensityCalibration(area, fFactor, savename, folder=None, objectiveT=0.9,
+                         neutralFilter=1, umPerPx=0.12):
 
     # Get filenames from user
     try:
@@ -211,6 +213,8 @@ def intensityCalibration(area, fFactor, folder=None,
         plt.xlim(xmin=0)
         plt.ylim(ymin=0)
         plt.legend(loc=2)
+        plt.savefig(os.path.join(folder, savename + '_power'),
+                    bbox_inches='tight')
         plt.show()
 
         return coef
@@ -220,8 +224,14 @@ def intensityCalibration(area, fFactor, folder=None,
 
 
 def powerCalibration(th=None, initialdir=None):
-    area, fFactor, folder = analyzeBeam(th, initialdir)
-    return intensityCalibration(area, fFactor, folder)
+    root = Tk()
+    root.withdraw()
+    savename = simpledialog.askstring(title='Saving',
+                                      prompt='Save files with prefix...')
+    root.destroy()
+
+    area, fFactor, folder = analyzeBeam(savename, th, initialdir)
+    return intensityCalibration(area, fFactor, savename, folder)
 
 if __name__ == "__main__":
 
