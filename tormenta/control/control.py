@@ -315,8 +315,10 @@ class RecordingWidget(QtGui.QFrame):
     def endRecording(self):
 
         # Attenuate excitation x1000, turn blue laser off
-        self.main.flipperInPath(True)
-        self.main.laserWidgets.blueControl.laser.power_sp = Q_(0, 'mW')
+        if self.main.flipAfter.isChecked():
+            self.main.flipperInPath(True)
+        if self.main.uvOff.isChecked():
+            self.main.laserWidgets.blueControl.laser.power_sp = Q_(0, 'mW')
 
         self.recordingThread.terminate()
 
@@ -706,6 +708,16 @@ class TormentaGUI(QtGui.QMainWindow):
         exitAction.setStatusTip('Exit application')
         exitAction.triggered.connect(QtGui.QApplication.closeAllWindows)
         fileMenu.addAction(exitAction)
+
+        optMenu = menubar.addMenu('&After measurement')
+        self.flipAfter = QtGui.QAction('Move flipper up', optMenu,
+                                       checkable=True)
+        optMenu.addAction(self.flipAfter)
+        self.flipAfter.setChecked(True)
+        self.uvOff = QtGui.QAction('Turn 405nm laser off', optMenu,
+                                   checkable=True)
+        optMenu.addAction(self.uvOff)
+        self.uvOff.setChecked(True)
 
         self.tree = CamParamTree(self.andor)
 

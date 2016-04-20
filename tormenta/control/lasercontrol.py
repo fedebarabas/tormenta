@@ -155,24 +155,24 @@ class IntensityWorker(QtCore.QObject):
         self.stream.start()
 
         shuttLasers = self.main.shuttLasers
-        enabledLasers = [control.laser.enabled for control in shuttLasers]
-        enabledLasers = np.array(enabledLasers, dtype=bool)
-        enabledControls = shuttLasers[enabledLasers]
+#        enabledLasers = [control.laser.enabled for control in shuttLasers]
+#        enabledLasers = np.array(enabledLasers, dtype=bool)
+#        enabledControls = shuttLasers[enabledLasers]
 
         # Results signal
         dt = np.dtype([('laser', int),
                        ('intensity', float),
                        ('calibrated', bool),
                        ('voltage', float)])
-        signal = np.zeros(len(enabledControls), dtype=dt)
+        signal = np.zeros(len(shuttLasers), dtype=dt)
 
         # Record shutters state
-        shutterState = [ctl.shutterBox.isChecked() for ctl in enabledControls]
+        shutterState = [ctl.shutterBox.isChecked() for ctl in shuttLasers]
 
         j = 0
         # Measure each laser intensity
-        for control in enabledControls:
-            others = [ctrl for ctrl in enabledControls if ctrl != control]
+        for control in shuttLasers:
+            others = [ctrl for ctrl in shuttLasers if ctrl != control]
             for ctrl in others:
                 ctrl.shutterBox.setChecked(False)
             control.shutterBox.setChecked(True)
@@ -207,7 +207,7 @@ class IntensityWorker(QtCore.QObject):
 
         # Load original shutter state
         i = 0
-        for control in enabledControls:
+        for control in shuttLasers:
             control.shutterBox.setChecked(shutterState[i])
             i += 1
 

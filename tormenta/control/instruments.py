@@ -91,7 +91,7 @@ class STORMDAQ(T7):
         if value:
             self.writeName("DIO2_EF_CONFIG_A", 150000)
         else:
-            self.writeName("DIO2_EF_CONFIG_A", 72000)
+            self.writeName("DIO2_EF_CONFIG_A", 70000)
 
         self.flipperState = value
 
