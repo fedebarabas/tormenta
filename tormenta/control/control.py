@@ -668,10 +668,17 @@ class TormentaGUI(QtGui.QMainWindow):
         fileMenu.addSeparator()
 
         self.exportTiffAction = QtGui.QAction('Export HDF5 to Tiff...', self)
-        self.exportTiffAction.setShortcut('Ctrl+E')
         self.exportTiffAction.setStatusTip('Export HDF5 file to Tiff format')
         self.exportTiffAction.triggered.connect(guitools.TiffConverterThread)
         fileMenu.addAction(self.exportTiffAction)
+
+        def tiff2pngFunction():
+            return guitools.tiff2png(self)
+        self.tiff2pngAction = QtGui.QAction('Export TIFF snaps to PNG...',
+                                            self)
+        self.tiff2pngAction.setStatusTip('Export HDF5 file to Tiff format')
+        self.tiff2pngAction.triggered.connect(tiff2pngFunction)
+        fileMenu.addAction(self.tiff2pngAction)
 
         self.exportlastAction = QtGui.QAction('Export last recording to Tiff',
                                               self)
