@@ -280,16 +280,14 @@ class HtransformStack(QtCore.QObject):
                                  types=[('hdf5 files', '.hdf5')],
                                  initialdir=os.path.split(Hname)[0])
         for filename in filenames:
-
+            print(time.strftime("%Y-%m-%d %H:%M:%S") +
+                  ' Transforming stack ' + os.path.split(filename)[1])
             ext = os.path.splitext(filename)[1]
 
             if ext == '.hdf5':
                 filename2 = insertSuffix(filename, '_corrected')
                 with hdf.File(filename, 'r') as f0, \
                         hdf.File(filename2, 'w') as f1:
-
-                    print(time.strftime("%Y-%m-%d %H:%M:%S") +
-                          ' Transforming stack ' + os.path.split(filename)[1])
 
                     dat0 = f0['data']
                     n = len(dat0)
@@ -311,14 +309,14 @@ class HtransformStack(QtCore.QObject):
                     pool.join()
                     f1['data'][:, -128:, :] = np.concatenate(results[:])
 
-                    print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
-
             elif ext in ['.tiff', '.tif']:
                 with tiff.TiffFile(filename) as tt:
                     data = tt.asarray()
                     tiff.imsave(insertSuffix(filename, '_ch0'), data[:128, :])
                     tiff.imsave(insertSuffix(filename, '_ch1'),
                                 reg.h_affine_transform(data[-128:, :], H))
+
+            print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
 
         self.finished.emit()
 

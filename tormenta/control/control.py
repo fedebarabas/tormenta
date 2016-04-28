@@ -421,16 +421,15 @@ class RecWorker(QtCore.QObject):
 
     def twoColorRec(self):
 
-        ch0Savename = guitools.insertSuffix(self.savename, '_ch0')
-        ch1Savename = guitools.insertSuffix(self.savename, '_ch1')
-        c = int(0.5*self.shape[1])
-        singleShape = (self.shape[0], 128, self.shape[2])
+        corrSavename = guitools.insertSuffix(self.savename, '_corrected')
+#        c = int(0.5*self.shape[1])
+#        singleShape = (self.shape[0], 128, self.shape[2])
 
-        with hdf.File(ch0Savename, "w") as ch0File, \
-                hdf.File(ch1Savename, "w") as ch1File:
-            ch0File.create_dataset(name=self.dataname, shape=singleShape,
-                                   maxshape=self.shape, dtype=np.uint16)
-            ch1File.create_dataset(name=self.dataname, shape=singleShape,
+        with hdf.File(self.savename, "w") as storeFile, \
+                hdf.File(corrSavename, "w") as corrStoreFile:
+            storeFile.create_dataset(name=self.dataname, shape=self.shape,
+                                     maxshape=self.shape, dtype=np.uint16)
+            corrStoreFile.create_dataset(name=self.dataname, shape=singleShape,
                                    maxshape=self.shape, dtype=np.uint16)
             ch0Dataset = ch0File[self.dataname]
             ch1Dataset = ch1File[self.dataname]
