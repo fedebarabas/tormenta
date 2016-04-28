@@ -274,8 +274,10 @@ class HtransformStack(QtCore.QObject):
     def run(self):
         Hname = getFilename("Select affine transformation matrix",
                             [('npy files', '.npy')])
+
         H = np.load(Hname)
         filenames = getFilenames("Select files for affine transformation",
+                                 types=[('hdf5 files', '.hdf5')],
                                  initialdir=os.path.split(Hname)[0])
         for filename in filenames:
 
