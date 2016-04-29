@@ -33,6 +33,8 @@ import tormenta.control.ontime as ontime
 import tormenta.control.guitools as guitools
 import tormenta.control.viewbox_tools as viewbox_tools
 
+import tormenta.analysis.registration as reg
+
 
 class RecordingWidget(QtGui.QFrame):
 
@@ -42,6 +44,7 @@ class RecordingWidget(QtGui.QFrame):
         self.main = main
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.initialDir = r'C:\Users\Usuario\Documents\Data'
+        self.H = None
 
         # Title
         recTitle = QtGui.QLabel('<h2><strong>Recording</strong></h2>')
@@ -203,6 +206,22 @@ class RecordingWidget(QtGui.QFrame):
                           (name+'_calibrated', c.calibratedCheck.isChecked())])
         return attrs
 
+    def loadH(self):
+        Hname = guitools.getFilename('Load affine matrix',
+                                     [('.npy', 'Numpy arrays')],
+                                     self.recWidget.folderEdit.text())
+        self.H = np.load(Hname)
+        data = np.ones((128, 266))
+        datac = reg.h_affine_transform(data, self.H)
+        indices = np.where(datac == 1)
+        self.xlim = (indices[0].min(), indices[0].max() + 1)
+        self.ylim = (indices[1].min(), indices[1].max() + 1)
+        self.reducedShape = datac[self.xlim[0]:self.xlim[1],
+                                  self.ylim[0]:self.ylim[1]].shape
+
+    def reducedImage(image, xlim, ylim):
+        return image[xlim[0]:xlim[1], ylim[0]:ylim[1]]
+
     def snap(self):
 
         folder = self.folderEdit.text()
@@ -217,6 +236,22 @@ class RecordingWidget(QtGui.QFrame):
             tiff.imsave(savename, np.flipud(image.astype(np.uint16)),
                         description=self.dataname, software='Tormenta')
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
+
+            # Two-color-corrected snap saving
+            imageFramePar = self.main.tree.p.param('Image frame')
+            twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
+            if twoColors and self.H is not None:
+                newData = np.zeros((2*self.reducedShape[0],
+                                    self.reducedShape[1]))
+                im0 = self.reducedImage(image, self.xlim, self.ylim)
+                im1 = reg.h_affine_transform(image[-128:, :], self.H)
+                im1c = self.reducedImage(im1, self.xlim, self.ylim)
+                newData[:self.reducedShape[0], :] = im0
+                newData[-self.reducedShape[0]:, :] = im1c
+
+                tiff.imsave(guitools.insertSuffix(savename, '_correted'),
+                            np.flipud(newData.astype(np.uint16)),
+                            description=self.dataname, software='Tormenta')
 
         else:
             self.folderWarning()
@@ -694,8 +729,6 @@ class TormentaGUI(QtGui.QMainWindow):
                                       'channels for online transformation ' +
                                       'while recording two-color stacks')
         fileMenu.addAction(self.loadHAction)
-        self.loadHAction.triggered.connect(self.loadH)
-        self.Hname = None
         self.HtransformAction = QtGui.QAction('Affine transform stacks...',
                                               self)
         self.HtransformAction.setStatusTip('Correct stacks using an affine ' +
@@ -851,6 +884,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Recording settings widget
         self.recWidget = RecordingWidget(self)
+        self.loadHAction.triggered.connect(self.recWidget.loadH)
         self.snapShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+S'), self,
                                             self.recWidget.snap)
         self.snapShortcut.setEnabled(False)
@@ -988,11 +1022,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.layout.addWidget(dockArea, 0, 4, 5, 1)
 
         self.showMaximized()
-
-    def loadH(self):
-        self.Hname = guitools.getFilename('Load affine matrix',
-                                          [('.npy', 'Numpy arrays')],
-                                          self.recWidget.folderEdit.text())
 
     def flipperInPath(self, value):
         self.flipperButton.setChecked(not(value))
