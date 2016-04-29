@@ -208,8 +208,8 @@ class RecordingWidget(QtGui.QFrame):
 
     def loadH(self):
         Hname = guitools.getFilename('Load affine matrix',
-                                     [('.npy', 'Numpy arrays')],
-                                     self.recWidget.folderEdit.text())
+                                     [('Numpy arrays', '.npy')],
+                                     self.folderEdit.text())
         self.H = np.load(Hname)
         data = np.ones((128, 266))
         datac = reg.h_affine_transform(data, self.H)
@@ -218,8 +218,9 @@ class RecordingWidget(QtGui.QFrame):
         self.ylim = (indices[1].min(), indices[1].max() + 1)
         self.reducedShape = datac[self.xlim[0]:self.xlim[1],
                                   self.ylim[0]:self.ylim[1]].shape
+        self.corrShape = (2*self.reducedShape[0], self.reducedShape[1])
 
-    def reducedImage(image, xlim, ylim):
+    def reducedImage(self, image, xlim, ylim):
         return image[xlim[0]:xlim[1], ylim[0]:ylim[1]]
 
     def snap(self):
@@ -233,25 +234,25 @@ class RecordingWidget(QtGui.QFrame):
             savename = (os.path.join(folder, self.filenameEdit.text()) +
                         '_snap.tiff')
             savename = guitools.getUniqueName(savename)
-            tiff.imsave(savename, np.flipud(image.astype(np.uint16)),
-                        description=self.dataname, software='Tormenta')
+            image = np.flipud(image.astype(np.uint16))
+            tiff.imsave(savename, image, description=self.dataname,
+                        software='Tormenta')
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
             # Two-color-corrected snap saving
             imageFramePar = self.main.tree.p.param('Image frame')
             twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
-            if twoColors and self.H is not None:
-                newData = np.zeros((2*self.reducedShape[0],
-                                    self.reducedShape[1]))
+            if twoColors and (self.H is not None):
+                newData = np.zeros(self.corrShape, dtype=np.uint16)
                 im0 = self.reducedImage(image, self.xlim, self.ylim)
                 im1 = reg.h_affine_transform(image[-128:, :], self.H)
                 im1c = self.reducedImage(im1, self.xlim, self.ylim)
                 newData[:self.reducedShape[0], :] = im0
                 newData[-self.reducedShape[0]:, :] = im1c
 
-                tiff.imsave(guitools.insertSuffix(savename, '_correted'),
-                            np.flipud(newData.astype(np.uint16)),
-                            description=self.dataname, software='Tormenta')
+                tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
+                            newData, description=self.dataname,
+                            software='Tormenta')
 
         else:
             self.folderWarning()
@@ -457,17 +458,16 @@ class RecWorker(QtCore.QObject):
     def twoColorRec(self):
 
         corrSavename = guitools.insertSuffix(self.savename, '_corrected')
-#        c = int(0.5*self.shape[1])
-#        singleShape = (self.shape[0], 128, self.shape[2])
+        corrShape = (self.shape[0], self.corrShape[0], self.corrShape[1])
 
         with hdf.File(self.savename, "w") as storeFile, \
                 hdf.File(corrSavename, "w") as corrStoreFile:
             storeFile.create_dataset(name=self.dataname, shape=self.shape,
                                      maxshape=self.shape, dtype=np.uint16)
-            corrStoreFile.create_dataset(name=self.dataname, shape=singleShape,
-                                   maxshape=self.shape, dtype=np.uint16)
-            ch0Dataset = ch0File[self.dataname]
-            ch1Dataset = ch1File[self.dataname]
+            corrStoreFile.create_dataset(name=self.dataname, shape=corrShape,
+                                         maxshape=corrShape, dtype=np.uint16)
+            dataset = storeFile[self.dataname]
+            corrDataset = corrStoreFile[self.dataname]
 
             while self.j < self.shape[0] and self.pressed:
 
@@ -477,9 +477,9 @@ class RecWorker(QtCore.QObject):
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
                     self.updateSignal.emit(np.transpose(newImages[-1]))
-                    newImages = newImages[:, ::-1]
-                    ch0Dataset[i - 1:self.j] = newImages[:, :c - 5, :]
-                    ch1Dataset[i - 1:self.j] = newImages[:, c + 5:, :]
+                    dataset[i - 1:self.j] = newImages[:, ::-1]
+                    # TODO: sasasas
+                    corrDataset[i - 1:self.j] =
 
             # Crop dataset if it's stopped before finishing
             if self.j < self.shape[0]:
