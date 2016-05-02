@@ -277,15 +277,14 @@ class HtransformStack(QtCore.QObject):
 
         H = np.load(Hname)
         filenames = getFilenames("Select files for affine transformation",
-                                 types=[('hdf5 files', '.hdf5')],
-                                 initialdir=os.path.split(Hname)[0])
+                                 types=[], initialdir=os.path.split(Hname)[0])
         for filename in filenames:
             print(time.strftime("%Y-%m-%d %H:%M:%S") +
                   ' Transforming stack ' + os.path.split(filename)[1])
             ext = os.path.splitext(filename)[1]
+            filename2 = insertSuffix(filename, '_corrected')
 
             if ext == '.hdf5':
-                filename2 = insertSuffix(filename, '_corrected')
                 with hdf.File(filename, 'r') as f0, \
                         hdf.File(filename2, 'w') as f1:
 

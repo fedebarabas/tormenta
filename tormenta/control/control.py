@@ -479,7 +479,7 @@ class RecWorker(QtCore.QObject):
                     self.updateSignal.emit(np.transpose(newImages[-1]))
                     dataset[i - 1:self.j] = newImages[:, ::-1]
                     # TODO: sasasas
-                    corrDataset[i - 1:self.j] =
+#                    corrDataset[i - 1:self.j] =
 
             # Crop dataset if it's stopped before finishing
             if self.j < self.shape[0]:
@@ -729,10 +729,11 @@ class TormentaGUI(QtGui.QMainWindow):
                                       'channels for online transformation ' +
                                       'while recording two-color stacks')
         fileMenu.addAction(self.loadHAction)
-        self.HtransformAction = QtGui.QAction('Affine transform stacks...',
-                                              self)
-        self.HtransformAction.setStatusTip('Correct stacks using an affine ' +
-                                           'transformation matrix')
+        self.HtransformAction = QtGui.QAction('Affine transform stacks or ' +
+                                              'snaps...', self)
+        self.HtransformAction.setStatusTip('Correct stacks or single shots ' +
+                                           'using an affine transformation ' +
+                                           'matrix')
         fileMenu.addAction(self.HtransformAction)
         self.transformerThread = QtCore.QThread()
         self.transformer = guitools.HtransformStack()
