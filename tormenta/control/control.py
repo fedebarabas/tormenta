@@ -331,6 +331,7 @@ class RecordingWidget(QtGui.QFrame):
                 shape = (self.n(), self.main.shape[0], self.main.shape[1])
                 frameOption = self.main.tree.p.param('Image frame')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
+                twoColors = twoColors and (self.H is not None)
                 self.worker = RecWorker(self.main.andor, shape, twoColors,
                                         self.main.t_exp_real, self.savename,
                                         self.dataname, self.getAttrs())
@@ -420,12 +421,10 @@ class RecWorker(QtCore.QObject):
         self.andor.start_acquisition()
         time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
 
-#        if self.twoColors:
-#            self.twoColorRec()
-#        else:
-#            self.singleColorRec()
-
-        self.singleColorRec()
+        if self.twoColors:
+            self.twoColorRec()
+        else:
+            self.singleColorRec()
 
         self.doneSignal.emit()
 
@@ -481,16 +480,22 @@ class RecWorker(QtCore.QObject):
                     # TODO: sasasas
 #                    corrDataset[i - 1:self.j] =
 
+                    im0 = self.reducedImage(image, self.xlim, self.ylim)
+                    im1 = reg.h_affine_transform(image[-128:, :], self.H)
+                    im1c = self.reducedImage(im1, self.xlim, self.ylim)
+                    newData[:self.reducedShape[0], :] = im0
+                    newData[-self.reducedShape[0]:, :] = im1c
+
             # Crop dataset if it's stopped before finishing
             if self.j < self.shape[0]:
-                ch0Dataset.resize((self.j, singleShape[1], singleShape[2]))
-                ch1Dataset.resize((self.j, singleShape[1], singleShape[2]))
+                dataset.resize((self.j, self.shape[1], self.shape[2]))
+                corrDataset.resize((self.j, corrShape[1], corrShape[2]))
 
             # Saving parameters
             for item in self.attrs:
                 if item[1] is not None:
-                    ch0Dataset.attrs[item[0]] = item[1]
-                    ch1Dataset.attrs[item[0]] = item[1]
+                    dataset.attrs[item[0]] = item[1]
+                    corrDataset.attrs[item[0]] = item[1]
 
 
 class TemperatureStabilizer(QtCore.QObject):
