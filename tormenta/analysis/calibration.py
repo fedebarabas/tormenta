@@ -7,7 +7,6 @@ Created on Wed May 13 23:35:23 2015
 """
 import os
 import numpy as np
-from scipy.signal import argrelextrema
 from tkinter import Tk, filedialog, simpledialog
 from PIL import Image
 import matplotlib.pyplot as plt
@@ -15,6 +14,7 @@ import matplotlib.cm as cm
 import tifffile as tiff
 
 from tormenta.analysis.stack import Stack
+from tormenta.analysis.gaussians import twoDSymmGaussian
 
 
 def loadStacks(ask, folder=None):
@@ -58,56 +58,28 @@ def beamProfile(ask, folder=None, shape=(512, 512), th=None):
             meanFrame = tfile.asarray()
             tfile.close()
 
-        # First mask is for correctly estimating the std
-        hist, edg = np.histogram(meanFrame, bins=100)
-        if th is None:
-            thres = edg[argrelextrema(hist, np.less)[0][0]]
-        else:
-            thres = th
-        beamMask = np.zeros(shape=meanFrame.shape, dtype=bool)
-        beamMask[meanFrame < thres] = True
-        beamFrame = np.ma.masked_array(meanFrame, beamMask)
-
-        # Second mask truly delimits the beam
-        thres2 = 0.5*np.max(beamFrame) - np.std(beamFrame)
-        beamMask = np.zeros(shape=meanFrame.shape, dtype=bool)
-        beamMask[meanFrame < thres2] = True
-        beamFrame = np.ma.masked_array(meanFrame, beamMask)
-
         # Normalization
-        meanInt = beamFrame.mean()
+        meanInt = meanFrame.mean()
         profile += meanFrame / meanInt
         norm += meanInt
 
     norm /= n
 
-    # First mask is for correctly estimating the std
-    hist, edg = np.histogram(profile, bins=100)
-    if th is None:
-        thres = edg[argrelextrema(hist, np.less)[0][0]]
-    else:
-        thres = th
-    beam_mask = np.zeros(shape=profile.shape, dtype=bool)
-    beam_mask[profile < thres] = True
-    beamProfile = np.ma.masked_array(profile, beam_mask)
+    # 2D fitting of profile
+    try:
+        profileFit = twoDSymmGaussian(profile)
+        popt, epopt = profileFit.popt, profileFit.epopt
+    except RuntimeError as err:
+        print("Fitting error: {0}".format(err))
+        print("Using sigma = 256.")
 
-    # Second mask truly delimits the beam
-    thres2 = 0.5*np.max(beamProfile)
-    beamMask = np.zeros(shape=beamProfile.shape, dtype=bool)
-    beamMask[profile < thres2] = True
-    beamProfile = np.ma.masked_array(profile, beamMask)
+        popt, epopt = [0, 0, 0, 256.0], [0, 0, 0, 0]
 
-    return beamProfile, norm, folder
+    # We return the profile, normalization value, sigma and its error
+    return profile, norm, (popt[3], epopt[3]), folder
 
 
-def frame(image, center=(256, 256), shape=(128, 128)):
-    # Untested for not centered frames
-
-    return image[center[0] - int(shape[0] / 2):center[0] + int(shape[0] / 2),
-                 center[1] - int(shape[1] / 2):center[1] + int(shape[1] / 2)]
-
-
-def analyzeBeam(savename, th=None, initialdir=None):
+def analyzeBeam(savename, initialdir=None):
     """
     Script for loading EPI and TIRF images of homogeneous samples for
     measuring the illumination beam profile.
@@ -115,21 +87,15 @@ def analyzeBeam(savename, th=None, initialdir=None):
     then it calculates the means and correction factors.
     """
 
-    profileEPI, normEPI, folder = beamProfile('Select EPI profiles',
-                                              th=th, folder=initialdir)
-    profileTIRF, normTIRF, folder = beamProfile('Select TIRF profiles', folder,
-                                                th=th)
+    beamEPI = beamProfile('Select EPI profiles', folder=initialdir)
+    profileEPI, normEPI, sigmaEPI, folder = beamEPI
+    beamTIRF = beamProfile('Select TIRF profiles', folder)
+    profileTIRF, normTIRF, sigmaTIRF, folder = beamTIRF
     TIRFactor = normTIRF / normEPI
 
-    # Measurements in EPI
-    EPIFrameFactor = frame(profileEPI).mean() / profileEPI.mean()
+    # STD measurements
     EPIstd = 100 * frame(profileEPI).std() / frame(profileEPI).mean()
-    EPIarea = profileTIRF.mask.size - profileEPI.mask.sum()
-
-    # Measurements in TIRF
-    TIRFrameFactor = frame(profileTIRF).mean() / profileTIRF.mean()
     TIRstd = 100 * frame(profileTIRF).std() / frame(profileTIRF).mean()
-    TIRarea = profileTIRF.mask.size - profileTIRF.mask.sum()
 
     # Profile images saving
     im = Image.fromarray(profileEPI)
@@ -142,34 +108,31 @@ def analyzeBeam(savename, th=None, initialdir=None):
     plt.imshow(profileEPI, interpolation='None', cmap=cm.cubehelix)
     plt.title('EPI profile')
     plt.colorbar()
-    plt.text(800, 100,
-             'EPI frame factor={}'.format(np.round(EPIFrameFactor, 2)))
-    plt.text(800, 150,
-             'EPI % standard dev={}'.format(np.round(EPIstd, 2)))
-    plt.text(800, 200, 'EPI mask area={}'.format(EPIarea) + ' px^2')
+    plt.text(800, 150, 'EPI % standard dev={}'.format(np.round(EPIstd, 2)))
 
     # TIRF profile
     plt.subplot(2, 2, 3)
     plt.imshow(profileTIRF, interpolation='None', cmap=cm.cubehelix)
     plt.title('TIRF profile')
     plt.colorbar()
-    plt.text(800, 100,
-             'TIRF frame factor={}'.format(np.round(TIRFrameFactor, 2)))
-    plt.text(800, 150,
-             'TIRF % standard dev={}'.format(np.round(TIRstd, 2)))
-    plt.text(800, 200, 'TIRF mask area={}'.format(TIRarea) + ' px^2')
-    plt.text(800, 300,
-             'TIRF intensity factor={}'.format(np.round(TIRFactor, 2)))
+    plt.text(800, 150, 'TIRF % standard dev={}'.format(np.round(TIRstd, 2)))
+    tirffactor = np.round(TIRFactor, 2)
+    plt.text(800, 300, 'TIRF intensity factor={}'.format(tirffactor))
 
     plt.savefig(os.path.join(folder, savename + '_profiles.png'),
                 bbox_inches='tight')
     plt.show()
-    area = (TIRarea + EPIarea) / 2
-    fFactor = (TIRFrameFactor + EPIFrameFactor) / 2
-    return area, fFactor, folder
+    return sigmaEPI, folder
 
 
-def intensityCalibration(area, fFactor, savename, folder=None, objectiveT=0.9,
+def frame(image, center=(256, 256), shape=(128, 128)):
+    # Untested for not centered frames
+
+    return image[center[0] - int(shape[0] / 2):center[0] + int(shape[0] / 2),
+                 center[1] - int(shape[1] / 2):center[1] + int(shape[1] / 2)]
+
+
+def intensityCalibration(sigma, savename, folder=None, objectiveT=0.9,
                          neutralFilter=1, umPerPx=0.12):
 
     # Get filenames from user
@@ -194,18 +157,16 @@ def intensityCalibration(area, fFactor, savename, folder=None, objectiveT=0.9,
         coef = np.polyfit(tt['photodiode [V]'], tt['bfp [mW]'], 1)
 
         # Conversion mW --> kW at the sample
-        iFactor = objectiveT * neutralFilter * fFactor / 1000000
-        # Conversion px^2 --> cm^2
-        area *= (umPerPx * 10**(-4))**2
+        iFactor = objectiveT * neutralFilter / 1000000
         # Conversion mW --> kW/cm^2
-        factor = iFactor/area
+        factor = iFactor/(2*np.pi*(sigma[0]*umPerPx*0.0001)**2)
         coef *= factor
 
         x = np.arange(0, 1.1 * np.max(tt[xlabel]))
         y = np.polynomial.polynomial.polyval(x, coef[::-1])
         plt.scatter(tt[xlabel], tt[ylabel] * factor)
         plt.plot(x, y, 'r',
-                 label='{0:.2} + V*({1:.2})'.format(coef[1], coef[0]))
+                 label='{0:.3} + V*({1:.3})'.format(coef[1], coef[0]))
         plt.grid()
         plt.title(titlePlot)
         plt.xlabel('Photodiode [V]')
@@ -230,8 +191,8 @@ def powerCalibration(th=None, initialdir=None):
                                       prompt='Save files with prefix...')
     root.destroy()
 
-    area, fFactor, folder = analyzeBeam(savename, th, initialdir)
-    return intensityCalibration(area, fFactor, savename, folder)
+    sigma, folder = analyzeBeam(savename, initialdir)
+    return intensityCalibration(sigma, savename, folder)
 
 if __name__ == "__main__":
 
