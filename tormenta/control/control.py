@@ -214,7 +214,24 @@ class RecordingWidget(QtGui.QFrame):
         data = np.ones((128, 266))
         datac = reg.h_affine_transform(data, self.H)
         indices = np.where(datac == 1)
-        self.xlim = (indices[0].min(), indices[0].max() + 1)
+
+        # This may only work with the present setup and two-color scheme
+        ylim = (indices[1].min(), indices[1].max() + 1)
+        xmin = indices[0].min()
+        while True:
+            if np.sum(datac[xmin, ylim[0]:ylim[1]] == 0) == 0:
+                break
+            else:
+                xmin += 1
+
+        xmax = indices[0].max()
+        while True:
+            if np.sum(datac[xmax, ylim[0]:ylim[1]] == 0) == 0:
+                break
+            else:
+                xmax -= 1
+
+        self.xlim = (xmin, xmax + 1)
         self.ylim = (indices[1].min(), indices[1].max() + 1)
         self.reducedShape = datac[self.xlim[0]:self.xlim[1],
                                   self.ylim[0]:self.ylim[1]].shape
