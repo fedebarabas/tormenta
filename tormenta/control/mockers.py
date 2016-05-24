@@ -5,21 +5,11 @@ Created on Tue Aug 12 20:02:08 2014
 @author: Federico Barabas
 """
 
-# -*- coding: utf-8 -*-
-"""
-    lantz.simulators.fungen
-    ~~~~~~~~~~~~~~~~~~~~~~~
-
-    A simulated function generator.
-    See specification in the Lantz documentation.
-
-    :copyright: 2012 by The Lantz Authors
-    :license: BSD, see LICENSE for more details.
-"""
-
 import logging
 import numpy as np
 import pygame
+import tifffile as tiff
+import os
 
 from lantz import Driver
 from lantz import Q_
@@ -37,7 +27,8 @@ class constants:
 class MockWebcam(object):
 
     def __init__(self):
-        super(MockWebcam).__init__()
+        super().__init__()
+
         print('Simulated Webcam')
 
     def start(self):
@@ -54,7 +45,7 @@ class MockWebcam(object):
 class MockDAQ(Driver):
 
     def __init__(self):
-        super(MockDAQ).__init__()
+        super().__init__()
         self.constants = constants()
         self.digital_IO = np.zeros(23, dtype='bool')
         self.flipperState = True
@@ -201,7 +192,7 @@ class MockLaser(Driver):
 class MockCamera(Driver):
 
     def __init__(self):
-        super(MockCamera).__init__()
+        super().__init__()
 
         self.degC = Q_(1, 'degC')
         self.s = Q_(1, 's')
@@ -229,6 +220,11 @@ class MockCamera(Driver):
         self.vertAmps = ['+' + str(self.true_vert_amp(n))
                          for n in np.arange(self.n_vert_clock_amps)]
         self.vertAmps[0] = 'Normal'
+
+        print(os.getcwd())
+        with tiff.TiffFile(os.path.join(os.getcwd(),
+                           r'tormenta\control\beads.tif')) as ff:
+            self.image = ff.asarray()
 
     @property
     def idn(self):
@@ -324,6 +320,7 @@ class MockCamera(Driver):
             int vstart: Start row (inclusive).
             int vend: End row (inclusive).
         """
+        self.p_0 = p_0
         self.image_size = (shape)
 
     def free_int_mem(self):
@@ -334,16 +331,21 @@ class MockCamera(Driver):
         """
         pass
 
-    def most_recent_image16(self, npixels):
+    def most_recent_image16(self, shape):
         """ This function will update the data array with the most recently
         acquired image in any acquisition mode. The data are returned as long
         integers (32-bit signed integers). The "array" must be exactly the same
         size as the complete image.
         """
-        return np.random.normal(100, 10, self.image_size).astype(np.uint16)
+        im = self.image[self.p_0[0]:self.p_0[0]+self.image_size[0],
+                        self.p_0[1]:self.p_0[1]+self.image_size[1]]
+        return np.transpose(im)
 
     def images16(self, first, last, shape, validfirst, validlast):
-        arr = np.random.normal(100, 10, (last - first + 1, shape[0], shape[1]))
+        halfw = shape[0]//2
+        halfh = shape[1]//2
+        im = self.image[256 - halfw:256 + halfw, 256 - halfh:256 + halfh]
+        arr = np.repeat(im[np.newaxis, :, :], last - first + 1, axis=0)
         return arr.astype(np.uint16)
 
     def set_n_kinetics(self, n):

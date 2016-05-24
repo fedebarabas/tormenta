@@ -44,7 +44,12 @@ class RecordingWidget(QtGui.QFrame):
         self.main = main
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.initialDir = r'C:\Users\Usuario\Documents\Data'
+
         self.H = None
+        self.corrShape = None
+        self.reducedShape = None
+        self.xlim = None
+        self.ylim = None
 
         # Title
         recTitle = QtGui.QLabel('<h2><strong>Recording</strong></h2>')
@@ -233,12 +238,9 @@ class RecordingWidget(QtGui.QFrame):
 
         self.xlim = (xmin, xmax + 1)
         self.ylim = (indices[1].min(), indices[1].max() + 1)
-        self.reducedShape = datac[self.xlim[0]:self.xlim[1],
-                                  self.ylim[0]:self.ylim[1]].shape
+        self.reducedShape = (self.xlim[1] - self.xlim[0],
+                             self.ylim[1] - self.ylim[0])
         self.corrShape = (2*self.reducedShape[0], self.reducedShape[1])
-
-    def reducedImage(self, image, xlim, ylim):
-        return image[xlim[0]:xlim[1], ylim[0]:ylim[1]]
 
     def snap(self):
 
@@ -261,9 +263,11 @@ class RecordingWidget(QtGui.QFrame):
             twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
             if twoColors and (self.H is not None):
                 newData = np.zeros(self.corrShape, dtype=np.uint16)
-                im0 = self.reducedImage(image, self.xlim, self.ylim)
+                im0 = image[self.xlim[0]:self.xlim[1],
+                            self.ylim[0]:self.ylim[1]]
                 im1 = reg.h_affine_transform(image[-128:, :], self.H)
-                im1c = self.reducedImage(im1, self.xlim, self.ylim)
+                im1c = im1[self.xlim[0]:self.xlim[1],
+                           self.ylim[0]:self.ylim[1]]
                 newData[:self.reducedShape[0], :] = im0
                 newData[-self.reducedShape[0]:, :] = im1c
 
@@ -349,9 +353,12 @@ class RecordingWidget(QtGui.QFrame):
                 frameOption = self.main.tree.p.param('Image frame')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
                 twoColors = twoColors and (self.H is not None)
-                self.worker = RecWorker(self.main.andor, shape, twoColors,
+                self.worker = RecWorker(self.main.andor, shape,
                                         self.main.t_exp_real, self.savename,
-                                        self.dataname, self.getAttrs())
+                                        self.dataname, self.getAttrs(),
+                                        twoColors, self.H, self.corrShape,
+                                        self.reducedShape, self.xlim,
+                                        self.ylim)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.worker.doneSignal.connect(self.endRecording)
                 self.recordingThread = QtCore.QThread()
@@ -407,12 +414,13 @@ class RecWorker(QtCore.QObject):
     updateSignal = QtCore.pyqtSignal(np.ndarray)
     doneSignal = QtCore.pyqtSignal()
 
-    def __init__(self, andor, shape, twoColors, t_exp, savename, dataname,
-                 attrs, *args, **kwargs):
+    def __init__(self, andor, shape, t_exp, savename, dataname, attrs,
+                 twoColors, H, corrShape, reducedShape, xlim, ylim,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.andor = andor
         self.shape = shape
-        self.twoColors = twoColors
         self.t_exp = t_exp
         self.savename = savename
         self.dataname = dataname
@@ -420,6 +428,16 @@ class RecWorker(QtCore.QObject):
         self.pressed = True
         self.frameShape = (self.shape[1], self.shape[2])
         self.n = self.shape[0]
+
+        self.twoColors = twoColors
+        self.H = H
+        self.corrShape = corrShape
+        self.reducedShape = reducedShape
+        self.xlim = xlim
+        self.ylim = ylim
+
+    def reducedStack(self, stack):
+        return stack[:, self.xlim[0]:self.xlim[1], self.ylim[0]:self.ylim[1]]
 
     def start(self):
 
@@ -493,15 +511,18 @@ class RecWorker(QtCore.QObject):
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
                     self.updateSignal.emit(np.transpose(newImages[-1]))
-                    dataset[i - 1:self.j] = newImages[:, ::-1]
-                    # TODO: sasasas
-#                    corrDataset[i - 1:self.j] =
+                    data = newImages[:, ::-1]
+                    dataset[i - 1:self.j] = data
 
-                    im0 = self.reducedImage(image, self.xlim, self.ylim)
-                    im1 = reg.h_affine_transform(image[-128:, :], self.H)
-                    im1c = self.reducedImage(im1, self.xlim, self.ylim)
-                    newData[:self.reducedShape[0], :] = im0
-                    newData[-self.reducedShape[0]:, :] = im1c
+                    im0 = self.reducedStack(data[:, :128, :])
+                    im1 = np.zeros(data[:, -128:, :].shape)
+                    for i in np.arange(len(im1)):
+                        im1[i] = reg.h_affine_transform(data[i, -128:, :],
+                                                        self.H)
+                    im1c = im1[self.xlim[0]:self.xlim[1],
+                               self.ylim[0]:self.ylim[1]]
+                    corrDataset[i - 1:self.j, :self.reducedShape[0], :] = im0
+                    corrDataset[i - 1:self.j, self.reducedShape[0]:, :] = im1c
 
             # Crop dataset if it's stopped before finishing
             if self.j < self.shape[0]:
@@ -518,8 +539,8 @@ class RecWorker(QtCore.QObject):
 class TemperatureStabilizer(QtCore.QObject):
 
     def __init__(self, main, *args, **kwargs):
-
         super().__init__(*args, **kwargs)
+
         self.main = main
         self.setPoint = main.tempSetPoint
         self.main.andor.temperature_setpoint = self.setPoint
