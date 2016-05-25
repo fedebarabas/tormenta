@@ -221,9 +221,8 @@ class MockCamera(Driver):
                          for n in np.arange(self.n_vert_clock_amps)]
         self.vertAmps[0] = 'Normal'
 
-        print(os.getcwd())
-        with tiff.TiffFile(os.path.join(os.getcwd(),
-                           r'tormenta\control\beads.tif')) as ff:
+        with tiff.TiffFile(os.path.join(os.getcwd(), 'tormenta', 'control',
+                           'beads.tif')) as ff:
             self.image = ff.asarray()
 
     @property

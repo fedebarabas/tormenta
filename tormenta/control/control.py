@@ -78,8 +78,10 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setCheckable(True)
         self.recButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                      QtGui.QSizePolicy.Expanding)
-        self.recButton.setToolTip('Ctrl+D')
+        self.recButton.setToolTip('Ctrl+R')
         self.recButton.clicked.connect(self.waitForSignal)
+        self.recShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+R'), self)
+        self.recShortcut.setEnabled(False)
 
         # Number of frames and measurement timing
         self.currentFrame = QtGui.QLabel('0 /')
@@ -137,6 +139,7 @@ class RecordingWidget(QtGui.QFrame):
     def readyToRecord(self, value):
         self.snapButton.setEnabled(value)
         self.recButton.setEnabled(value)
+        self.recShortcut.setEnabled(value)
         self._readyToRecord = value
 
     @property
