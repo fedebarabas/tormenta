@@ -519,10 +519,10 @@ class RecWorker(QtCore.QObject):
 
                     im0 = self.reducedStack(data[:, :128, :])
                     im1 = np.zeros(data[:, -128:, :].shape)
-                    for i in np.arange(len(im1)):
-                        im1[i] = reg.h_affine_transform(data[i, -128:, :],
+                    for k in np.arange(len(im1)):
+                        im1[k] = reg.h_affine_transform(data[k, -128:, :],
                                                         self.H)
-                    im1c = im1[self.xlim[0]:self.xlim[1],
+                    im1c = im1[:, self.xlim[0]:self.xlim[1],
                                self.ylim[0]:self.ylim[1]]
                     corrDataset[i - 1:self.j, :self.reducedShape[0], :] = im0
                     corrDataset[i - 1:self.j, self.reducedShape[0]:, :] = im1c

@@ -401,11 +401,6 @@ if __name__ == '__main__':
                                              title='Save affine matrix')
     root.destroy()
 
-#    path = r'C:\Users\mdborde\Desktop\20160303 cruzi 568+647'
-#    path = r'/home/federico/Desktop/data/'
-#    filename = 'tetraspeck_1.hdf5'
-#    Hfilename = os.path.join(path, 'Htransformation')
-
     H = matrix_from_stack(filename, Hfilename)
 
     check = input('Do you want to check the transformation? (y/n) ') == 'y'
@@ -421,3 +416,4 @@ if __name__ == '__main__':
                                               initialdir=folder, title=title)
         root.destroy()
         transformation_check(H, filename)
+        input('Press any key to exit...')
