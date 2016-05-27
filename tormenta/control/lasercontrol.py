@@ -164,13 +164,20 @@ class IntensityWorker(QtCore.QObject):
                        ('intensity', float),
                        ('calibrated', bool),
                        ('voltage', float)])
-        signal = np.zeros(len(shuttLasers), dtype=dt)
+        signal = np.zeros(len(shuttLasers) + 1, dtype=dt)
 
         # Record shutters state
         shutterState = [ctl.shutterBox.isChecked() for ctl in shuttLasers]
 
-        j = 0
         # Measure each laser intensity
+        row = np.where(self.calibration['laser'] == 405)[0][0]
+        calibration = self.calibration[row]
+        power = self.main.bluelaser.power.magnitude
+        intensity = calibration['p0'] + power*calibration['p1']
+        calibrated = calibration['p1'] != 1
+        signal[0] = (405, intensity, calibrated, power)
+
+        j = 1
         for control in enabledControls:
             others = [ctrl for ctrl in enabledControls if ctrl != control]
             for ctrl in others:
@@ -197,7 +204,7 @@ class IntensityWorker(QtCore.QObject):
             laser = int(control.name.text()[4:7])
             row = np.where(self.calibration['laser'] == laser)[0][0]
             calibration = self.calibration[row]
-            intensity = calibration['p0'] + mean * calibration['p1']
+            intensity = calibration['p0'] + mean*calibration['p1']
             calibrated = calibration['p1'] != 1
             signal[j] = (laser, intensity, calibrated, mean)
             j += 1
@@ -357,13 +364,16 @@ if __name__ == '__main__':
     blueDriver = 'rgblasersystems.minilasevo.MiniLasEvo'
     greenDriver = 'laserquantum.ventus.Ventus'
 
-    with instruments.Laser('mpb.vfl.VFL', 'COM11') as redlaser, \
+    with instruments.Laser('mpb.vfl.VFL', 'COM3') as redlaser, \
             instruments.Laser(blueDriver, 'COM7') as bluelaser, \
             instruments.Laser(greenDriver, 'COM13') as greenlaser, \
             instruments.DAQ() as daq:
 
         print(redlaser.idn, bluelaser.idn, greenlaser.idn, daq.idn)
-        win = LaserWidget(None, (redlaser, bluelaser, greenlaser), daq)
+        win = QtGui.QMainWindow()
+        win.setWindowTitle('Laser control')
+        laserWidget = LaserWidget(None, (redlaser, bluelaser, greenlaser), daq)
+        win.setCentralWidget(laserWidget)
         win.show()
 
         app.exec_()

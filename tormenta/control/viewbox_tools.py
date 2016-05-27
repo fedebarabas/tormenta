@@ -35,34 +35,24 @@ class Grid():
         self.showed = False
         self.vb = viewBox
         self.shape = shape
-        pen = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
+
+        pen = QtGui.QPen(QtCore.Qt.yellow, 1.5, QtCore.Qt.DotLine)
         pen2 = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
 
-        self.yline1 = pg.InfiniteLine(pos=0.25*self.shape[0], pen=pen)
-        self.yline2 = pg.InfiniteLine(pos=0.375*self.shape[0], pen=pen)
-        self.yline3 = pg.InfiniteLine(pos=0.50*self.shape[0], pen=pen2)
-        self.yline4 = pg.InfiniteLine(pos=0.625*self.shape[0], pen=pen)
-        self.yline5 = pg.InfiniteLine(pos=0.75*self.shape[0], pen=pen)
-        self.xline1 = pg.InfiniteLine(pos=0.25*self.shape[1], pen=pen, angle=0)
-        self.xline2 = pg.InfiniteLine(pos=0.375*self.shape[1], pen=pen2,
-                                      angle=0)
-        self.xline3 = pg.InfiniteLine(pos=0.50*self.shape[1], pen=pen2,
-                                      angle=0)
-        self.xline4 = pg.InfiniteLine(pos=0.625*self.shape[1], pen=pen2,
-                                      angle=0)
-        self.xline5 = pg.InfiniteLine(pos=0.75*self.shape[1], pen=pen, angle=0)
+        self.rect1 = QtGui.QGraphicsRectItem()
+        self.rect1.setPen(pen)
+        self.rect2 = QtGui.QGraphicsRectItem()
+        self.rect2.setPen(pen)
+        self.yline3 = pg.InfiniteLine(pen=pen2)
+        self.xline3 = pg.InfiniteLine(pen=pen2, angle=0)
+
+        self.update(self.shape)
 
     def update(self, shape):
-        self.yline1.setPos(0.25*shape[0])
-        self.yline2.setPos(0.375*shape[0])
-        self.yline3.setPos(0.50*shape[0])
-        self.yline4.setPos(0.625*shape[0])
-        self.yline5.setPos(0.75*shape[0])
-        self.xline1.setPos(0.25*shape[1])
-        self.xline2.setPos(0.375*shape[1])
-        self.xline3.setPos(0.50*shape[1])
-        self.xline4.setPos(0.625*shape[1])
-        self.xline5.setPos(0.75*shape[1])
+        self.rect1.setRect(0.5*shape[0] - 64, 0.5*shape[1] - 64, 128, 128)
+        self.rect2.setRect(0.5*shape[0] - 128, 0.5*shape[1] - 128, 255, 255)
+        self.yline3.setPos(0.5*shape[0])
+        self.xline3.setPos(0.5*shape[1])
 
     def toggle(self):
         if self.showed:
@@ -71,29 +61,17 @@ class Grid():
             self.show()
 
     def show(self):
-        self.vb.addItem(self.xline1)
-        self.vb.addItem(self.xline2)
+        self.vb.addItem(self.rect1)
+        self.vb.addItem(self.rect2)
         self.vb.addItem(self.xline3)
-        self.vb.addItem(self.xline4)
-        self.vb.addItem(self.xline5)
-        self.vb.addItem(self.yline1)
-        self.vb.addItem(self.yline2)
         self.vb.addItem(self.yline3)
-        self.vb.addItem(self.yline4)
-        self.vb.addItem(self.yline5)
         self.showed = True
 
     def hide(self):
-        self.vb.removeItem(self.xline1)
-        self.vb.removeItem(self.xline2)
+        self.vb.removeItem(self.rect1)
+        self.vb.removeItem(self.rect2)
         self.vb.removeItem(self.xline3)
-        self.vb.removeItem(self.xline4)
-        self.vb.removeItem(self.xline5)
-        self.vb.removeItem(self.yline1)
-        self.vb.removeItem(self.yline2)
         self.vb.removeItem(self.yline3)
-        self.vb.removeItem(self.yline4)
-        self.vb.removeItem(self.yline5)
         self.showed = False
 
 
@@ -105,17 +83,32 @@ class TwoColorGrid():
         self.vb = viewBox
         self.shape = shape
 
-        pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
-        pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
+        self.pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
+        self.pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
 
-        self.rectT = QtGui.QGraphicsRectItem(128, 192, 256, 128)
-        self.rectT.setPen(pen)
-        self.rectR = QtGui.QGraphicsRectItem(128, 54, 256, 128)
-        self.rectR.setPen(pen)
-        self.yLine = pg.InfiniteLine(pos=0.5*self.shape[0], pen=pen2)
-        self.xLine = pg.InfiniteLine(pos=0.5*self.shape[1], pen=pen2, angle=0)
-#        self.xLineT = pg.InfiniteLine(pos=118, pen=pen2, angle=0)
-        self.xLineR = pg.InfiniteLine(pos=118, pen=pen2, angle=0)
+        self.rectT = QtGui.QGraphicsRectItem()
+        self.rectT.setPen(self.pen)
+        self.rectR = QtGui.QGraphicsRectItem()
+        self.rectR.setPen(self.pen)
+        self.yLine = pg.InfiniteLine(pen=self.pen2)
+        self.xLine = pg.InfiniteLine(pen=self.pen2, angle=0)
+        self.xLineR = pg.InfiniteLine(pen=self.pen2, angle=0)
+
+        self.setDimensions()
+
+    def setDimensions(self):
+        self.rectT.setRect(128, 192, 256, 128)
+        self.rectR.setRect(128, 54, 256, 128)
+        self.yLine.setPos(0.5*self.shape[0])
+        self.xLine.setPos(0.5*self.shape[1])
+        self.xLineR.setPos(118)
+
+    def changeToSmall(self):
+        self.rectT.setRect(0, 138, 264.5, 127)
+        self.rectR.setRect(0, 0, 264.5, 128)
+        self.yLine.setPos(133)
+        self.xLine.setPos(202)
+        self.xLineR.setPos(64)
 
     def toggle(self):
         if self.showed:
@@ -129,7 +122,6 @@ class TwoColorGrid():
         self.vb.addItem(self.yLine)
         self.vb.addItem(self.xLine)
         self.vb.addItem(self.xLineR)
-#        self.vb.addItem(self.xLineT)
         self.showed = True
 
     def hide(self):
@@ -138,7 +130,6 @@ class TwoColorGrid():
         self.vb.removeItem(self.yLine)
         self.vb.removeItem(self.xLine)
         self.vb.removeItem(self.xLineR)
-#        self.vb.removeItem(self.xLineT)
         self.showed = False
 
 

@@ -342,40 +342,7 @@ def tiff2png(main, filenames=None):
     for filename in filenames:
         with tiff.TiffFile(filename) as tt:
             arr = tt.asarray()
-
-            # Best cmin, cmax algorithm taken from ImageJ routine:
-            # http://cmci.embl.de/documents/120206pyip_cooking/
-            # python_imagej_cookbook#automatic_brightnesscontrast_button
-            pixelCount = arr.size
-            limit = pixelCount/10
-            threshold = pixelCount/5000
-            hist, bin_edges = np.histogram(arr, 256)
-            i = 0
-            found = False
-            count = 0
-            while True:
-                i += 1
-                count = hist[i]
-                if count > limit:
-                    count = 0
-                found = count > threshold
-                if found or i >= 255:
-                    break
-            hmin = i
-
-            i = 256
-            while True:
-                i -= 1
-                count = hist[i]
-                if count > limit:
-                    count = 0
-                found = count > threshold
-                if found or i < 1:
-                    break
-            hmax = i
-
-            cmax = bin_edges[hmax]
-            cmin = bin_edges[hmin]
+            cmin, cmax = bestLimits(arr)
             arr[arr > cmax] = cmax
             arr[arr < cmin] = cmin
             arr -= arr.min()
@@ -384,3 +351,38 @@ def tiff2png(main, filenames=None):
             arr = imresize(arr, (1000, 1000), 'nearest')
             im = Image.fromarray(cm.cubehelix(arr, bytes=True))
             im.save(os.path.splitext(filename)[0] + '.png')
+
+
+def bestLimits(arr):
+    # Best cmin, cmax algorithm taken from ImageJ routine:
+    # http://cmci.embl.de/documents/120206pyip_cooking/
+    # python_imagej_cookbook#automatic_brightnesscontrast_button
+    pixelCount = arr.size
+    limit = pixelCount/10
+    threshold = pixelCount/5000
+    hist, bin_edges = np.histogram(arr, 256)
+    i = 0
+    found = False
+    count = 0
+    while True:
+        i += 1
+        count = hist[i]
+        if count > limit:
+            count = 0
+        found = count > threshold
+        if found or i >= 255:
+            break
+    hmin = i
+
+    i = 256
+    while True:
+        i -= 1
+        count = hist[i]
+        if count > limit:
+            count = 0
+        found = count > threshold
+        if found or i < 1:
+            break
+    hmax = i
+
+    return bin_edges[hmin], bin_edges[hmax]

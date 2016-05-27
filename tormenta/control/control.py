@@ -1146,8 +1146,10 @@ class TormentaGUI(QtGui.QMainWindow):
             self.viewtimer.start(20)
 
     def updateLevels(self, image):
-        std = np.std(image)
-        self.hist.setLevels(np.min(image) - std, np.max(image) + std)
+        cmin, cmax = guitools.bestLimits(image)
+        self.hist.setLevels(cmin, cmax)
+#        std = np.std(image)
+#        self.hist.setLevels(np.min(image) - std, np.max(image) + std)
 
     def setGain(self):
         """ Method to change the pre-amp gain and main gain of the EMCCD
@@ -1220,11 +1222,13 @@ class TormentaGUI(QtGui.QMainWindow):
             self.shape = self.andor.detector_shape
             self.frameStart = (1, 1)
             self.changeParameter(self.adjustFrame)
+            self.grid2.setDimensions()
 
         elif frameParam.param('Shape').value() == 'Two-colors':
             self.shape = (266, 266)
             self.frameStart = (128, 54)
             self.changeParameter(self.adjustFrame)
+            self.grid2.changeToSmall()
 
         else:
             try:
