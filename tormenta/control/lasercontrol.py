@@ -363,7 +363,7 @@ if __name__ == '__main__':
             instruments.DAQ() as daq:
 
         print(redlaser.idn, bluelaser.idn, greenlaser.idn, daq.idn)
-        win = LaserWidget((redlaser, bluelaser, greenlaser), daq)
+        win = LaserWidget(None, (redlaser, bluelaser, greenlaser), daq)
         win.show()
 
         app.exec_()
