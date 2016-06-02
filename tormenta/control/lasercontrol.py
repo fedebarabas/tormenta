@@ -149,6 +149,7 @@ class IntensityWorker(QtCore.QObject):
             self.calibration = np.loadtxt(calPath, dtype=cal_dt, skiprows=1)
         except:
             self.calibration = np.zeros(3, dtype=cal_dt)
+            self.calibration['laser'] = [405, 532, 640]
 
     def start(self):
         self.stream = daqStream(self.main.daq, self.scansPerS, self.port)

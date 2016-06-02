@@ -83,6 +83,13 @@ class RecordingWidget(QtGui.QFrame):
         self.recShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+R'), self)
         self.recShortcut.setEnabled(False)
 
+        # Recording format
+        self.recFormat = QtGui.QComboBox(self)
+        self.recFormat.addItem('tiff')
+        self.recFormat.addItem('hdf5')
+        self.recFormat.addItem('raw')
+        self.recFormat.setFixedWidth(40)
+
         # Number of frames and measurement timing
         self.currentFrame = QtGui.QLabel('0 /')
         self.currentFrame.setAlignment((QtCore.Qt.AlignRight |
@@ -107,6 +114,7 @@ class RecordingWidget(QtGui.QFrame):
         buttonWidget.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                    QtGui.QSizePolicy.Expanding)
         buttonGrid.addWidget(self.recButton, 0, 2)
+        buttonGrid.addWidget(self.recFormat, 0, 3)
 
         recGrid = QtGui.QGridLayout()
         self.setLayout(recGrid)
@@ -287,6 +295,13 @@ class RecordingWidget(QtGui.QFrame):
         messagebox.showwarning(title='Warning', message="Folder doesn't exist")
         root.destroy()
 
+    def tiffWarning(self):
+        root = Tk()
+        root.withdraw()
+        message = "Tiff format size limit is 2GB"
+        messagebox.showwarning(title='Warning', message=message)
+        root.destroy()
+
     def updateGUI(self, image):
         self.main.img.setImage(image, autoLevels=False)
 
@@ -337,8 +352,18 @@ class RecordingWidget(QtGui.QFrame):
         if self.recButton.isChecked():
 
             folder = self.folderEdit.text()
-            if os.path.exists(folder):
+            recFormat = self.recFormat.currentText()
+            shape = (self.n(), self.main.shape[0], self.main.shape[1])
 
+            if not(os.path.exists(folder)):
+                self.folderWarning()
+                self.recButton.setChecked(False)
+
+            elif guitools.fileSizeGB(shape) > 2 and recFormat == 'tiff':
+                self.tiffWarning()
+                self.recButton.setChecked(False)
+
+            else:
                 self.writable = False
                 self.readyToRecord = False
                 self.recButton.setEnabled(True)
@@ -352,7 +377,6 @@ class RecordingWidget(QtGui.QFrame):
                 self.savename = guitools.getUniqueName(self.savename)
                 self.startTime = ptime.time()
 
-                shape = (self.n(), self.main.shape[0], self.main.shape[1])
                 frameOption = self.main.tree.p.param('Image frame')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
                 twoColors = twoColors and (self.H is not None)
@@ -368,10 +392,6 @@ class RecordingWidget(QtGui.QFrame):
                 self.worker.moveToThread(self.recordingThread)
                 self.recordingThread.started.connect(self.worker.start)
                 self.recordingThread.start()
-
-            else:
-                self.folderWarning()
-                self.recButton.setChecked(False)
 
         else:
             self.worker.pressed = False
