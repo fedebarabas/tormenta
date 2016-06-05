@@ -863,17 +863,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.GainPar.sigValueChanged.connect(updateGain)
         updateGain()        # Set default values
 
-        # Camera settings widget
-        self.cameraWidget = QtGui.QFrame()
-        self.cameraWidget.setFrameStyle(QtGui.QFrame.Panel |
-                                        QtGui.QFrame.Raised)
-        cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
-        cameraTitle.setTextFormat(QtCore.Qt.RichText)
-        cameraGrid = QtGui.QGridLayout()
-        self.cameraWidget.setLayout(cameraGrid)
-        cameraGrid.addWidget(cameraTitle, 0, 0)
-        cameraGrid.addWidget(self.tree, 1, 0)
-
         self.presetsMenu = QtGui.QComboBox()
         self.presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
         if not(os.path.isdir(self.presetDir)):
@@ -884,6 +873,7 @@ class TormentaGUI(QtGui.QMainWindow):
         except FileNotFoundError:
             pass
         self.loadPresetButton = QtGui.QPushButton('Load preset')
+        self.loadPresetButton.setFixedWidth(80)
 
         def loadPresetFunction():
             return guitools.loadPreset(self)
@@ -1067,6 +1057,19 @@ class TormentaGUI(QtGui.QMainWindow):
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', moleculesDock)
 
+        # Camera settings widget
+        self.cameraWidget = QtGui.QFrame()
+        self.cameraWidget.setFrameStyle(QtGui.QFrame.Panel |
+                                        QtGui.QFrame.Raised)
+        cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
+        cameraTitle.setTextFormat(QtCore.Qt.RichText)
+        cameraGrid = QtGui.QGridLayout()
+        self.cameraWidget.setLayout(cameraGrid)
+        cameraGrid.addWidget(cameraTitle, 0, 0)
+        cameraGrid.addWidget(self.presetsMenu, 1, 0)
+        cameraGrid.addWidget(self.loadPresetButton, 1, 1)
+        cameraGrid.addWidget(self.tree, 2, 0, 1, 2)
+
         self.setWindowTitle('Tormenta')
         self.cwidget = QtGui.QWidget()
         self.setCentralWidget(self.cwidget)
@@ -1079,14 +1082,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.layout.setRowMinimumHeight(1, 720)
         self.layout.setRowMinimumHeight(2, 40)
         self.layout.setRowMinimumHeight(3, 30)
-        self.layout.addWidget(self.presetsMenu, 0, 0)
-        self.layout.addWidget(self.loadPresetButton, 0, 1)
-        self.layout.addWidget(self.cameraWidget, 1, 0, 2, 2)
-        self.layout.addWidget(self.viewCtrl, 3, 0, 1, 2)
-        self.layout.addWidget(self.recWidget, 4, 0, 1, 2)
-        self.layout.addWidget(self.hideColumnButton, 0, 2, 4, 1)
-        self.layout.addWidget(imageWidget, 0, 3, 5, 1)
-        self.layout.addWidget(dockArea, 0, 4, 5, 1)
+        self.layout.addWidget(self.cameraWidget, 0, 0, 4, 2)
+        self.layout.addWidget(self.viewCtrl, 4, 0, 1, 2)
+        self.layout.addWidget(self.recWidget, 5, 0, 1, 2)
+        self.layout.addWidget(self.hideColumnButton, 0, 2, 5, 1)
+        self.layout.addWidget(imageWidget, 0, 3, 6, 1)
+        self.layout.addWidget(dockArea, 0, 4, 6, 1)
 
         self.showMaximized()
 
