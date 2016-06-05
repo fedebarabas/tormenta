@@ -880,7 +880,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.loadPresetButton.pressed.connect(loadPresetFunction)
 
         # Liveview functionality
-        self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
+        self.liveviewButton = QtGui.QPushButton('Live view')
         self.liveviewButton.setStyleSheet("font-size:18px")
         self.liveviewButton.setCheckable(True)
         self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
