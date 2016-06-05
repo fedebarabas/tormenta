@@ -270,7 +270,7 @@ class RecordingWidget(QtGui.QFrame):
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
             # Two-color-corrected snap saving
-            imageFramePar = self.main.tree.p.param('Image frame')
+            imageFramePar = self.main.tree.p.param('ROI')
             twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
             if twoColors and (self.H is not None):
                 newData = np.zeros(self.corrShape, dtype=np.uint16)
@@ -377,7 +377,7 @@ class RecordingWidget(QtGui.QFrame):
                 self.savename = guitools.getUniqueName(self.savename)
                 self.startTime = ptime.time()
 
-                frameOption = self.main.tree.p.param('Image frame')
+                frameOption = self.main.tree.p.param('ROI')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
                 twoColors = twoColors and (self.H is not None)
                 self.worker = RecWorker(self.main.andor, shape,
@@ -630,7 +630,7 @@ class CamParamTree(ParameterTree):
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
-                  {'name': 'Image frame', 'type': 'group', 'children': [
+                  {'name': 'ROI', 'type': 'group', 'children': [
                       {'name': 'Shape', 'type': 'list',
                        'values': ['Full chip', '256x256', '128x128', '64x64',
                                   'Two-colors', 'Custom']},
@@ -699,7 +699,7 @@ class CamParamTree(ParameterTree):
     @writable.setter
     def writable(self, value):
         self._writable = value
-        self.p.param('Image frame').param('Shape').setWritable(value)
+        self.p.param('ROI').param('Shape').setWritable(value)
         self.timeParams.param('Frame Transfer Mode').setWritable(value)
         croppedParam = self.timeParams.param('Cropped sensor mode')
         croppedParam.param('Enable').setWritable(value)
@@ -828,7 +828,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.tree = CamParamTree(self.andor)
 
         # Frame signals
-        frameParam = self.tree.p.param('Image frame')
+        frameParam = self.tree.p.param('ROI')
         frameParam.param('Shape').sigValueChanged.connect(self.updateFrame)
         # Indicator for loading frame shape from a preset setting
         self.customFrameLoaded = False
@@ -1221,7 +1221,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def updateFrame(self):
         """ Method to change the image frame size and position in the sensor
         """
-        frameParam = self.tree.p.param('Image frame')
+        frameParam = self.tree.p.param('ROI')
         if frameParam.param('Shape').value() == 'Custom':
 
             if not(self.customFrameLoaded):
