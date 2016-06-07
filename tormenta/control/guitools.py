@@ -103,7 +103,7 @@ def savePreset(main, filename=None):
     config['Camera'] = {
         'Frame Start': main.frameStart,
         'Shape': main.shape,
-        'Shape name': main.tree.p.param('Image frame').param('Shape').value(),
+        'Shape name': main.tree.p.param('ROI').param('Shape').value(),
         'Horizontal readout rate': str(main.HRRatePar.value()),
         'Vertical shift speed': str(main.vertShiftSpeedPar.value()),
         'Clock voltage amplitude': str(main.vertShiftAmpPar.value()),
@@ -140,12 +140,12 @@ def loadPreset(main, filename=None):
     shapeName = configCam['Shape Name']
     if shapeName == 'Custom':
         main.customFrameLoaded = True
-        tree.param('Image frame').param('Shape').setValue(shapeName)
+        tree.param('ROI').param('Shape').setValue(shapeName)
         main.frameStart = literal_eval(configCam['Frame Start'])
         main.adjustFrame()
         main.customFrameLoaded = False
     else:
-        tree.param('Image frame').param('Shape').setValue(shapeName)
+        tree.param('ROI').param('Shape').setValue(shapeName)
 
     vps = timings.param('Vertical pixel shift')
     vps.param('Speed').setValue(Q_(configCam['Vertical shift speed']))

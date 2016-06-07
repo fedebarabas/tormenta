@@ -88,7 +88,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recFormat.addItem('tiff')
         self.recFormat.addItem('hdf5')
         self.recFormat.addItem('raw')
-        self.recFormat.setFixedWidth(40)
+        self.recFormat.setFixedWidth(50)
 
         # Number of frames and measurement timing
         self.currentFrame = QtGui.QLabel('0 /')
@@ -880,7 +880,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.loadPresetButton.pressed.connect(loadPresetFunction)
 
         # Liveview functionality
-        self.liveviewButton = QtGui.QPushButton('Live view')
+        self.liveviewButton = QtGui.QPushButton('LIVEVIEW')
         self.liveviewButton.setStyleSheet("font-size:18px")
         self.liveviewButton.setCheckable(True)
         self.liveviewButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
