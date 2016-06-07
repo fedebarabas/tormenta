@@ -373,19 +373,16 @@ class RecordingWidget(QtGui.QFrame):
                 self.main.viewtimer.stop()
 
                 name = os.path.join(folder, self.filenameEdit.text())
-                self.savename = (name + '.hdf5')
-                self.savename = guitools.getUniqueName(self.savename)
                 self.startTime = ptime.time()
 
                 frameOption = self.main.tree.p.param('ROI')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
                 twoColors = twoColors and (self.H is not None)
                 self.worker = RecWorker(self.main.andor, shape,
-                                        self.main.t_exp_real, self.savename,
+                                        self.main.t_exp_real, name, recFormat,
                                         self.dataname, self.getAttrs(),
                                         twoColors, self.H, self.corrShape,
-                                        self.reducedShape, self.xlim,
-                                        self.ylim)
+                                        self.reducedShape, self.xlim, self.ylim)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.worker.doneSignal.connect(self.endRecording)
                 self.recordingThread = QtCore.QThread()
@@ -437,8 +434,8 @@ class RecWorker(QtCore.QObject):
     updateSignal = QtCore.pyqtSignal(np.ndarray)
     doneSignal = QtCore.pyqtSignal()
 
-    def __init__(self, andor, shape, t_exp, savename, dataname, attrs,
-                 twoColors, H, corrShape, reducedShape, xlim, ylim,
+    def __init__(self, andor, shape, t_exp, savename, fileformat, dataname,
+                 attrs, twoColors, H, corrShape, reducedShape, xlim, ylim,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -479,14 +476,18 @@ class RecWorker(QtCore.QObject):
         self.andor.start_acquisition()
         time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
 
+        if
+        self.savename = (self.savename + '.hdf5')
+        self.savename = guitools.getUniqueName(self.savename)
+
         if self.twoColors:
-            self.twoColorRec()
+            self.twoColorHDF5()
         else:
-            self.singleColorRec()
+            self.singleColorHDF5()
 
         self.doneSignal.emit()
 
-    def singleColorRec(self):
+    def singleColorHDF5(self):
 
         with hdf.File(self.savename, "w") as storeFile:
             storeFile.create_dataset(name=self.dataname, shape=self.shape,
@@ -512,7 +513,7 @@ class RecWorker(QtCore.QObject):
                 if item[1] is not None:
                     dataset.attrs[item[0]] = item[1]
 
-    def twoColorRec(self):
+    def twoColorRecHDF5(self):
 
         corrSavename = guitools.insertSuffix(self.savename, '_corrected')
         corrShape = (self.shape[0], self.corrShape[0], self.corrShape[1])
