@@ -502,8 +502,8 @@ class RecWorker(QtCore.QObject):
 
     def singleColorTIFF(self):
 
-        with tiff.TiffWriter(self.savename, software='Tormenta', self.bigtiff)\
-                as storeFile:
+        with tiff.TiffWriter(self.savename, software='Tormenta',
+                             bigtiff=self.bigtiff) as storeFile:
 
             while self.j < self.shape[0] and self.pressed:
                 time.sleep(self.t_exp.magnitude)
@@ -526,10 +526,10 @@ class RecWorker(QtCore.QObject):
 
         corrSavename = guitools.insertSuffix(self.savename, '_corrected')
 
-        with tiff.TiffWriter(self.savename, software='Tormenta', self.bigtiff)\
-                as storeFile, \
+        with tiff.TiffWriter(self.savename, software='Tormenta',
+                             bigtiff=self.bigtiff) as storeFile, \
                 tiff.TiffWriter(corrSavename, software='Tormenta',
-                                self.bigtiff) as corrStoreFile:
+                                bigtiff=self.bigtiff) as corrStoreFile:
 
             while self.j < self.shape[0] and self.pressed:
 
