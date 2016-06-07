@@ -5,23 +5,15 @@ Created on Fri Feb  6 13:20:02 2015
 @author: Federico Barabas
 """
 import os
-import time
 import numpy as np
-import h5py as hdf
-import tifffile as tiff
 import configparser
 from ast import literal_eval
+from tkinter import Tk, filedialog, simpledialog
+from lantz import Q_
 from PIL import Image
 import matplotlib.cm as cm
 from scipy.misc import imresize
-
-from PyQt4 import QtCore
-from tkinter import Tk, filedialog, simpledialog
-import multiprocessing as mp
-
-from lantz import Q_
-
-import tormenta.analysis.registration as reg
+import tifffile as tiff
 
 
 # Check for same name conflict
@@ -196,140 +188,6 @@ def mouseMoved(main, pos):
         mousePoint = main.vb.mapSceneToView(pos)
         x, y = int(mousePoint.x()), int(main.shape[1] - mousePoint.y())
         main.cursorPos.setText('{}, {}'.format(x, y))
-
-
-# HDF <--> Tiff converter
-class TiffConverterThread(QtCore.QThread):
-
-    def __init__(self, filename=None):
-        super().__init__()
-
-        self.converter = TiffConverter(filename, self)
-        self.converter.moveToThread(self)
-        self.started.connect(self.converter.run)
-        self.start()
-
-
-class TiffConverter(QtCore.QObject):
-
-    def __init__(self, filenames, thread, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.filenames = filenames
-        self.thread = thread
-
-    def run(self):
-
-        self.filenames = getFilenames("Select HDF5 files",
-                                      [('HDF5 files', '.hdf5')])
-
-        if len(self.filenames) > 0:
-            for filename in self.filenames:
-                print('Exporting ', os.path.split(filename)[1])
-
-                file = hdf.File(filename, mode='r')
-
-                for dataname in file:
-
-                    data = file[dataname]
-                    filesize = fileSizeGB(data.shape)
-                    filename = (os.path.splitext(filename)[0] + '_' + dataname)
-                    attrsToTxt(filename, [at for at in data.attrs.items()])
-
-                    if filesize < 2:
-                        time.sleep(5)
-                        tiff.imsave(filename + '.tiff', data,
-                                    description=dataname, software='Tormenta')
-                    else:
-                        n = nFramesPerChunk(data.shape)
-                        i = 0
-                        while i < filesize // 1.8:
-                            suffix = '_part{}'.format(i)
-                            partName = insertSuffix(filename, suffix, '.tiff')
-                            tiff.imsave(partName, data[i*n:(i + 1)*n],
-                                        description=dataname,
-                                        software='Tormenta')
-                            i += 1
-                        if filesize % 2 > 0:
-                            suffix = '_part{}'.format(i)
-                            partName = insertSuffix(filename, suffix, '.tiff')
-                            tiff.imsave(partName, data[i*n:],
-                                        description=dataname,
-                                        software='Tormenta')
-
-                file.close()
-                print('done')
-
-        self.filenames = None
-        self.thread.terminate()
-        # for opening attributes this should work:
-        # myprops = dict(line.strip().split('=') for line in
-        #                open('/Path/filename.txt'))
-
-
-class HtransformStack(QtCore.QObject):
-    """ Transforms all frames of channel 1 using matrix H."""
-
-    finished = QtCore.pyqtSignal()
-
-    def run(self):
-        Hname = getFilename("Select affine transformation matrix",
-                            [('npy files', '.npy')])
-
-        H = np.load(Hname)
-        filenames = getFilenames("Select files for affine transformation",
-                                 types=[], initialdir=os.path.split(Hname)[0])
-        for filename in filenames:
-            print(time.strftime("%Y-%m-%d %H:%M:%S") +
-                  ' Transforming stack ' + os.path.split(filename)[1])
-            ext = os.path.splitext(filename)[1]
-            filename2 = insertSuffix(filename, '_corrected')
-
-            if ext == '.hdf5':
-                with hdf.File(filename, 'r') as f0, \
-                        hdf.File(filename2, 'w') as f1:
-
-                    dat0 = f0['data']
-                    n = len(dat0)
-                    f1.create_dataset(name='data',
-                                      data=np.append(dat0[:, :128, :],
-                                                     np.zeros((n, 128, 266),
-                                                              dtype=np.uint16),
-                                                     1))
-
-                    # Multiprocessing
-                    cpus = mp.cpu_count()
-                    step = n // cpus
-                    chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
-                    chunks[-1][1] = n
-                    args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
-                    pool = mp.Pool(processes=cpus)
-                    results = pool.map(transformChunk, args)
-                    pool.close()
-                    pool.join()
-                    f1['data'][:, -128:, :] = np.concatenate(results[:])
-
-            elif ext in ['.tiff', '.tif']:
-                with tiff.TiffFile(filename) as tt:
-                    data = tt.asarray()
-                    tiff.imsave(insertSuffix(filename, '_ch0'), data[:128, :])
-                    tiff.imsave(insertSuffix(filename, '_ch1'),
-                                reg.h_affine_transform(data[-128:, :], H))
-
-            print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
-
-        self.finished.emit()
-
-
-def transformChunk(args):
-
-    data, H = args
-
-    n = len(data)
-    out = np.zeros((n, 128, 266), dtype=np.uint16)
-    for f in np.arange(n):
-        out[f] = reg.h_affine_transform(data[f], H)
-
-    return out
 
 
 def tiff2png(main, filenames=None):

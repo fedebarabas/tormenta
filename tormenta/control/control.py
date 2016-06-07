@@ -12,18 +12,16 @@ import os
 import datetime
 import time
 import re
-
-from pyqtgraph.Qt import QtCore, QtGui
-import pyqtgraph as pg
-import pyqtgraph.ptime as ptime
-from pyqtgraph.parametertree import Parameter, ParameterTree
-from pyqtgraph.dockarea import Dock, DockArea
-from pyqtgraph.console import ConsoleWidget
-
 from tkinter import Tk, filedialog, messagebox
 import h5py as hdf
 import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
+
+from pyqtgraph.Qt import QtCore, QtGui
+import pyqtgraph as pg
+import pyqtgraph.ptime as ptime
+from pyqtgraph.dockarea import Dock, DockArea
+from pyqtgraph.console import ConsoleWidget
 
 # tormenta imports
 import tormenta.control.lasercontrol as lasercontrol
@@ -31,8 +29,8 @@ import tormenta.control.focus as focus
 import tormenta.control.molecules_counter as moleculesCounter
 import tormenta.control.ontime as ontime
 import tormenta.control.guitools as guitools
+import tormenta.control.pyqtsubclasses as pyqtsub
 import tormenta.control.viewbox_tools as viewbox_tools
-
 import tormenta.analysis.registration as reg
 
 
@@ -210,9 +208,10 @@ class RecordingWidget(QtGui.QFrame):
     # Attributes saving
     def getAttrs(self):
         attrs = self.main.tree.attrs()
+        um = self.main.umPerPx
         attrs.extend([('Date', time.strftime("%Y-%m-%d")),
                       ('Start time', time.strftime("%H:%M:%S")),
-                      ('element_size_um', (1, 0.120, 0.120)),
+                      ('element_size_um', (1, um, um)),
                       ('NA', 1.42),
                       ('lambda_em', 670)])
         for c in self.main.laserWidgets.controls:
@@ -378,11 +377,12 @@ class RecordingWidget(QtGui.QFrame):
                 frameOption = self.main.tree.p.param('ROI')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
                 twoColors = twoColors and (self.H is not None)
-                self.worker = RecWorker(self.main.andor, shape,
-                                        self.main.t_exp_real, name, recFormat,
-                                        self.dataname, self.getAttrs(),
-                                        twoColors, self.H, self.corrShape,
-                                        self.reducedShape, self.xlim, self.ylim)
+                self.worker = RecWorker(self.main.andor, self.main.umPerPx,
+                                        shape, self.main.t_exp_real, name,
+                                        recFormat, self.dataname,
+                                        self.getAttrs(), twoColors, self.H,
+                                        self.corrShape, self.reducedShape,
+                                        self.xlim, self.ylim)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.worker.doneSignal.connect(self.endRecording)
                 self.recordingThread = QtCore.QThread()
@@ -412,7 +412,7 @@ class RecordingWidget(QtGui.QFrame):
             self.main.focusWidget.max_dev = 0
 
         def converterFunction():
-            return guitools.TiffConverterThread(self.savename)
+            return pyqtsub.TiffConverterThread(self.savename)
 
         self.main.exportlastAction.triggered.connect(converterFunction)
         self.main.exportlastAction.setEnabled(True)
@@ -434,15 +434,17 @@ class RecWorker(QtCore.QObject):
     updateSignal = QtCore.pyqtSignal(np.ndarray)
     doneSignal = QtCore.pyqtSignal()
 
-    def __init__(self, andor, shape, t_exp, savename, fileformat, dataname,
-                 attrs, twoColors, H, corrShape, reducedShape, xlim, ylim,
-                 *args, **kwargs):
+    def __init__(self, andor, umPerPx, shape, t_exp, savename, fileformat,
+                 dataname, attrs, twoColors, H, corrShape, reducedShape, xlim,
+                 ylim, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.andor = andor
+        self.umPerPx = umPerPx
         self.shape = shape
         self.t_exp = t_exp
         self.savename = savename
+        self.recFormat = fileformat
         self.dataname = dataname
         self.attrs = attrs
         self.pressed = True
@@ -476,16 +478,92 @@ class RecWorker(QtCore.QObject):
         self.andor.start_acquisition()
         time.sleep(np.min((5 * self.t_exp.magnitude, 1)))
 
-        if
-        self.savename = (self.savename + '.hdf5')
+        self.savename = (self.savename + '.' + self.recFormat)
         self.savename = guitools.getUniqueName(self.savename)
 
-        if self.twoColors:
-            self.twoColorHDF5()
-        else:
-            self.singleColorHDF5()
+        if self.recFormat == 'tiff':
+
+            self.tags = [('resolution_unit', 'H', 1, 3, True)]
+            self.resolution = (1/self.umPerPx, 1/self.umPerPx)
+            self.bigtiff = guitools.fileSizeGB(self.shape) > 2
+
+            if not(self.twoColors):
+                self.singleColorTIFF()
+            else:
+                self.twoColorTIFF()
+
+        elif self.recFormat == 'hdf5':
+            if not(self.twoColors):
+                self.singleColorHDF5()
+            else:
+                self.twoColorHDF5()
 
         self.doneSignal.emit()
+
+    def singleColorTIFF(self):
+
+        with tiff.TiffWriter(self.savename, software='Tormenta', self.bigtiff)\
+                as storeFile:
+
+            while self.j < self.shape[0] and self.pressed:
+                time.sleep(self.t_exp.magnitude)
+                if self.andor.n_images_acquired > self.j:
+                    i, self.j = self.andor.new_images_index
+                    newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                    1, self.n)
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    storeFile.save(newImages[:, ::-1], extratags=self.tags,
+                                   resolution=self.resolution)
+
+        # Saving parameters
+        metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
+        with hdf.File(metaName, "w") as metaFile:
+            for item in self.attrs:
+                if item[1] is not None:
+                    metaFile[item[0]] = item[1]
+
+    def twoColorTIFF(self):
+
+        corrSavename = guitools.insertSuffix(self.savename, '_corrected')
+
+        with tiff.TiffWriter(self.savename, software='Tormenta', self.bigtiff)\
+                as storeFile, \
+                tiff.TiffWriter(corrSavename, software='Tormenta',
+                                self.bigtiff) as corrStoreFile:
+
+            while self.j < self.shape[0] and self.pressed:
+
+                time.sleep(self.t_exp.magnitude)
+                if self.andor.n_images_acquired > self.j:
+                    i, self.j = self.andor.new_images_index
+                    newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                    1, self.n)
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    data = newImages[:, ::-1]
+                    storeFile.save(data, extratags=self.tags,
+                                   resolution=(1/self.umPerPx, 1/self.umPerPx))
+
+                    im0 = self.reducedStack(data[:, :128, :])
+                    im1 = np.zeros(data[:, -128:, :].shape)
+                    for k in np.arange(len(im1)):
+                        im1[k] = reg.h_affine_transform(data[k, -128:, :],
+                                                        self.H)
+                    im1c = im1[:, self.xlim[0]:self.xlim[1],
+                               self.ylim[0]:self.ylim[1]]
+                    corrStoreFile.save(np.hstack((im0, im1c)),
+                                       extratags=self.tags,
+                                       resolution=self.resolution)
+
+        # Saving parameters
+        metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
+        corrMetaName = guitools.insertSuffix(metaName, '_corrected')
+        with hdf.File(metaName, "w") as metaFile, \
+                hdf.File(corrMetaName, "w") as corrMetaFile:
+            for item in self.attrs:
+                if item[1] is not None:
+                    metaFile[item[0]] = item[1]
+                    corrMetaFile[item[0]] = item[1]
+            corrMetaFile['H'] = self.H
 
     def singleColorHDF5(self):
 
@@ -513,7 +591,7 @@ class RecWorker(QtCore.QObject):
                 if item[1] is not None:
                     dataset.attrs[item[0]] = item[1]
 
-    def twoColorRecHDF5(self):
+    def twoColorHDF5(self):
 
         corrSavename = guitools.insertSuffix(self.savename, '_corrected')
         corrShape = (self.shape[0], self.corrShape[0], self.corrShape[1])
@@ -558,6 +636,7 @@ class RecWorker(QtCore.QObject):
                 if item[1] is not None:
                     dataset.attrs[item[0]] = item[1]
                     corrDataset.attrs[item[0]] = item[1]
+            corrDataset['H'] = self.H
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -595,143 +674,6 @@ class TemperatureStabilizer(QtCore.QObject):
             self.timer.stop()
 
 
-class CamParamTree(ParameterTree):
-    """ Making the ParameterTree for configuration of the camera during imaging
-    """
-
-    def __init__(self, andor, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        vpssTip = ("Faster vertical shift speeds allow for higher maximum \n"
-                   "frame rates but reduce the pixel well depth, causing \n"
-                   "degraded spatial resolution (smearing) for bright \n"
-                   "signals. To improve the charge transfer efficiency the \n"
-                   "vertical clock voltage amplitude can be increased at \n"
-                   "the expense of a higher clock-induced charge.")
-
-        preampTip = ("Andor recommend using the highest value setting for \n"
-                     "most low-light applications")
-
-        EMGainTip = ("A gain of x4-5 the read noise (see spec sheet) is \n"
-                     "enough to render this noise source negligible. In \n"
-                     "practice, this can always be achieved with EM Gain of \n"
-                     "less than x300 (often much less). Pushing gain beyond \n"
-                     "300 would give little or no extra SNR benefit and \n"
-                     "would only reduce dynamic range.")
-
-        hrrTip = ("Slower readout typically allows lower read noise and \n"
-                  "higher available dynamic range, but at the expense of \n"
-                  "slower frame rates")
-
-        croppedTip = ("Ensure that no light is falling on the light \n"
-                      "sensitive area outside of the defined region. Any \n"
-                      "light collected outside the cropped area could \n"
-                      "corrupt the images which were acquired in this mode.")
-
-        # Parameter tree for the camera configuration
-        params = [{'name': 'Camera', 'type': 'str',
-                   'value': andor.idn.split(',')[0]},
-                  {'name': 'ROI', 'type': 'group', 'children': [
-                      {'name': 'Shape', 'type': 'list',
-                       'values': ['Full chip', '256x256', '128x128', '64x64',
-                                  'Two-colors', 'Custom']},
-                      {'name': 'Apply', 'type': 'action'}]},
-                  {'name': 'Timings', 'type': 'group', 'children': [
-                      {'name': 'Horizontal readout rate', 'type': 'list',
-                       'values': andor.HRRates, 'tip': hrrTip},
-                      {'name': 'Vertical pixel shift', 'type': 'group',
-                       'children': [
-                           {'name': 'Speed', 'type': 'list',
-                            'values': andor.vertSpeeds[::-1],
-                            'tip': vpssTip},
-                           {'name': 'Clock voltage amplitude', 'tip': vpssTip,
-                            'type': 'list', 'values': andor.vertAmps}]},
-                      {'name': 'Frame Transfer Mode', 'type': 'bool',
-                       'value': False},
-                      {'name': 'Cropped sensor mode', 'type': 'group',
-                       'children': [
-                           {'name': 'Enable', 'type': 'bool', 'value': False,
-                            'tip': croppedTip},
-                           {'name': 'Apply', 'type': 'action'}]},
-                      {'name': 'Set exposure time', 'type': 'float',
-                       'value': 0.1, 'limits': (0,
-                                                andor.max_exposure.magnitude),
-                       'siPrefix': True, 'suffix': 's'},
-                      {'name': 'Real exposure time', 'type': 'float',
-                       'value': 0, 'readonly': True, 'siPrefix': True,
-                       'suffix': 's'},
-                      {'name': 'Real accumulation time', 'type': 'float',
-                       'value': 0, 'readonly': True, 'siPrefix': True,
-                       'suffix': 's'},
-                      {'name': 'Effective frame rate', 'type': 'float',
-                       'value': 0, 'readonly': True, 'siPrefix': True,
-                       'suffix': 'Hz'}]},
-                  {'name': 'Gain', 'type': 'group', 'children': [
-                      {'name': 'Pre-amp gain', 'type': 'list',
-                       'values': list(andor.PreAmps),
-                       'tip': preampTip},
-                      {'name': 'EM gain', 'type': 'int', 'value': 1,
-                       'limits': (0, andor.EM_gain_range[1]),
-                       'tip': EMGainTip}]}]
-
-        self.p = Parameter.create(name='params', type='group', children=params)
-        self.setParameters(self.p, showTop=False)
-        self._writable = True
-
-        self.timeParams = self.p.param('Timings')
-        self.cropModeParam = self.timeParams.param('Cropped sensor mode')
-        self.cropModeEnableParam = self.cropModeParam.param('Enable')
-        self.cropModeEnableParam.setWritable(False)
-        self.frameTransferParam = self.timeParams.param('Frame Transfer Mode')
-        self.frameTransferParam.sigValueChanged.connect(self.enableCropMode)
-
-    def enableCropMode(self):
-        value = self.frameTransferParam.value()
-        if value:
-            self.cropModeEnableParam.setWritable(True)
-        else:
-            self.cropModeEnableParam.setValue(False)
-            self.cropModeEnableParam.setWritable(False)
-
-    @property
-    def writable(self):
-        return self._writable
-
-    @writable.setter
-    def writable(self, value):
-        self._writable = value
-        self.p.param('ROI').param('Shape').setWritable(value)
-        self.timeParams.param('Frame Transfer Mode').setWritable(value)
-        croppedParam = self.timeParams.param('Cropped sensor mode')
-        croppedParam.param('Enable').setWritable(value)
-        self.timeParams.param('Horizontal readout rate').setWritable(value)
-        self.timeParams.param('Set exposure time').setWritable(value)
-        vpsParams = self.timeParams.param('Vertical pixel shift')
-        vpsParams.param('Speed').setWritable(True)
-        vpsParams.param('Clock voltage amplitude').setWritable(value)
-        gainParams = self.p.param('Gain')
-        gainParams.param('Pre-amp gain').setWritable(value)
-        gainParams.param('EM gain').setWritable(value)
-
-    def attrs(self):
-        attrs = []
-        for ParName in self.p.getValues():
-            Par = self.p.param(str(ParName))
-            if not(Par.hasChildren()):
-                attrs.append((str(ParName), Par.value()))
-            else:
-                for sParName in Par.getValues():
-                    sPar = Par.param(str(sParName))
-                    if sPar.type() != 'action':
-                        if not(sPar.hasChildren()):
-                            attrs.append((str(sParName), sPar.value()))
-                        else:
-                            for ssParName in sPar.getValues():
-                                ssPar = sPar.param(str(ssParName))
-                                attrs.append((str(ssParName), ssPar.value()))
-        return attrs
-
-
 class TormentaGUI(QtGui.QMainWindow):
 
     liveviewStarts = QtCore.pyqtSignal()
@@ -754,6 +696,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.lastTime = ptime.time()
         self.fps = None
 
+        self.umPerPx = 0.12
+
         # Actions in menubar
         menubar = self.menuBar()
         fileMenu = menubar.addMenu('&File')
@@ -770,7 +714,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.exportTiffAction = QtGui.QAction('Export HDF5 to Tiff...', self)
         self.exportTiffAction.setStatusTip('Export HDF5 file to Tiff format')
-        self.exportTiffAction.triggered.connect(guitools.TiffConverterThread)
+        self.exportTiffAction.triggered.connect(pyqtsub.TiffConverterThread)
         fileMenu.addAction(self.exportTiffAction)
 
         def tiff2pngFunction():
@@ -803,7 +747,7 @@ class TormentaGUI(QtGui.QMainWindow):
                                            'matrix')
         fileMenu.addAction(self.HtransformAction)
         self.transformerThread = QtCore.QThread()
-        self.transformer = guitools.HtransformStack()
+        self.transformer = pyqtsub.HtransformStack()
         self.transformer.moveToThread(self.transformerThread)
         self.transformer.finished.connect(self.transformerThread.quit)
         self.transformerThread.started.connect(self.transformer.run)
@@ -826,7 +770,7 @@ class TormentaGUI(QtGui.QMainWindow):
         optMenu.addAction(self.uvOff)
         self.uvOff.setChecked(True)
 
-        self.tree = CamParamTree(self.andor)
+        self.tree = pyqtsub.CamParamTree(self.andor)
 
         # Frame signals
         frameParam = self.tree.p.param('ROI')
