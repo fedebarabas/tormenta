@@ -168,7 +168,8 @@ class Camera(object):
             camera = driver(*args)
             camera.lib.Initialize()
 
-        except:
+        except OSError as err:
+            print("OS error: {0}".format(err))
             return mockers.MockCamera()
 
         else:

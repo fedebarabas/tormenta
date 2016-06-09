@@ -100,6 +100,7 @@ class CamParamTree(ParameterTree):
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
         self._writable = True
+        self.p.param('Camera').setWritable(False)
 
         self.timeParams = self.p.param('Timings')
         self.cropModeParam = self.timeParams.param('Cropped sensor mode')
@@ -130,7 +131,7 @@ class CamParamTree(ParameterTree):
         self.timeParams.param('Horizontal readout rate').setWritable(value)
         self.timeParams.param('Set exposure time').setWritable(value)
         vpsParams = self.timeParams.param('Vertical pixel shift')
-        vpsParams.param('Speed').setWritable(True)
+        vpsParams.param('Speed').setWritable(value)
         vpsParams.param('Clock voltage amplitude').setWritable(value)
         gainParams = self.p.param('Gain')
         gainParams.param('Pre-amp gain').setWritable(value)

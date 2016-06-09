@@ -85,7 +85,6 @@ class RecordingWidget(QtGui.QFrame):
         self.recFormat = QtGui.QComboBox(self)
         self.recFormat.addItem('tiff')
         self.recFormat.addItem('hdf5')
-        self.recFormat.addItem('raw')
         self.recFormat.setFixedWidth(50)
 
         # Number of frames and measurement timing
@@ -157,6 +156,7 @@ class RecordingWidget(QtGui.QFrame):
         self.folderEdit.setEnabled(value)
         self.filenameEdit.setEnabled(value)
         self.numExpositionsEdit.setEnabled(value)
+        self.recFormat.setEditable(value)
         self._writable = value
 
     def n(self):
@@ -265,7 +265,8 @@ class RecordingWidget(QtGui.QFrame):
             savename = guitools.getUniqueName(savename)
             image = np.flipud(image.astype(np.uint16))
             tiff.imsave(savename, image, description=self.dataname,
-                        software='Tormenta')
+                        software='Tormenta', imagej=True,
+                        metadata={'unit': 'um'})
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
             # Two-color-corrected snap saving
@@ -283,7 +284,8 @@ class RecordingWidget(QtGui.QFrame):
 
                 tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
                             newData, description=self.dataname,
-                            software='Tormenta')
+                            software='Tormenta', imagej=True,
+                            metadata={'unit': 'um'})
 
         else:
             self.folderWarning()
@@ -502,8 +504,8 @@ class RecWorker(QtCore.QObject):
 
     def singleColorTIFF(self):
 
-        with tiff.TiffWriter(self.savename, software='Tormenta',
-                             bigtiff=self.bigtiff) as storeFile:
+        with tiff.TiffWriter(self.savename, bigtiff=self.bigtiff,
+                             software='Tormenta') as storeFile:
 
             while self.j < self.shape[0] and self.pressed:
                 time.sleep(self.t_exp.magnitude)
@@ -526,10 +528,10 @@ class RecWorker(QtCore.QObject):
 
         corrSavename = guitools.insertSuffix(self.savename, '_corrected')
 
-        with tiff.TiffWriter(self.savename, software='Tormenta',
-                             bigtiff=self.bigtiff) as storeFile, \
-                tiff.TiffWriter(corrSavename, software='Tormenta',
-                                bigtiff=self.bigtiff) as corrStoreFile:
+        with tiff.TiffWriter(self.savename, bigtiff=self.bigtiff,
+                             software='Tormenta') as storeFile, \
+                tiff.TiffWriter(corrSavename, bigtiff=self.bigtiff,
+                                software='Tormenta') as corrStoreFile:
 
             while self.j < self.shape[0] and self.pressed:
 
@@ -541,7 +543,8 @@ class RecWorker(QtCore.QObject):
                     self.updateSignal.emit(np.transpose(newImages[-1]))
                     data = newImages[:, ::-1]
                     storeFile.save(data, extratags=self.tags,
-                                   resolution=(1/self.umPerPx, 1/self.umPerPx))
+                                   resolution=self.resolution, imagej=True,
+                                   metadata={'unit': 'um'})
 
                     im0 = self.reducedStack(data[:, :128, :])
                     im1 = np.zeros(data[:, -128:, :].shape)
@@ -552,7 +555,8 @@ class RecWorker(QtCore.QObject):
                                self.ylim[0]:self.ylim[1]]
                     corrStoreFile.save(np.hstack((im0, im1c)),
                                        extratags=self.tags,
-                                       resolution=self.resolution)
+                                       resolution=self.resolution, imagej=True,
+                                       metadata={'unit': 'um'})
 
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
@@ -663,10 +667,10 @@ class TemperatureStabilizer(QtCore.QObject):
         tempStatus = self.main.andor.temperature_status
         self.main.tempStatus.setText(tempStatus)
         temperature = np.round(self.main.andor.temperature, 1)
-        self.main.temp.setText('{} ºC'.format(temperature.magnitude))
+        self.main.temp.setText('{} ºC'.format(temperature))
 
         if tempStatus != self.stableText:
-            threshold = Q_(0.8 * self.setPoint.magnitude, 'degC')
+            threshold = 0.8 * self.setPoint
             if temperature <= threshold or self.main.andor.mock:
                 self.main.enableLiveview()
 
@@ -875,7 +879,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.statusBar().addPermanentWidget(self.cursorPos)
 
         # Temperature stabilization functionality
-        self.tempSetPoint = Q_(-50, 'degC')
+        self.tempSetPoint = -50     # in degC
         self.stabilizer = TemperatureStabilizer(self)
         self.stabilizerThread = QtCore.QThread()
         self.stabilizer.moveToThread(self.stabilizerThread)
