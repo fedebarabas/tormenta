@@ -514,7 +514,8 @@ class RecWorker(QtCore.QObject):
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
                     self.updateSignal.emit(np.transpose(newImages[-1]))
-                    storeFile.save(newImages[:, ::-1], extratags=self.tags,
+                    storeFile.save(newImages[:, ::-1].astype(np.uint16), 
+                                   extratags=self.tags,
                                    resolution=self.resolution)
 
         # Saving parameters

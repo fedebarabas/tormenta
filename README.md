@@ -13,7 +13,7 @@ Measurement control and analysis for optical microscopy
 
     ```
     $ sudo apt-get install python3-pip python3-h5py git
-    $ sudo pip3 install git+https://github.com/fedebarabas/lantz tifffile pyqtgraph
+    $ sudo pip3 install comtypes git+https://github.com/fedebarabas/lantz tifffile pyqtgraph
     $ git clone https://github.com/fedebarabas/Tormenta
     ```
 
@@ -28,7 +28,7 @@ Measurement control and analysis for optical microscopy
 - Open WinPython Command Prompt and run:
 
     ```
-    $ pip install pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile 
+    $ pip install comtypes pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile 
     ```
 - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta).
 

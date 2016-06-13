@@ -2,7 +2,7 @@
 """
 Created on Thu May 21 13:19:31 2015
 
-@author: federico
+@author: Federico Barabas
 """
 from pyqtgraph.Qt import QtGui
 

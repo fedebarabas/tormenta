@@ -150,9 +150,10 @@ class FocusWidget(QtGui.QFrame):
         self.distance = self.z.position - self.initialZ
         out = self.PI.update(self.ProcessData.focusSignal)
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
+            print(out, self.distance)
             self.unlockFocus()
         else:
-            self.z.moveRelative(out * self.um)
+            self.z.moveRelative(out)
 
     def exportData(self):
 

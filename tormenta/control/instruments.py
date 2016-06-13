@@ -2,7 +2,7 @@
 """
 Created on Sun Dec 28 13:25:27 2014
 
-@author: federico
+@author: Federico Barabas
 """
 
 import numpy as np
@@ -42,7 +42,9 @@ class Laser(object):
             package = importlib.import_module('lantz.drivers.' + pName)
             driver = getattr(package, driverName)
             laser = driver(*args)
+            print('DDDDDDD', pName)
             laser.initialize()
+            print('EEEEEEEE', pName)
             return driver(*args)
 
         except:
