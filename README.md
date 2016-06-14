@@ -24,11 +24,11 @@ Measurement control and analysis for optical microscopy
     ```
     $ python setup.py install
     ```
-- Browse to [Laboratory for Fluorescence Dynamics](http://www.lfd.uci.edu/~gohlke/pythonlibs/) and download pygame for Python 3.4 to `$PATH\WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
+- Browse to [Laboratory for Fluorescence Dynamics](http://www.lfd.uci.edu/~gohlke/pythonlibs/) and download pygame and tifffile for Python 3.4 to `$PATH\WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
 - Open WinPython Command Prompt and run:
 
     ```
-    $ pip install comtypes pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile 
+    $ pip install comtypes pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile-2016.4.19-cp34-cp34m-win_amd64.whl
     ```
 - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta).
 
