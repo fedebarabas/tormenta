@@ -264,9 +264,11 @@ class RecordingWidget(QtGui.QFrame):
                         '_snap.tiff')
             savename = guitools.getUniqueName(savename)
             image = np.flipud(image.astype(np.uint16))
-            tiff.imsave(savename, image, description=self.dataname,
-                        software='Tormenta', imagej=True,
-                        metadata={'unit': 'um'})
+            tiff.imsave(savename, image)  # , description=self.dataname,
+#                        software='Tormenta',
+#                        imagej=True,
+#                        resolution=(1/0.12, 1/0.12),
+#                        metadata={'spacing': 1, 'unit': 'um'})
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
             # Two-color-corrected snap saving
@@ -283,9 +285,9 @@ class RecordingWidget(QtGui.QFrame):
                 newData[-self.reducedShape[0]:, :] = im1c
 
                 tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
-                            newData, description=self.dataname,
-                            software='Tormenta', imagej=True,
-                            metadata={'unit': 'um'})
+                            newData)  # , description=self.dataname,
+#                            software='Tormenta', imagej=True,
+#                            metadata={'spacing': 1, 'unit': 'um'})
 
         else:
             self.folderWarning()
@@ -514,7 +516,7 @@ class RecWorker(QtCore.QObject):
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
                     self.updateSignal.emit(np.transpose(newImages[-1]))
-                    storeFile.save(newImages[:, ::-1].astype(np.uint16), 
+                    storeFile.save(newImages[:, ::-1].astype(np.uint16),
                                    extratags=self.tags,
                                    resolution=self.resolution)
 

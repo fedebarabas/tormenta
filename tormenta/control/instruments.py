@@ -42,9 +42,7 @@ class Laser(object):
             package = importlib.import_module('lantz.drivers.' + pName)
             driver = getattr(package, driverName)
             laser = driver(*args)
-            print('DDDDDDD', pName)
             laser.initialize()
-            print('EEEEEEEE', pName)
             return driver(*args)
 
         except:
