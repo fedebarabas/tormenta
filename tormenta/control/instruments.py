@@ -163,7 +163,7 @@ class Camera(object):
 
         try:
             pName, driverName = iName.rsplit('.', 1)
-            package = importlib.import_module('lantz.drivers.' + pName)
+            package = importlib.import_module('lantz.drivers.legacy.' + pName)
             driver = getattr(package, driverName)
             camera = driver(*args)
             camera.lib.Initialize()
