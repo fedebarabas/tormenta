@@ -13,8 +13,8 @@ from PyQt4 import QtCore
 import pygame
 import pygame.camera
 
-from lantz.drivers.andor.ccd import CCD
-from lantz.drivers.labjack.t7 import T7
+from lantz.drivers.legacy.andor.ccd import CCD
+from lantz.drivers.legacy.labjack.t7 import T7
 from lantz import Q_
 
 import tormenta.control.mockers as mockers
@@ -39,7 +39,7 @@ class Laser(object):
 
         try:
             pName, driverName = iName.rsplit('.', 1)
-            package = importlib.import_module('lantz.drivers.' + pName)
+            package = importlib.import_module('lantz.drivers.legacy.' + pName)
             driver = getattr(package, driverName)
             laser = driver(*args)
             laser.initialize()
