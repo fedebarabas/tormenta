@@ -13,22 +13,16 @@ Measurement control and analysis for optical microscopy
 
     ```
     $ sudo apt-get install python3-pip python3-h5py git
-    $ sudo pip3 install comtypes git+https://github.com/fedebarabas/lantz tifffile pyqtgraph
+    $ sudo pip3 install comtypes lantz tifffile pyqtgraph
     $ git clone https://github.com/fedebarabas/Tormenta
     ```
 
 #### Windows
 - Install [WinPython 3.4](https://sourceforge.net/projects/winpython/files/).
-- Clone [lantz repo](https://github.com/fedebarabas/lantz). Open WinPython Command Prompt, go to lantz directory and run:
-
-    ```
-    $ python setup.py install
-    ```
 - Browse to [Laboratory for Fluorescence Dynamics](http://www.lfd.uci.edu/~gohlke/pythonlibs/) and download pygame and tifffile for Python 3.4 to `$PATH\WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
 - Open WinPython Command Prompt and run:
-
     ```
-    $ pip install comtypes pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile-2016.4.19-cp34-cp34m-win_amd64.whl
+    $ pip install comtypes lantz pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile-2016.4.19-cp34-cp34m-win_amd64.whl
     ```
 - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta).
 
