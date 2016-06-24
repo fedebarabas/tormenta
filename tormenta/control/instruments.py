@@ -146,7 +146,7 @@ class ScanZ(object):
     def __new__(cls, *args):
 
         try:
-            from lantz.drivers.prior.nanoscanz import NanoScanZ
+            from lantz.drivers.legacy.prior.nanoscanz import NanoScanZ
             scan = NanoScanZ(*args)
             scan.initialize()
             return scan

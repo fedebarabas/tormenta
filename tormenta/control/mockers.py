@@ -112,7 +112,7 @@ class MockScanZ(Driver):
             value.magnitude
             self._position = value.to('um')
         except:
-            self._position = value * self.um
+            self._position = value
 
     def moveRelative(self, value):
         self.position = self.position + value

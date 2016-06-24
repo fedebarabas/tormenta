@@ -264,8 +264,7 @@ class RecordingWidget(QtGui.QFrame):
                         '_snap.tiff')
             savename = guitools.getUniqueName(savename)
             image = np.flipud(image.astype(np.uint16))
-            tiff.imsave(savename, image, description=self.dataname,
-                        software='Tormenta', imagej=True,
+            tiff.imsave(savename, image, software='Tormenta', imagej=True,
                         resolution=(1/0.12, 1/0.12),
                         metadata={'spacing': 1, 'unit': 'um'})
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
@@ -284,8 +283,8 @@ class RecordingWidget(QtGui.QFrame):
                 newData[-self.reducedShape[0]:, :] = im1c
 
                 tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
-                            newData, description=self.dataname,
-                            software='Tormenta', imagej=True,
+                            newData, software='Tormenta', imagej=True,
+                            resolution=(1/0.12, 1/0.12),
                             metadata={'spacing': 1, 'unit': 'um'})
 
         else:

@@ -16,6 +16,8 @@ import pyqtgraph.ptime as ptime
 import pygame
 
 from lantz import Q_
+#from lantz.log import log_to_screen, DEBUG, INFO, CRITICAL
+#log_to_screen(CRITICAL)
 
 import tormenta.control.instruments as instruments
 import tormenta.control.pi as pi
@@ -150,10 +152,9 @@ class FocusWidget(QtGui.QFrame):
         self.distance = self.z.position - self.initialZ
         out = self.PI.update(self.ProcessData.focusSignal)
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
-            print(out, self.distance)
             self.unlockFocus()
         else:
-            self.z.moveRelative(out)
+            self.z.moveRelative(out * self.um)
 
     def exportData(self):
 
