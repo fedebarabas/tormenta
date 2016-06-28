@@ -188,6 +188,7 @@ def mouseMoved(main, pos):
         mousePoint = main.vb.mapSceneToView(pos)
         x, y = int(mousePoint.x()), int(main.shape[1] - mousePoint.y())
         main.cursorPos.setText('{}, {}'.format(x, y))
+        main.cursorPosInt.setText('{} counts'.format(main.image[x, int(mousePoint.y())]))
 
 
 def tiff2png(main, filenames=None):

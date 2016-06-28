@@ -868,6 +868,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 2)
         self.viewCtrlLayout.addWidget(self.flipperButton, 2, 0, 1, 3)
 
+        # Status bar info
         self.fpsBox = QtGui.QLabel()
         self.fpsBox.setText('0 fps')
         self.statusBar().addPermanentWidget(self.fpsBox)
@@ -878,7 +879,10 @@ class TormentaGUI(QtGui.QMainWindow):
         self.cursorPos = QtGui.QLabel()
         self.cursorPos.setText('0, 0')
         self.statusBar().addPermanentWidget(self.cursorPos)
-
+        self.cursorPosInt = QtGui.QLabel()
+        self.cursorPosInt.setText('0 counts')
+        self.statusBar().addPermanentWidget(self.cursorPosInt)
+        
         # Temperature stabilization functionality
         self.tempSetPoint = -50     # in degC
         self.stabilizer = TemperatureStabilizer(self)
@@ -1337,6 +1341,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
             self.fpsMath()
             self.image = image
+
+            self.vb.scene().sigMouseMoved.emit()
 
         except:
             pass
