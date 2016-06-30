@@ -208,7 +208,7 @@ class RecordingWidget(QtGui.QFrame):
     # Attributes saving
     def getAttrs(self):
         attrs = self.main.tree.attrs()
-        um = self.main.umPerPx
+        um = self.main.umxpx
         attrs.extend([('Date', time.strftime("%Y-%m-%d")),
                       ('Start time', time.strftime("%H:%M:%S")),
                       ('element_size_um', (1, um, um)),
@@ -260,12 +260,14 @@ class RecordingWidget(QtGui.QFrame):
             image = self.main.andor.most_recent_image16(self.main.shape)
             time.sleep(0.01)
 
+            dim = (self.main.umxpx * np.array(self.main.shape)).astype(np.int)
+            sh = str(dim[0]) + 'x' + str(dim[1])
             savename = (os.path.join(folder, self.filenameEdit.text()) +
-                        '_snap.tiff')
+                        '_wf' + sh + '.tiff')
             savename = guitools.getUniqueName(savename)
             image = np.flipud(image.astype(np.uint16))
             tiff.imsave(savename, image, software='Tormenta', imagej=True,
-                        resolution=(1/0.12, 1/0.12),
+                        resolution=(1/self.main.umxpx, 1/self.main.umxpx),
                         metadata={'spacing': 1, 'unit': 'um'})
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
@@ -284,7 +286,7 @@ class RecordingWidget(QtGui.QFrame):
 
                 tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
                             newData, software='Tormenta', imagej=True,
-                            resolution=(1/0.12, 1/0.12),
+                            resolution=(1/self.main.umxpx, 1/self.main.umxpx),
                             metadata={'spacing': 1, 'unit': 'um'})
 
         else:
@@ -379,7 +381,7 @@ class RecordingWidget(QtGui.QFrame):
                 frameOption = self.main.tree.p.param('ROI')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
                 twoColors = twoColors and (self.H is not None)
-                self.worker = RecWorker(self.main.andor, self.main.umPerPx,
+                self.worker = RecWorker(self.main.andor, self.main.umxpx,
                                         shape, self.main.t_exp_real, name,
                                         recFormat, self.dataname,
                                         self.getAttrs(), twoColors, self.H,
@@ -442,7 +444,7 @@ class RecWorker(QtCore.QObject):
         super().__init__(*args, **kwargs)
 
         self.andor = andor
-        self.umPerPx = umPerPx
+        self.umxpx = umPerPx
         self.shape = shape
         self.t_exp = t_exp
         self.savename = savename
@@ -486,7 +488,7 @@ class RecWorker(QtCore.QObject):
         if self.recFormat == 'tiff':
 
             self.tags = [('resolution_unit', 'H', 1, 3, True)]
-            self.resolution = (1/self.umPerPx, 1/self.umPerPx)
+            self.resolution = (1/self.umxpx, 1/self.umxpx)
             self.bigtiff = guitools.fileSizeGB(self.shape) > 2
 
             if not(self.twoColors):
@@ -701,7 +703,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.lastTime = ptime.time()
         self.fps = None
 
-        self.umPerPx = 0.12
+        self.umxpx = 0.12
 
         # Actions in menubar
         menubar = self.menuBar()
@@ -1273,6 +1275,7 @@ class TormentaGUI(QtGui.QMainWindow):
     def liveviewStart(self, update):
 
         self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
+#        self.vb.scene().sigMousePressed.connect(self.mouseMoved)
         self.liveviewStarts.emit()
 
         idle = 'Camera is idle, waiting for instructions.'
@@ -1341,8 +1344,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
             self.fpsMath()
             self.image = image
-
-            self.vb.scene().sigMouseMoved.emit()
 
         except:
             pass

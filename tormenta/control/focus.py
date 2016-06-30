@@ -50,10 +50,10 @@ class FocusWidget(QtGui.QFrame):
         self.ProcessData = ProcessData(self.webcam)
 
         # Focus lock widgets
-        self.kpEdit = QtGui.QLineEdit('7')
+        self.kpEdit = QtGui.QLineEdit('4')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('0.065')
+        self.kiEdit = QtGui.QLineEdit('0.004')
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')
