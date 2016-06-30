@@ -16,6 +16,7 @@ import pygame.camera
 from lantz.drivers.legacy.andor.ccd import CCD
 from lantz.drivers.legacy.labjack.t7 import T7
 from lantz import Q_
+from lantz.errors import InstrumentError
 
 import tormenta.control.mockers as mockers
 
@@ -168,8 +169,8 @@ class Camera(object):
             camera = driver(*args)
             camera.lib.Initialize()
 
-        except OSError as err:
-            print("OS error: {0}".format(err))
+        except (OSError, InstrumentError) as err:
+            print("Error: {0}".format(err))
             return mockers.MockCamera()
 
         else:
