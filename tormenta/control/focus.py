@@ -130,10 +130,13 @@ class FocusWidget(QtGui.QFrame):
         if self.lockButton.isChecked():
             self.setPoint = self.ProcessData.focusSignal
             self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
-            self.PI = pi.PI(self.setPoint, 0.001,
-                            np.float(self.kpEdit.text()),
+            self.PI = pi.PI(self.setPoint, 0.001, np.float(self.kpEdit.text()),
                             np.float(self.kiEdit.text()))
 
+            self.lockN = 1
+            self.lockMean = self.setPoint
+            self.graph.setLine = self.graph.plot.addLine(y=self.lockMean,
+                                                         pen='c')            
             self.initialZ = self.z.position
             self.locked = True
 
@@ -145,12 +148,19 @@ class FocusWidget(QtGui.QFrame):
             self.locked = False
             self.lockButton.setChecked(False)
             self.graph.plot.removeItem(self.graph.line)
+            self.graph.plot.removeItem(self.graph.setLine)
 
     def updatePI(self):
 
         # Safety unlocking
         self.distance = self.z.position - self.initialZ
-        out = self.PI.update(self.ProcessData.focusSignal)
+        cm = self.ProcessData.focusSignal
+        out = self.PI.update(cm)
+
+        self.lockN += 1
+        self.lockMean += (cm - self.lockMean)/(self.lockN + 1)
+        self.graph.setLine.setValue(self.lockMean)
+        
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
         else:
