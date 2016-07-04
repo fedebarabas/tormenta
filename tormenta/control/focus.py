@@ -16,8 +16,6 @@ import pyqtgraph.ptime as ptime
 import pygame
 
 from lantz import Q_
-#from lantz.log import log_to_screen, DEBUG, INFO, CRITICAL
-#log_to_screen(CRITICAL)
 
 import tormenta.control.instruments as instruments
 import tormenta.control.pi as pi
@@ -136,7 +134,7 @@ class FocusWidget(QtGui.QFrame):
             self.lockN = 1
             self.lockMean = self.setPoint
             self.graph.setLine = self.graph.plot.addLine(y=self.lockMean,
-                                                         pen='c')            
+                                                         pen='c')
             self.initialZ = self.z.position
             self.locked = True
 
@@ -160,7 +158,7 @@ class FocusWidget(QtGui.QFrame):
         self.lockN += 1
         self.lockMean += (cm - self.lockMean)/(self.lockN + 1)
         self.graph.setLine.setValue(self.lockMean)
-        
+
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
         else:
