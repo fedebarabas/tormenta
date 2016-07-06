@@ -23,9 +23,25 @@ class FilterTable(TableWidget):
                    ('Filtro', object), ('Tipo', object),
                    ('Fluoróforos', object)]
 
+        self.cwd = os.getcwd()
+
+    def defaultArray(self):
+
+        f = [(1, 4, 'ZET642NF',    'Notch', ''),
+             (2, 5, 'ET700/75m',   'Bandpass', 'Alexa647, Atto655'),
+             (3, 6, 'FF01-725/40', 'Bandpass', 'Alexa700 (2 colores)'),
+             (4, 1, '',            '',         ''),
+             (5, 2, 'FF03-525/50', 'Bandpass', 'GFP'),
+             (6, 3, '',            'Bandpass', '')]
+        data = np.array(f, dtype=self.dt)
+        return data
+
     def loadArray(self):
-        filters = np.load(os.path.join(os.getcwd(), 'tormenta', 'control',
-                                       'filter_array.npy'))
+        try:
+            filters = np.load(os.path.join(self.cwd, 'tormenta', 'control',
+                                           'filter_array.npy'))
+        except:
+            filters = self.defaultArray()
         self.setData(filters)
 
     def saveArray(self):
@@ -43,16 +59,5 @@ class FilterTable(TableWidget):
                     row.append(str(''))
             data.append(tuple(row))
 
-        path = os.path.join(os.getcwd(), 'tormenta', 'control', 'filter_array')
+        path = os.path.join(self.cwd, 'tormenta', 'control', 'filter_array')
         np.save(path, np.array(data, dtype=self.dt))
-
-    def defaultArray(self):
-
-        f = [(1, 4, 'ZET642NF',    'Notch', ''),
-             (2, 5, 'ET700/75m',   'Bandpass', 'Alexa647, Atto655'),
-             (3, 6, 'FF01-725/40', 'Bandpass', 'Alexa700 (2 colores)'),
-             (4, 1, '',            '',         ''),
-             (5, 2, 'FF03-525/50', 'Bandpass', 'GFP'),
-             (6, 3, '',            'Bandpass', '')]
-        data = np.array(f, dtype=self.dt)
-        return data
