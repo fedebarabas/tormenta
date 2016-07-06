@@ -32,6 +32,7 @@ import tormenta.control.guitools as guitools
 import tormenta.control.pyqtsubclasses as pyqtsub
 import tormenta.control.viewbox_tools as viewbox_tools
 import tormenta.analysis.registration as reg
+from tormenta.control.filter_table import FilterTable
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -884,7 +885,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.cursorPosInt = QtGui.QLabel()
         self.cursorPosInt.setText('0 counts')
         self.statusBar().addPermanentWidget(self.cursorPosInt)
-        
+
         # Temperature stabilization functionality
         self.tempSetPoint = -50     # in degC
         self.stabilizer = TemperatureStabilizer(self)
@@ -966,25 +967,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Emission filters table widget
         wheelDock = Dock("Emission filters", size=(20, 20))
-        tableWidget = pg.TableWidget(sortable=False)
-        tableWidget.verticalHeader().hide()
-        f = [('Rueda 1', 4, 'ZET642NF',    'Notch', ''),
-             ('Rueda 2', 5, 'ET700/75m',   'Bandpass', 'Alexa647, Atto655'),
-             ('Rueda 3', 6, 'FF01-725/40', 'Bandpass', 'Alexa700 (2 colores)'),
-             ('Rueda 4', 1, '',            '', ''),
-             ('Rueda 5', 2, 'FF03-525/50', 'Bandpass', 'GFP'),
-             ('Rueda 6', 3, '',            'Bandpass', ''),
-             ('Tubo', '',   'FF01-582/75', 'Bandpass', 'Alexa532, Alexa568, '
-                                                       'Alexa700, \nAtto550, '
-                                                       'Atto565, Nile Red')]
-        data = np.array(f, dtype=[('Ubicación', object),
-                                  ('Antiposición', object),
-                                  ('Filtro', object),
-                                  ('Tipo', object),
-                                  ('Fluoróforos', object)])
-        tableWidget.setData(data)
-        tableWidget.resizeRowsToContents()
-        wheelDock.addWidget(tableWidget)
+        wheelDock.addWidget(FilterTable(editable=True, sortable=False))
         dockArea.addDock(wheelDock, 'top', consoleDock)
 
         # On time widget
