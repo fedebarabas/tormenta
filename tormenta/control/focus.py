@@ -51,7 +51,7 @@ class FocusWidget(QtGui.QFrame):
         self.kpEdit = QtGui.QLineEdit('4')
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('0.004')
+        self.kiEdit = QtGui.QLineEdit('0.0055')
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')

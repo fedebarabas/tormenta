@@ -44,6 +44,7 @@ class RecordingWidget(QtGui.QFrame):
         self.dataname = 'data'      # In case I need a QLineEdit for this
         self.initialDir = r'C:\Users\Usuario\Documents\Data'
 
+        self.Hname = None
         self.H = None
         self.corrShape = None
         self.reducedShape = None
@@ -214,7 +215,8 @@ class RecordingWidget(QtGui.QFrame):
                       ('Start time', time.strftime("%H:%M:%S")),
                       ('element_size_um', (1, um, um)),
                       ('NA', 1.42),
-                      ('lambda_em', 670)])
+                      ('lambda_em', 670),
+                      ('Affine matrix filename', self.Hname)])
         for c in self.main.laserWidgets.controls:
             name = re.sub('<[^<]+?>', '', c.name.text())
             attrs.extend([(name+'_power', c.laser.power),
@@ -223,10 +225,10 @@ class RecordingWidget(QtGui.QFrame):
         return attrs
 
     def loadH(self):
-        Hname = guitools.getFilename('Load affine matrix',
-                                     [('Numpy arrays', '.npy')],
-                                     self.folderEdit.text())
-        self.H = np.load(Hname)
+        self.Hname = guitools.getFilename('Load affine matrix',
+                                          [('Numpy arrays', '.npy')],
+                                          self.folderEdit.text())
+        self.H = np.load(self.Hname)
         data = np.ones((128, 266))
         datac = reg.h_affine_transform(data, self.H)
         indices = np.where(datac == 1)
@@ -547,8 +549,7 @@ class RecWorker(QtCore.QObject):
                     self.updateSignal.emit(np.transpose(newImages[-1]))
                     data = newImages[:, ::-1]
                     storeFile.save(data, extratags=self.tags,
-                                   resolution=self.resolution, imagej=True,
-                                   metadata={'unit': 'um'})
+                                   resolution=self.resolution)
 
                     im0 = self.reducedStack(data[:, :128, :])
                     im1 = np.zeros(data[:, -128:, :].shape)
@@ -559,8 +560,7 @@ class RecWorker(QtCore.QObject):
                                self.ylim[0]:self.ylim[1]]
                     corrStoreFile.save(np.hstack((im0, im1c)),
                                        extratags=self.tags,
-                                       resolution=self.resolution, imagej=True,
-                                       metadata={'unit': 'um'})
+                                       resolution=self.resolution)
 
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
@@ -571,7 +571,7 @@ class RecWorker(QtCore.QObject):
                 if item[1] is not None:
                     metaFile[item[0]] = item[1]
                     corrMetaFile[item[0]] = item[1]
-            corrMetaFile['H'] = self.H
+            corrMetaFile.create_dataset(name='Affine matrix', data=self.H)
 
     def singleColorHDF5(self):
 
@@ -644,7 +644,7 @@ class RecWorker(QtCore.QObject):
                 if item[1] is not None:
                     dataset.attrs[item[0]] = item[1]
                     corrDataset.attrs[item[0]] = item[1]
-            corrDataset['H'] = self.H
+            corrStoreFile.create_dataset(name='Affine matrix', data=self.H)
 
 
 class TemperatureStabilizer(QtCore.QObject):

@@ -16,7 +16,6 @@ class FilterTable(TableWidget):
         super().__init__(*args, **kwargs)
 
         self.verticalHeader().hide()
-        self.loadArray()
         self.resizeRowsToContents()
         self.itemChanged.connect(self.saveArray)
         self.dt = [('Posición', object), ('Antiposición', object),
@@ -24,6 +23,7 @@ class FilterTable(TableWidget):
                    ('Fluoróforos', object)]
 
         self.cwd = os.getcwd()
+        self.loadArray()
 
     def defaultArray(self):
 
