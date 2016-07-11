@@ -159,8 +159,8 @@ class Maxima():
         ws = self.win_size
         lx = self.image.shape[0] - ws
         ly = self.image.shape[1] - ws
-        keep = ((self.positions[:, 0] <= lx) & (self.positions[:, 0] > ws) &
-                (self.positions[:, 1] <= ly) & (self.positions[:, 1] > ws))
+        keep = ((self.positions[:, 0] < lx) & (self.positions[:, 0] > ws) &
+                (self.positions[:, 1] < ly) & (self.positions[:, 1] > ws))
         self.positions = self.positions[keep]
 
     def getParameters(self):

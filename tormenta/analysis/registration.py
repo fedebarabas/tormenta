@@ -20,10 +20,19 @@ from tormenta.analysis.maxima import Maxima
 _EPS = np.finfo(float).eps * 4.0
 
 
+def load_images(filename):
+    try:
+        return load_tiff(filename)
+    except:
+        return load_hdf(filename)
+
 def load_tiff(filename):
 
     with tiff.TiffFile(filename) as ff:
-        return split_images(ff.asarray())
+        data = ff.asarray()
+        if len(data) > 0:
+            data = np.mean(data, 0)
+        return split_images(data)
 
 
 def load_hdf(filename):
@@ -98,7 +107,7 @@ def points_registration(images):
     plt.show(block=False)
 
     # points[1] must have the same order as points[0]
-    order = input('Reorden de points[1]: (ej: 0-1-4-3-2) ')
+    order = input('Reorder points[1]: (ej: 0-1-4-3-2) ')
     try:
         order = list(map(int, [l for l in order.split('-')]))
         points[1] = points[1][order]
@@ -116,6 +125,7 @@ def points_registration(images):
 
 def plot_points(images, points, fig):
 
+    marks = ['rx', 'bs']
     for k in [0, 1]:
         # Image plot
         ax = fig.add_subplot(311 + k)
@@ -123,7 +133,7 @@ def plot_points(images, points, fig):
                   cmap='cubehelix', vmin=0, vmax=700)
         ax.autoscale(False)
         ax.plot(points[k][:, 1] - 0.5, points[k][:, 0] - 0.5,
-                'rx', mew=2, ms=5)
+                marks[k], mew=2, ms=5)
         ax.set_adjustable('box-forced')
 
         for i in np.arange(len(points[k])):
@@ -149,12 +159,15 @@ def ch_superposition(ax, points):
 
 def remove_bad_points(points):
 
-    ch = 0 if len(points[0]) > len(points[1]) else 1
-    print('Number of registration points mismatch')
-    print('Removing points from channel {} (0-{})'.format(ch, len(points[ch])))
-    bpoints = input('Bad registration points: (ej: 1-7) ')
-    bpoints = list(map(int, [l for l in bpoints.split('-')]))
-    points[ch] = np.delete(points[ch], bpoints, 0)
+#    ch = 0 if len(points[0]) > len(points[1]) else 1
+#    print('Number of registration points mismatch')
+    for ch in [0, 1]:
+        print('Removing points from channel {} (0-{})'.format(ch, 
+                                                              len(points[ch])))
+        bpoints = input('Bad registration points: (ej: 1-7) ')
+        if bpoints != '':
+            bpoints = list(map(int, [l for l in bpoints.split('-')]))
+            points[ch] = np.delete(points[ch], bpoints, 0)
 
     return points
 
@@ -357,8 +370,8 @@ def h_affine_transform(image, H):
 
 def matrix_from_stack(filename, Hfilename):
 
-    images = load_hdf(filename)
-
+    images = load_images(filename)
+    
     points = points_registration(images)
     H = matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
@@ -372,7 +385,7 @@ def transformation_check(H, filename):
     """ Applies affine transformation H to the images in filename hdf5 file to
     check for the performance of H."""
 
-    images = load_hdf(filename)
+    images = load_images(filename)
 
     images2 = np.zeros((2, 128, 266), dtype=np.uint16)
     images2[0] = images[0]
@@ -390,11 +403,13 @@ if __name__ == '__main__':
 
     root = Tk()
     root.withdraw()
-    types = [('hdf5 files', '.hdf5'), ('tiff files', '.tiff'),
+    types = [('tiff files', '.tiff'), ('hdf5 files', '.hdf5'),
              ('all files', '.*')]
+
     filename = filedialog.askopenfilename(filetypes=types, parent=root,
                                           title='Load bead stack')
     folder = os.path.split(filename)[0]
+    
     arrayType = [('numpy array', '.npy')]
     Hfilename = filedialog.asksaveasfilename(filetypes=arrayType,
                                              parent=root, initialdir=folder,
@@ -409,8 +424,6 @@ if __name__ == '__main__':
 
         root = Tk()
         root.withdraw()
-        types = [('hdf5 files', '.hdf5'), ('tiff files', '.tiff'),
-                 ('all files', '.*')]
         title = 'Load stack to test the affine transformation H'
         filename = filedialog.askopenfilename(filetypes=types, parent=root,
                                               initialdir=folder, title=title)
