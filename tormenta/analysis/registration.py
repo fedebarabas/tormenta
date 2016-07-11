@@ -52,10 +52,10 @@ def split_images(arr):
 
 
 def fit_and_plot(images, fig):
-    k = 311
     points = []
-    for im in images:
-        mm = Maxima(im)
+    marks = ['rx', 'bs']
+    for k in [0, 1]:
+        mm = Maxima(images[k])
         mm.find(alpha=2.5)
         mm.getParameters()
         mm.fit()
@@ -65,22 +65,20 @@ def fit_and_plot(images, fig):
         points.append(pp)
 
         # Image plot
-        ax = fig.add_subplot(k)
-        im = ax.imshow(mm.image, interpolation='None', aspect='equal',
-                       cmap='cubehelix', vmin=0, vmax=700)
+        ax = fig.add_subplot(311 + k)
+        ax.imshow(mm.image, interpolation='None', aspect='equal', 
+                  cmap='cubehelix', vmin=0, vmax=700)
         ax.autoscale(False)
-        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
-                'rx', mew=2, ms=5)
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 
+                marks[k], mew=1, ms=5, markerfacecolor='None')
         ax.set_adjustable('box-forced')
 
         for i in np.arange(len(mm.results['fit_y'])):
             ax.annotate(str(i), xy=(mm.results['fit_y'][i] - 0.1,
                                     mm.results['fit_x'][i] - 0.1))
 
-        k += 1
-
     # superposition of channels plot
-    ax = fig.add_subplot(k)
+    ax = fig.add_subplot(313)
     ch_superposition(ax, points)
     plt.tight_layout()
 
@@ -133,7 +131,7 @@ def plot_points(images, points, fig):
                   cmap='cubehelix', vmin=0, vmax=700)
         ax.autoscale(False)
         ax.plot(points[k][:, 1] - 0.5, points[k][:, 0] - 0.5,
-                marks[k], mew=2, ms=5)
+                marks[k], mew=1, ms=5, markerfacecolor='None')
         ax.set_adjustable('box-forced')
 
         for i in np.arange(len(points[k])):
@@ -149,7 +147,7 @@ def plot_points(images, points, fig):
 
 def ch_superposition(ax, points):
     # superposition of channels plot
-    ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=2, ms=5)
+    ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=1, ms=5)
     ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
             markerfacecolor='None')
     ax.set_aspect('equal')
@@ -159,12 +157,11 @@ def ch_superposition(ax, points):
 
 def remove_bad_points(points):
 
-#    ch = 0 if len(points[0]) > len(points[1]) else 1
-#    print('Number of registration points mismatch')
     for ch in [0, 1]:
-        print('Removing points from channel {} (0-{})'.format(ch, 
-                                                              len(points[ch])))
-        bpoints = input('Bad registration points: (ej: 1-7) ')
+        n = len(points[ch])
+        random = int(np.random.rand()*n - 1)
+        text = 'Bad points from channel {} (ej: 0-{}-{})'.format(ch, random, n)
+        bpoints = input(text)
         if bpoints != '':
             bpoints = list(map(int, [l for l in bpoints.split('-')]))
             points[ch] = np.delete(points[ch], bpoints, 0)
@@ -417,11 +414,11 @@ if __name__ == '__main__':
     root.destroy()
 
     H = matrix_from_stack(filename, Hfilename)
+    print('Checking transformation with same stack')
+    transformation_check(H, filename)
 
-    check = input('Do you want to check the transformation? (y/n) ') == 'y'
+    check = input('Check the transformation with another stack? (y/n) ') == 'y'
     if check:
-        print('Transformation checking')
-
         root = Tk()
         root.withdraw()
         title = 'Load stack to test the affine transformation H'
