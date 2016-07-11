@@ -922,12 +922,16 @@ class TormentaGUI(QtGui.QMainWindow):
         self.vb.setMouseMode(pg.ViewBox.RectMode)
         self.img = pg.ImageItem()
         self.lut = viewbox_tools.cubehelix()
-        self.img.setLookupTable(self.lut)
         self.img.translate(-0.5, -0.5)
         self.vb.addItem(self.img)
         self.vb.setAspectLocked(True)
         self.hist = pg.HistogramLUTItem(image=self.img)
         self.hist.vb.setLimits(yMin=0, yMax=20000)
+        cubehelix = viewbox_tools.cubehelix().astype(int)
+        pos, color = np.arange(0, 1, 1/256), cubehelix
+        self.hist.gradient.setColorMap(pg.ColorMap(pos, color))
+#        for t in list(self.hist.gradient.ticks.keys()):
+#            self.hist.gradient.scene().removeItem(t)
         imageWidget.addItem(self.hist, row=1, col=2)
 
         self.grid = viewbox_tools.Grid(self.vb, self.shape)
@@ -1275,7 +1279,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Initial image
         image = np.transpose(self.andor.most_recent_image16(self.shape))
-        self.img.setImage(image, autoLevels=False, lut=self.lut)
         if update:
             self.updateLevels(image)
         self.viewtimer.start(20)
