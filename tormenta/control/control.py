@@ -1279,6 +1279,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Initial image
         image = np.transpose(self.andor.most_recent_image16(self.shape))
+        self.img.setImage(image, autoLevels=False)
         if update:
             self.updateLevels(image)
         self.viewtimer.start(20)
