@@ -229,31 +229,7 @@ class RecordingWidget(QtGui.QFrame):
                                           [('Numpy arrays', '.npy')],
                                           self.folderEdit.text())
         self.H = np.load(self.Hname)
-        data = np.ones((128, 266))
-        datac = reg.h_affine_transform(data, self.H)
-        indices = np.where(datac == 1)
-
-        # This may only work with the present setup and two-color scheme
-        ylim = (indices[1].min(), indices[1].max() + 1)
-        xmin = indices[0].min()
-        while True:
-            if np.sum(datac[xmin, ylim[0]:ylim[1]] == 0) == 0:
-                break
-            else:
-                xmin += 1
-
-        xmax = indices[0].max()
-        while True:
-            if np.sum(datac[xmax, ylim[0]:ylim[1]] == 0) == 0:
-                break
-            else:
-                xmax -= 1
-
-        self.xlim = (xmin, xmax + 1)
-        self.ylim = (indices[1].min(), indices[1].max() + 1)
-        self.reducedShape = (self.xlim[1] - self.xlim[0],
-                             self.ylim[1] - self.ylim[0])
-        self.corrShape = (2*self.reducedShape[0], self.reducedShape[1])
+        self.xlim, self.ylim, self.cropShape = reg.get_affine_shapes(self.H)
 
     def snap(self):
 
@@ -278,14 +254,15 @@ class RecordingWidget(QtGui.QFrame):
             imageFramePar = self.main.tree.p.param('ROI')
             twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
             if twoColors and (self.H is not None):
-                newData = np.zeros(self.corrShape, dtype=np.uint16)
+                newData = np.zeros((2*self.corrShape[0], self.corrShape[1]), 
+                                   dtype=np.uint16)
                 im0 = image[self.xlim[0]:self.xlim[1],
                             self.ylim[0]:self.ylim[1]]
                 im1 = reg.h_affine_transform(image[-128:, :], self.H)
                 im1c = im1[self.xlim[0]:self.xlim[1],
                            self.ylim[0]:self.ylim[1]]
-                newData[:self.reducedShape[0], :] = im0
-                newData[-self.reducedShape[0]:, :] = im1c
+                newData[:self.cropShape[0], :] = im0
+                newData[-self.cropShape[0]:, :] = im1c
 
                 tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
                             newData, software='Tormenta', imagej=True,
@@ -388,8 +365,7 @@ class RecordingWidget(QtGui.QFrame):
                                         shape, self.main.t_exp_real, name,
                                         recFormat, self.dataname,
                                         self.getAttrs(), twoColors, self.H,
-                                        self.corrShape, self.reducedShape,
-                                        self.xlim, self.ylim)
+                                        self.reducedShape, self.xlim, self.ylim)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.worker.doneSignal.connect(self.endRecording)
                 self.recordingThread = QtCore.QThread()
@@ -442,8 +418,8 @@ class RecWorker(QtCore.QObject):
     doneSignal = QtCore.pyqtSignal()
 
     def __init__(self, andor, umPerPx, shape, t_exp, savename, fileformat,
-                 dataname, attrs, twoColors, H, corrShape, reducedShape, xlim,
-                 ylim, *args, **kwargs):
+                 dataname, attrs, twoColors, H, reducedShape, xlim, ylim, 
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.andor = andor
@@ -460,13 +436,13 @@ class RecWorker(QtCore.QObject):
 
         self.twoColors = twoColors
         self.H = H
-        self.corrShape = corrShape
         self.reducedShape = reducedShape
+        try:
+            self.corrShape = (2*self.reducedShape[0], self.reducedShape[1])
+        except:
+            self.corrShape = None
         self.xlim = xlim
         self.ylim = ylim
-
-    def reducedStack(self, stack):
-        return stack[:, self.xlim[0]:self.xlim[1], self.ylim[0]:self.ylim[1]]
 
     def start(self):
 
@@ -548,17 +524,18 @@ class RecWorker(QtCore.QObject):
                                                     1, self.n)
                     self.updateSignal.emit(np.transpose(newImages[-1]))
                     data = newImages[:, ::-1]
-                    storeFile.save(data, extratags=self.tags,
+                    storeFile.save(data.astype(np.uint16), extratags=self.tags,
                                    resolution=self.resolution)
 
-                    im0 = self.reducedStack(data[:, :128, :])
+                    im0 = data[:, :128, :][:, self.xlim[0]:self.xlim[1], 
+                                           self.ylim[0]:self.ylim[1]]
                     im1 = np.zeros(data[:, -128:, :].shape)
                     for k in np.arange(len(im1)):
                         im1[k] = reg.h_affine_transform(data[k, -128:, :],
                                                         self.H)
                     im1c = im1[:, self.xlim[0]:self.xlim[1],
                                self.ylim[0]:self.ylim[1]]
-                    corrStoreFile.save(np.hstack((im0, im1c)),
+                    corrStoreFile.save(np.hstack((im0, im1c)).astype(np.uint16),
                                        extratags=self.tags,
                                        resolution=self.resolution)
 

@@ -235,8 +235,9 @@ class HtransformStack(QtCore.QObject):
     def run(self):
         Hname = guitools.getFilename("Select affine transformation matrix",
                                      [('npy files', '.npy')])
-
         H = np.load(Hname)
+        xlim, ylim, cropShape, corrShape = reg.get_affine_shapes(H)
+        
         text = "Select files for affine transformation"
         filenames = guitools.getFilenames(text, types=[],
                                           initialdir=os.path.split(Hname)[0])
@@ -251,36 +252,51 @@ class HtransformStack(QtCore.QObject):
                         hdf.File(filename2, 'w') as f1:
 
                     dat0 = f0['data']
-                    n = len(dat0)
-                    f1.create_dataset(name='data',
-                                      data=np.append(dat0[:, :128, :],
-                                                     np.zeros((n, 128, 266),
-                                                              dtype=np.uint16),
-                                                     1))
-
-                    # Multiprocessing
-                    cpus = mp.cpu_count()
-                    step = n // cpus
-                    chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
-                    chunks[-1][1] = n
-                    args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
-                    pool = mp.Pool(processes=cpus)
-                    results = pool.map(transformChunk, args)
-                    pool.close()
-                    pool.join()
-                    f1['data'][:, -128:, :] = np.concatenate(results[:])
+                    dat1 = self.mpStack(dat0, xlim, ylim, H)
+                    
+                    # Store
+                    f1.create_dataset(name='data', data=dat1)
+#                    f1['data'][:, -cropShape[0]:, :] = im1c
 
             elif ext in ['.tiff', '.tif']:
                 with tiff.TiffFile(filename) as tt:
-                    data = tt.asarray()
-                    tiff.imsave(guitools.insertSuffix(filename, '_ch0'),
-                                data[:128, :])
-                    tiff.imsave(guitools.insertSuffix(filename, '_ch1'),
-                                reg.h_affine_transform(data[-128:, :], H))
+                    
+                    dat0 = tt.asarray()
+
+                    if len(dat0.shape) > 2:
+
+                        dat1 = self.mpStack(dat0, xlim, ylim, H)
+                        tiff.imsave(filename2, dat1)
+                        
+                    else:
+                        tiff.imsave(guitools.insertSuffix(filename, '_ch0'),
+                                    dat0[:128, :])
+                        tiff.imsave(guitools.insertSuffix(filename, '_ch1'),
+                                    reg.h_affine_transform(dat0[-128:, :], H))
 
             print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
 
         self.finished.emit()
+        
+    def mpStack(self, dat0, xlim, ylim, H):
+        
+        # Multiprocessing
+        n = len(dat0)
+        cpus = mp.cpu_count()
+        step = n // cpus
+        chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
+        chunks[-1][1] = n
+        args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
+        pool = mp.Pool(processes=cpus)
+        results = pool.map(transformChunk, args)
+        pool.close()
+        pool.join()
+        im1c = np.concatenate(results[:])
+        
+        # Stack channels
+        im1c = im1c[:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
+        im0 = dat0[:, :128, :][:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
+        return np.append(im0, im1c, 1)
 
 
 def transformChunk(args):

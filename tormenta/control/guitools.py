@@ -37,7 +37,6 @@ def insertSuffix(filename, suffix, newExt=None):
     else:
         return names[0] + suffix + newExt
 
-
 def attrsToTxt(filename, attrs):
     fp = open(filename + '.txt', 'w')
     fp.write('\n'.join('{}= {}'.format(x[0], x[1]) for x in attrs))

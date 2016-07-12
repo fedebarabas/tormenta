@@ -396,6 +396,34 @@ def transformation_check(H, filename):
     print('Maximum distance: ', np.max(dist))
 
 
+def get_affine_shapes(H):
+    
+    data = np.ones((128, 266))
+    datac = h_affine_transform(data, H)
+    indices = np.where(datac == 1)
+
+    # This may only work with the present setup and two-color scheme
+    ylim = (indices[1].min(), indices[1].max() + 1)
+    xmin = indices[0].min()
+    while True:
+        if np.sum(datac[xmin, ylim[0]:ylim[1]] == 0) == 0:
+            break
+        else:
+            xmin += 1
+
+    xmax = indices[0].max()
+    while True:
+        if np.sum(datac[xmax, ylim[0]:ylim[1]] == 0) == 0:
+            break
+        else:
+            xmax -= 1
+
+    xlim = (xmin, xmax + 1)
+    ylim = (indices[1].min(), indices[1].max() + 1)
+    cropShape = (xlim[1] - xlim[0], ylim[1] - ylim[0])
+    
+    return xlim, ylim, cropShape
+
 if __name__ == '__main__':
 
     root = Tk()
