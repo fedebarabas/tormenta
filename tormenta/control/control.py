@@ -930,8 +930,8 @@ class TormentaGUI(QtGui.QMainWindow):
         cubehelix = viewbox_tools.cubehelix().astype(int)
         pos, color = np.arange(0, 1, 1/256), cubehelix
         self.hist.gradient.setColorMap(pg.ColorMap(pos, color))
-#        for t in list(self.hist.gradient.ticks.keys()):
-#            self.hist.gradient.scene().removeItem(t)
+        for tick in self.hist.gradient.ticks:
+            tick.hide()
         imageWidget.addItem(self.hist, row=1, col=2)
 
         self.grid = viewbox_tools.Grid(self.vb, self.shape)
@@ -1261,8 +1261,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def liveviewStart(self, update):
 
-        self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
-#        self.vb.scene().sigMousePressed.connect(self.mouseMoved)
         self.liveviewStarts.emit()
 
         idle = 'Camera is idle, waiting for instructions.'
@@ -1278,16 +1276,18 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.recButton.setEnabled(True)
 
         # Initial image
-        image = np.transpose(self.andor.most_recent_image16(self.shape))
-        self.img.setImage(image, autoLevels=False)
+        self.image = np.transpose(self.andor.most_recent_image16(self.shape))
+        self.img.setImage(self.image, autoLevels=False)
         if update:
-            self.updateLevels(image)
+            self.updateLevels(self.image)
         self.viewtimer.start(20)
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
         self.grid2Button.setEnabled(True)
         self.crosshairButton.setEnabled(True)
         self.snapShortcut.setEnabled(True)
+
+        self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
 
     def liveviewStop(self):
         self.snapShortcut.setEnabled(False)
@@ -1318,19 +1318,19 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Image update while in Liveview mode
         """
         try:
-            image = np.transpose(self.andor.most_recent_image16(self.shape))
+            newData = self.andor.most_recent_image16(self.shape)
+            self.image = np.transpose(newData)
             if self.moleculeWidget.enabled:
-                self.moleculeWidget.graph.update(image)
-            self.img.setImage(image, autoLevels=False)
+                self.moleculeWidget.graph.update(self.image)
+            self.img.setImage(self.image, autoLevels=False)
 
             if self.crosshair.showed:
                 ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
                 xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
-                self.xProfile.setData(image[:, ycoord])
-                self.yProfile.setData(image[xcoord])
+                self.xProfile.setData(self.image[:, ycoord])
+                self.yProfile.setData(self.image[xcoord])
 
             self.fpsMath()
-            self.image = image
 
         except:
             pass
