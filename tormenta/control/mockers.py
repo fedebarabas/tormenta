@@ -157,6 +157,30 @@ class MockLaser(Driver):
         """
         return 'Simulated laser status'
 
+    @property
+    def ld_temp(self):
+        """To get the laser diode temperature (ºC)
+        """
+        return Q_(99, 'degC')
+
+    @property
+    def psuTemp(self):
+        """To get the laser diode temperature (ºC)
+        """
+        return Q_(99, 'degC')
+
+    @property
+    def laserTemp(self):
+        """To get the laser diode temperature (ºC)
+        """
+        return Q_(99, 'degC')
+
+    @property
+    def shg_temp(self):
+        """To get the SHG temperature
+        """
+        return Q_(99, 'degC')
+
     # ENABLE LASER
     @property
     def enabled(self):
@@ -403,7 +427,7 @@ class MockCamera(Driver):
 
     @property
     def acquisition_timings(self):
-        return 0.01 * self.s, 0.01 * self.s, 0.01 * self.s
+        return 0.001 * self.s, 0.001 * self.s, 0.001 * self.s
 
     @property
     def EM_gain_range(self):

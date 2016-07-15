@@ -21,12 +21,18 @@ class UpdatePowers(QtCore.QObject):
         self.widget = laserwidget
 
     def update(self):
-        redPower = np.round(self.widget.redlaser.power.magnitude, 1)
+
         bluePower = np.round(self.widget.bluelaser.power.magnitude, 1)
-        greenPower = np.round(self.widget.greenlaser.power.magnitude, 1)
-        self.widget.redControl.powerIndicator.setText(str(redPower))
         self.widget.blueControl.powerIndicator.setText(str(bluePower))
+
+        greenPower = np.round(self.widget.greenlaser.power.magnitude, 1)
+        greenPSUTemp = np.round(self.widget.greenlaser.psuTemp.magnitude, 1)
         self.widget.greenControl.powerIndicator.setText(str(greenPower))
+        self.widget.greenControl.psuTempInd.setText(str(greenPSUTemp))
+
+        redPower = np.round(self.widget.redlaser.power.magnitude, 1)
+        self.widget.redControl.powerIndicator.setText(str(redPower))
+
         time.sleep(1)
         QtCore.QTimer.singleShot(1, self.update)
 
@@ -46,19 +52,55 @@ class LaserWidget(QtGui.QFrame):
         calibrationFilename = r'tormenta/control/calibration.txt'
         self.calibrationPath = os.path.join(os.getcwd(), calibrationFilename)
 
+        # Blue laser control widget
+        self.blueControl = LaserControl(self.bluelaser, '<h3>405nm</h3>',
+                                        color=(73, 0, 188), prange=(0, 53),
+                                        tickInterval=5, singleStep=0.1)
+        # Green laser control widget
+        self.greenControl = LaserControl(self.greenlaser, '<h3>532nm</h3>',
+                                         color=(80, 255, 0), prange=(0, 1500),
+                                         tickInterval=10, singleStep=1,
+                                         daq=self.daq, port=0, invert=False)
+
+        # Additional green laser temperature indicators
+        self.greenControl.tempFrame = QtGui.QFrame(self.greenControl)
+        self.greenControl.tempFrame.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Plain)
+        greenTempGrid = QtGui.QGridLayout()
+        self.greenControl.tempFrame.setLayout(greenTempGrid)
+        self.greenControl.psuTempInd = QtGui.QLabel('0')
+        self.greenControl.psuTempInd.setAlignment(QtCore.Qt.AlignRight)
+        self.greenControl.laserTempInd = QtGui.QLabel('0')
+        self.greenControl.laserTempInd.setAlignment(QtCore.Qt.AlignRight)
+        greenTempGrid.addWidget(QtGui.QLabel('Temperature PSU'), 0, 0)
+        greenTempGrid.addWidget(self.greenControl.psuTempInd, 0, 1)
+        greenTempGrid.addWidget(QtGui.QLabel('ºC'), 0, 2)
+        greenTempGrid.addWidget(QtGui.QLabel('Temperature Laser'), 1, 0)
+        greenTempGrid.addWidget(self.greenControl.laserTempInd, 1, 1)
+        greenTempGrid.addWidget(QtGui.QLabel('ºC'), 1, 2)
+        self.greenControl.grid.addWidget(self.greenControl.tempFrame, 2, 0, 1, 2)
+
+        # Red laser control widget
         self.redControl = LaserControl(self.redlaser, '<h3>642nm</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
                                        tickInterval=100, singleStep=10,
                                        daq=self.daq, port=1)
 
-        self.blueControl = LaserControl(self.bluelaser, '<h3>405nm</h3>',
-                                        color=(73, 0, 188), prange=(0, 53),
-                                        tickInterval=5, singleStep=0.1)
-
-        self.greenControl = LaserControl(self.greenlaser, '<h3>532nm</h3>',
-                                         color=(80, 255, 0), prange=(0, 1500),
-                                         tickInterval=10, singleStep=1,
-                                         daq=self.daq, port=0, invert=False)
+        # Additional red laser temperature indicators
+        self.redControl.tempFrame = QtGui.QFrame(self.redControl)
+        self.redControl.tempFrame.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Plain)
+        redTempGrid = QtGui.QGridLayout()
+        self.redControl.tempFrame.setLayout(redTempGrid)
+        self.redControl.psuTempInd = QtGui.QLabel('0')
+        self.redControl.psuTempInd.setAlignment(QtCore.Qt.AlignRight)
+        self.redControl.laserTempInd = QtGui.QLabel('0')
+        self.redControl.laserTempInd.setAlignment(QtCore.Qt.AlignRight)
+        redTempGrid.addWidget(QtGui.QLabel('Temperature SHG'), 0, 0)
+        redTempGrid.addWidget(self.greenControl.psuTempInd, 0, 1)
+        redTempGrid.addWidget(QtGui.QLabel('ºC'), 0, 2)
+        redTempGrid.addWidget(QtGui.QLabel('Temperature Laser'), 1, 0)
+        redTempGrid.addWidget(self.greenControl.laserTempInd, 1, 1)
+        redTempGrid.addWidget(QtGui.QLabel('ºC'), 1, 2)
+        self.redControl.grid.addWidget(self.redControl.tempFrame, 2, 0, 1, 2)
 
         self.shuttLasers = np.array([self.redControl, self.greenControl])
         self.controls = (self.blueControl, self.redControl, self.greenControl)
@@ -76,9 +118,9 @@ class LaserWidget(QtGui.QFrame):
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
         self.setLayout(grid)
-        grid.addWidget(self.redControl, 0, 1)
         grid.addWidget(self.blueControl, 0, 0)
-        grid.addWidget(self.greenControl, 0, 2)
+        grid.addWidget(self.greenControl, 0, 1)
+        grid.addWidget(self.redControl, 0, 2)
         grid.addWidget(self.findTirfButton, 1, 0)
         grid.addWidget(self.setEpiButton, 2, 0)
         grid.addWidget(self.tirfButton, 1, 1)
@@ -226,7 +268,8 @@ class IntensityWorker(QtCore.QObject):
 class LaserControl(QtGui.QFrame):
 
     def __init__(self, laser, name, color, prange, tickInterval, singleStep,
-                 daq=None, port=None, invert=True, *args, **kwargs):
+                 daq=None, port=None, invert=True, addArgs=None,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
@@ -238,59 +281,28 @@ class LaserControl(QtGui.QFrame):
         self.name = QtGui.QLabel(name)
         self.name.setTextFormat(QtCore.Qt.RichText)
         self.name.setAlignment(QtCore.Qt.AlignCenter)
+        self.name.setStyleSheet("font-size:16px")
+        self.name.setFixedHeight(40)
 
         # Power widget
         self.setPointLabel = QtGui.QLabel('Setpoint')
         self.setPointEdit = QtGui.QLineEdit(str(self.laser.power_sp.magnitude))
         self.setPointEdit.setFixedWidth(50)
         self.setPointEdit.setAlignment(QtCore.Qt.AlignRight)
-        self.mWLabel = QtGui.QLabel('mW')
 
         self.powerLabel = QtGui.QLabel('Power')
         powerMag = self.laser.power.magnitude
         self.powerIndicator = QtGui.QLabel(str(powerMag))
         self.powerIndicator.setFixedWidth(50)
         self.powerIndicator.setAlignment(QtCore.Qt.AlignRight)
-        self.mWLabel2 = QtGui.QLabel('mW')
 
         self.intensityLabel = QtGui.QLabel('Intensity')
         self.intensityEdit = QtGui.QLabel('0')
         self.intensityEdit.setAlignment(QtCore.Qt.AlignRight)
-        self.kWcm2Label = QtGui.QLabel('kW/cm^2')
         self.voltageLabel = QtGui.QLabel('0')
         self.voltageLabel.setAlignment(QtCore.Qt.AlignRight)
-        self.VLabel = QtGui.QLabel('V')
 
         self.calibratedCheck = QtGui.QCheckBox('Calibrated')
-
-        powerWidget = QtGui.QWidget()
-        powerGrid = QtGui.QGridLayout()
-        powerWidget.setLayout(powerGrid)
-        powerGrid.addWidget(self.setPointLabel, 0, 0, 1, 2)
-        powerGrid.addWidget(self.setPointEdit, 1, 0)
-        powerGrid.addWidget(self.mWLabel, 1, 1)
-        powerGrid.addWidget(self.powerLabel, 2, 0, 1, 2)
-        powerGrid.addWidget(self.powerIndicator, 3, 0)
-        powerGrid.addWidget(self.mWLabel2, 3, 1)
-        powerGrid.addWidget(self.intensityLabel, 4, 0, 1, 2)
-        powerGrid.addWidget(self.intensityEdit, 5, 0)
-        powerGrid.addWidget(self.kWcm2Label, 5, 1)
-        powerGrid.addWidget(self.voltageLabel, 6, 0)
-        powerGrid.addWidget(self.VLabel, 6, 1)
-        powerGrid.addWidget(self.calibratedCheck, 7, 0, 1, 2)
-
-        # Shutter port
-        if self.port is not None:
-            self.shutterBox = QtGui.QCheckBox('Shutter open')
-            powerGrid.addWidget(self.shutterBox, 8, 0, 1, 2)
-            self.shutterBox.stateChanged.connect(self.shutterAction)
-
-            if invert:
-                self.daq.digital_IO[self.port] = True
-                self.states = {2: False, 0: True}
-            else:
-                self.daq.digital_IO[self.port] = False
-                self.states = {2: True, 0: False}
 
         # Slider
         self.maxpower = QtGui.QLabel(str(prange[1]))
@@ -305,6 +317,26 @@ class LaserControl(QtGui.QFrame):
         self.minpower = QtGui.QLabel(str(prange[0]))
         self.minpower.setAlignment(QtCore.Qt.AlignCenter)
 
+        powerFrame = QtGui.QFrame(self)
+        self.powerGrid = QtGui.QGridLayout()
+        powerFrame.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Plain)
+        powerFrame.setLayout(self.powerGrid)
+        self.powerGrid.addWidget(self.setPointLabel, 1, 0, 1, 2)
+        self.powerGrid.addWidget(self.setPointEdit, 2, 0)
+        self.powerGrid.addWidget(QtGui.QLabel('mW'), 2, 1)
+        self.powerGrid.addWidget(self.powerLabel, 3, 0, 1, 2)
+        self.powerGrid.addWidget(self.powerIndicator, 4, 0)
+        self.powerGrid.addWidget(QtGui.QLabel('mW'), 4, 1)
+        self.powerGrid.addWidget(self.intensityLabel, 5, 0, 1, 2)
+        self.powerGrid.addWidget(self.intensityEdit, 6, 0)
+        self.powerGrid.addWidget(QtGui.QLabel('kW/cm^2'), 5, 1)
+        self.powerGrid.addWidget(self.voltageLabel, 7, 0)
+        self.powerGrid.addWidget(QtGui.QLabel('V'), 7, 1)
+        self.powerGrid.addWidget(self.calibratedCheck, 8, 0, 1, 2)
+        self.powerGrid.addWidget(self.maxpower, 0, 3)
+        self.powerGrid.addWidget(self.slider, 1, 3, 8, 1)
+        self.powerGrid.addWidget(self.minpower, 9, 3)
+
         # ON/OFF button
         self.enableButton = QtGui.QPushButton('ON')
         style = "background-color: rgb{}".format(color)
@@ -313,14 +345,27 @@ class LaserControl(QtGui.QFrame):
         if self.laser.enabled:
             self.enableButton.setChecked(True)
 
-        grid = QtGui.QGridLayout()
-        self.setLayout(grid)
-        grid.addWidget(self.name, 0, 0, 1, 2)
-        grid.addWidget(powerWidget, 3, 0)
-        grid.addWidget(self.maxpower, 1, 1)
-        grid.addWidget(self.slider, 2, 1, 5, 1)
-        grid.addWidget(self.minpower, 7, 1)
-        grid.addWidget(self.enableButton, 8, 0, 1, 2)
+        self.grid = QtGui.QGridLayout()
+        self.setLayout(self.grid)
+        self.grid.addWidget(self.name, 0, 0, 1, 2)
+        self.grid.addWidget(powerFrame, 1, 0, 1, 2)
+
+        # Shutter port
+        if self.port is None:
+            self.grid.addWidget(self.enableButton, 8, 0, 1, 2)
+        else:
+            self.shutterBox = QtGui.QCheckBox('Open')
+            self.shutterBox.setFixedWidth(50)
+            self.shutterBox.stateChanged.connect(self.shutterAction)
+            self.grid.addWidget(self.enableButton, 8, 0)
+            self.grid.addWidget(self.shutterBox, 8, 1)
+
+            if invert:
+                self.daq.digital_IO[self.port] = True
+                self.states = {2: False, 0: True}
+            else:
+                self.daq.digital_IO[self.port] = False
+                self.states = {2: True, 0: False}
 
         # Connections
         self.enableButton.toggled.connect(self.toggleLaser)

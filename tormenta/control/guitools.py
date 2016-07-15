@@ -37,6 +37,7 @@ def insertSuffix(filename, suffix, newExt=None):
     else:
         return names[0] + suffix + newExt
 
+
 def attrsToTxt(filename, attrs):
     fp = open(filename + '.txt', 'w')
     fp.write('\n'.join('{}= {}'.format(x[0], x[1]) for x in attrs))
@@ -90,11 +91,11 @@ def savePreset(main, filename=None):
         return
 
     config = configparser.ConfigParser()
-
+    fov = 'Field of view'
     config['Camera'] = {
         'Frame Start': main.frameStart,
         'Shape': main.shape,
-        'Shape name': main.tree.p.param('ROI').param('Shape').value(),
+        'Shape name': main.tree.p.param(fov).param('Shape').value(),
         'Horizontal readout rate': str(main.HRRatePar.value()),
         'Vertical shift speed': str(main.vertShiftSpeedPar.value()),
         'Clock voltage amplitude': str(main.vertShiftAmpPar.value()),
@@ -131,12 +132,12 @@ def loadPreset(main, filename=None):
     shapeName = configCam['Shape Name']
     if shapeName == 'Custom':
         main.customFrameLoaded = True
-        tree.param('ROI').param('Shape').setValue(shapeName)
+        tree.param('Field of view').param('Shape').setValue(shapeName)
         main.frameStart = literal_eval(configCam['Frame Start'])
         main.adjustFrame()
         main.customFrameLoaded = False
     else:
-        tree.param('ROI').param('Shape').setValue(shapeName)
+        tree.param('Field of view').param('Shape').setValue(shapeName)
 
     vps = timings.param('Vertical pixel shift')
     vps.param('Speed').setValue(Q_(configCam['Vertical shift speed']))
@@ -187,7 +188,8 @@ def mouseMoved(main, pos):
         mousePoint = main.vb.mapSceneToView(pos)
         x, y = int(mousePoint.x()), int(main.shape[1] - mousePoint.y())
         main.cursorPos.setText('{}, {}'.format(x, y))
-        main.cursorPosInt.setText('{} counts'.format(main.image[x, int(mousePoint.y())]))
+        countsStr = '{} counts'.format(main.image[x, int(mousePoint.y())])
+        main.cursorPosInt.setText(countsStr)
 
 
 def tiff2png(main, filenames=None):

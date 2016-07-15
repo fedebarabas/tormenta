@@ -51,13 +51,17 @@ class CamParamTree(ParameterTree):
                       "light collected outside the cropped area could \n"
                       "corrupt the images which were acquired in this mode.")
 
+        maxExp = andor.max_exposure.magnitude
+
         # Parameter tree for the camera configuration
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
-                  {'name': 'ROI', 'type': 'group', 'children': [
+                  {'name': 'Field of view', 'type': 'group', 'children': [
+                      {'name': 'Pixel size', 'type': 'float', 'value': 0.12,
+                       'readonly': True, 'siPrefix': False, 'suffix': ' um'},
                       {'name': 'Shape', 'type': 'list',
-                       'values': ['Full chip', '256x256', '128x128', '64x64',
-                                  'Two-colors', 'Custom']},
+                       'values': ['Full chip', '256x256', '128x128', '84x84',
+                                  '64x64', 'Two-colors', 'Custom']},
                       {'name': 'Apply', 'type': 'action'}]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Horizontal readout rate', 'type': 'list',
@@ -65,8 +69,7 @@ class CamParamTree(ParameterTree):
                       {'name': 'Vertical pixel shift', 'type': 'group',
                        'children': [
                            {'name': 'Speed', 'type': 'list',
-                            'values': andor.vertSpeeds[::-1],
-                            'tip': vpssTip},
+                            'values': andor.vertSpeeds[::-1], 'tip': vpssTip},
                            {'name': 'Clock voltage amplitude', 'tip': vpssTip,
                             'type': 'list', 'values': andor.vertAmps}]},
                       {'name': 'Frame Transfer Mode', 'type': 'bool',
@@ -77,8 +80,7 @@ class CamParamTree(ParameterTree):
                             'tip': croppedTip},
                            {'name': 'Apply', 'type': 'action'}]},
                       {'name': 'Set exposure time', 'type': 'float',
-                       'value': 0.1, 'limits': (0,
-                                                andor.max_exposure.magnitude),
+                       'value': 0.1, 'limits': (0, maxExp),
                        'siPrefix': True, 'suffix': 's'},
                       {'name': 'Real exposure time', 'type': 'float',
                        'value': 0, 'readonly': True, 'siPrefix': True,
@@ -91,11 +93,10 @@ class CamParamTree(ParameterTree):
                        'suffix': 'Hz'}]},
                   {'name': 'Gain', 'type': 'group', 'children': [
                       {'name': 'Pre-amp gain', 'type': 'list',
-                       'values': list(andor.PreAmps),
-                       'tip': preampTip},
+                       'values': list(andor.PreAmps), 'tip': preampTip},
                       {'name': 'EM gain', 'type': 'int', 'value': 1,
-                       'limits': (0, andor.EM_gain_range[1]),
-                       'tip': EMGainTip}]}]
+                       'limits': (0, andor.EM_gain_range[1]), 'tip': EMGainTip}
+                      ]}]
 
         self.p = Parameter.create(name='params', type='group', children=params)
         self.setParameters(self.p, showTop=False)
@@ -124,7 +125,7 @@ class CamParamTree(ParameterTree):
     @writable.setter
     def writable(self, value):
         self._writable = value
-        self.p.param('ROI').param('Shape').setWritable(value)
+        self.p.param('Field of view').param('Shape').setWritable(value)
         self.timeParams.param('Frame Transfer Mode').setWritable(value)
         croppedParam = self.timeParams.param('Cropped sensor mode')
         croppedParam.param('Enable').setWritable(value)
@@ -237,7 +238,7 @@ class HtransformStack(QtCore.QObject):
                                      [('npy files', '.npy')])
         H = np.load(Hname)
         xlim, ylim, cropShape, corrShape = reg.get_affine_shapes(H)
-        
+
         text = "Select files for affine transformation"
         filenames = guitools.getFilenames(text, types=[],
                                           initialdir=os.path.split(Hname)[0])
@@ -253,21 +254,21 @@ class HtransformStack(QtCore.QObject):
 
                     dat0 = f0['data']
                     dat1 = self.mpStack(dat0, xlim, ylim, H)
-                    
+
                     # Store
                     f1.create_dataset(name='data', data=dat1)
 #                    f1['data'][:, -cropShape[0]:, :] = im1c
 
             elif ext in ['.tiff', '.tif']:
                 with tiff.TiffFile(filename) as tt:
-                    
+
                     dat0 = tt.asarray()
 
                     if len(dat0.shape) > 2:
 
                         dat1 = self.mpStack(dat0, xlim, ylim, H)
                         tiff.imsave(filename2, dat1)
-                        
+
                     else:
                         tiff.imsave(guitools.insertSuffix(filename, '_ch0'),
                                     dat0[:128, :])
@@ -277,9 +278,9 @@ class HtransformStack(QtCore.QObject):
             print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
 
         self.finished.emit()
-        
+
     def mpStack(self, dat0, xlim, ylim, H):
-        
+
         # Multiprocessing
         n = len(dat0)
         cpus = mp.cpu_count()
@@ -292,7 +293,7 @@ class HtransformStack(QtCore.QObject):
         pool.close()
         pool.join()
         im1c = np.concatenate(results[:])
-        
+
         # Stack channels
         im1c = im1c[:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
         im0 = dat0[:, :128, :][:, xlim[0]:xlim[1], ylim[0]:ylim[1]]

@@ -251,10 +251,10 @@ class RecordingWidget(QtGui.QFrame):
             guitools.attrsToTxt(os.path.splitext(savename)[0], self.getAttrs())
 
             # Two-color-corrected snap saving
-            imageFramePar = self.main.tree.p.param('ROI')
+            imageFramePar = self.main.tree.p.param('Field of view')
             twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
             if twoColors and (self.H is not None):
-                newData = np.zeros((2*self.corrShape[0], self.corrShape[1]), 
+                newData = np.zeros((2*self.cropShape[0], self.cropShape[1]),
                                    dtype=np.uint16)
                 im0 = image[self.xlim[0]:self.xlim[1],
                             self.ylim[0]:self.ylim[1]]
@@ -342,9 +342,9 @@ class RecordingWidget(QtGui.QFrame):
                 self.folderWarning()
                 self.recButton.setChecked(False)
 
-            elif guitools.fileSizeGB(shape) > 2 and recFormat == 'tiff':
-                self.tiffWarning()
-                self.recButton.setChecked(False)
+#            elif guitools.fileSizeGB(shape) > 2 and recFormat == 'tiff':
+#                self.tiffWarning()
+#                self.recButton.setChecked(False)
 
             else:
                 self.writable = False
@@ -358,14 +358,15 @@ class RecordingWidget(QtGui.QFrame):
                 name = os.path.join(folder, self.filenameEdit.text())
                 self.startTime = ptime.time()
 
-                frameOption = self.main.tree.p.param('ROI')
+                frameOption = self.main.tree.p.param('Field of view')
                 twoColors = frameOption.param('Shape').value() == 'Two-colors'
                 twoColors = twoColors and (self.H is not None)
                 self.worker = RecWorker(self.main.andor, self.main.umxpx,
                                         shape, self.main.t_exp_real, name,
                                         recFormat, self.dataname,
                                         self.getAttrs(), twoColors, self.H,
-                                        self.reducedShape, self.xlim, self.ylim)
+                                        self.reducedShape, self.xlim,
+                                        self.ylim)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.worker.doneSignal.connect(self.endRecording)
                 self.recordingThread = QtCore.QThread()
@@ -418,7 +419,7 @@ class RecWorker(QtCore.QObject):
     doneSignal = QtCore.pyqtSignal()
 
     def __init__(self, andor, umPerPx, shape, t_exp, savename, fileformat,
-                 dataname, attrs, twoColors, H, reducedShape, xlim, ylim, 
+                 dataname, attrs, twoColors, H, reducedShape, xlim, ylim,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -468,7 +469,6 @@ class RecWorker(QtCore.QObject):
 
             self.tags = [('resolution_unit', 'H', 1, 3, True)]
             self.resolution = (1/self.umxpx, 1/self.umxpx)
-            self.bigtiff = guitools.fileSizeGB(self.shape) > 2
 
             if not(self.twoColors):
                 self.singleColorTIFF()
@@ -485,8 +485,7 @@ class RecWorker(QtCore.QObject):
 
     def singleColorTIFF(self):
 
-        with tiff.TiffWriter(self.savename, bigtiff=self.bigtiff,
-                             software='Tormenta') as storeFile:
+        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile:
 
             while self.j < self.shape[0] and self.pressed:
                 time.sleep(self.t_exp.magnitude)
@@ -510,10 +509,8 @@ class RecWorker(QtCore.QObject):
 
         corrSavename = guitools.insertSuffix(self.savename, '_corrected')
 
-        with tiff.TiffWriter(self.savename, bigtiff=self.bigtiff,
-                             software='Tormenta') as storeFile, \
-                tiff.TiffWriter(corrSavename, bigtiff=self.bigtiff,
-                                software='Tormenta') as corrStoreFile:
+        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile,\
+          tiff.TiffWriter(corrSavename, software='Tormenta') as corrStoreFile:
 
             while self.j < self.shape[0] and self.pressed:
 
@@ -527,7 +524,7 @@ class RecWorker(QtCore.QObject):
                     storeFile.save(data.astype(np.uint16), extratags=self.tags,
                                    resolution=self.resolution)
 
-                    im0 = data[:, :128, :][:, self.xlim[0]:self.xlim[1], 
+                    im0 = data[:, :128, :][:, self.xlim[0]:self.xlim[1],
                                            self.ylim[0]:self.ylim[1]]
                     im1 = np.zeros(data[:, -128:, :].shape)
                     for k in np.arange(len(im1)):
@@ -535,8 +532,8 @@ class RecWorker(QtCore.QObject):
                                                         self.H)
                     im1c = im1[:, self.xlim[0]:self.xlim[1],
                                self.ylim[0]:self.ylim[1]]
-                    corrStoreFile.save(np.hstack((im0, im1c)).astype(np.uint16),
-                                       extratags=self.tags,
+                    im = np.hstack((im0, im1c)).astype(np.uint16)
+                    corrStoreFile.save(im, extratags=self.tags,
                                        resolution=self.resolution)
 
         # Saving parameters
@@ -758,7 +755,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.tree = pyqtsub.CamParamTree(self.andor)
 
         # Frame signals
-        frameParam = self.tree.p.param('ROI')
+        frameParam = self.tree.p.param('Field of view')
         frameParam.param('Shape').sigValueChanged.connect(self.updateFrame)
         # Indicator for loading frame shape from a preset setting
         self.customFrameLoaded = False
@@ -1138,11 +1135,24 @@ class TormentaGUI(QtGui.QMainWindow):
         self.grid.update(self.shape)
         self.recWidget.shape = self.shape
 
+    def fullChip(self):
+        try:
+            self.ROI.hide()
+        except:
+            pass
+        self.shape = self.andor.detector_shape
+        self.frameStart = (1, 1)
+        self.changeParameter(self.adjustFrame)
+        self.grid2.setDimensions()
+
     def updateFrame(self):
         """ Method to change the image frame size and position in the sensor
         """
-        frameParam = self.tree.p.param('ROI')
+        frameParam = self.tree.p.param('Field of view')
         if frameParam.param('Shape').value() == 'Custom':
+
+            if self.shape != self.andor.detector_shape:
+                self.fullChip()
 
             if not(self.customFrameLoaded):
                 ROIpos = (0.5 * self.shape[0] - 64, 0.5 * self.shape[1] - 64)
@@ -1156,14 +1166,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 applyParam.sigStateChanged.connect(self.customFrame)
 
         elif frameParam.param('Shape').value() == 'Full chip':
-            try:
-                self.ROI.hide()
-            except:
-                pass
-            self.shape = self.andor.detector_shape
-            self.frameStart = (1, 1)
-            self.changeParameter(self.adjustFrame)
-            self.grid2.setDimensions()
+            self.fullChip()
 
         elif frameParam.param('Shape').value() == 'Two-colors':
             self.shape = (266, 266)
@@ -1186,8 +1189,8 @@ class TormentaGUI(QtGui.QMainWindow):
     def customFrame(self):
 
         ROISize = self.ROI.size()
-        self.shape = (int(ROISize[0]), int(ROISize[1]))
-        self.frameStart = (int(self.ROI.pos()[0]), int(self.ROI.pos()[1]))
+        self.shape = (int(ROISize[0]), int(ROISize[0]))
+        self.frameStart = (int(self.ROI.pos()[0]), int(self.ROI.pos()[0]))
 
         self.changeParameter(self.adjustFrame)
         self.ROI.hide()
