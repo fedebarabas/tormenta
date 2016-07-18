@@ -140,7 +140,7 @@ class MockScanZ(Driver):
 class MockLaser(Driver):
 
     def __init__(self):
-        super(MockLaser).__init__()
+        super().__init__()
 
         self.mW = Q_(1, 'mW')
 
@@ -161,25 +161,25 @@ class MockLaser(Driver):
     def ld_temp(self):
         """To get the laser diode temperature (ºC)
         """
-        return Q_(99, 'degC')
+        return Q_(99.9, 'degC')
 
     @property
     def psuTemp(self):
         """To get the laser diode temperature (ºC)
         """
-        return Q_(99, 'degC')
+        return Q_(99.9, 'degC')
 
     @property
     def laserTemp(self):
         """To get the laser diode temperature (ºC)
         """
-        return Q_(99, 'degC')
+        return Q_(99.9, 'degC')
 
     @property
     def shg_temp(self):
         """To get the SHG temperature
         """
-        return Q_(99, 'degC')
+        return Q_(99.9, 'degC')
 
     # ENABLE LASER
     @property

@@ -968,7 +968,7 @@ class TormentaGUI(QtGui.QMainWindow):
         dockArea.addDock(focusDock, 'top', consoleDock)
 
         laserDock = Dock("Laser Control", size=(1, 1))
-        self.lasers = (redlaser, bluelaser, greenlaser)
+        self.lasers = (bluelaser, greenlaser, redlaser)
         self.laserWidgets = lasercontrol.LaserWidget(self, self.lasers,
                                                      self.daq)
         laserDock.addWidget(self.laserWidgets)

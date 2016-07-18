@@ -26,12 +26,18 @@ class UpdatePowers(QtCore.QObject):
         self.widget.blueControl.powerIndicator.setText(str(bluePower))
 
         greenPower = np.round(self.widget.greenlaser.power.magnitude, 1)
-        greenPSUTemp = np.round(self.widget.greenlaser.psuTemp.magnitude, 1)
         self.widget.greenControl.powerIndicator.setText(str(greenPower))
+        greenPSUTemp = np.round(self.widget.greenlaser.psuTemp.magnitude, 1)
         self.widget.greenControl.psuTempInd.setText(str(greenPSUTemp))
+        greenLaserT = np.round(self.widget.greenlaser.laserTemp.magnitude, 1)
+        self.widget.greenControl.laserTempInd.setText(str(greenLaserT))
 
         redPower = np.round(self.widget.redlaser.power.magnitude, 1)
         self.widget.redControl.powerIndicator.setText(str(redPower))
+        redLaserTemp = np.round(self.widget.redlaser.ld_temp.magnitude, 1)
+        self.widget.redControl.laserTempInd.setText(str(redLaserTemp))
+        redSHGTemp = np.round(self.widget.redlaser.shg_temp.magnitude, 1)
+        self.widget.redControl.shgTempInd.setText(str(redSHGTemp))
 
         time.sleep(1)
         QtCore.QTimer.singleShot(1, self.update)
@@ -43,7 +49,7 @@ class LaserWidget(QtGui.QFrame):
         super().__init__(*args, **kwargs)
 
         self.main = main
-        self.redlaser, self.bluelaser, self.greenlaser = lasers
+        self.bluelaser, self.greenlaser, self.redlaser = lasers
         self.mW = Q_(1, 'mW')
         self.V = Q_(1, 'V')
         self.daq = daq
@@ -61,15 +67,14 @@ class LaserWidget(QtGui.QFrame):
                                          color=(80, 255, 0), prange=(0, 1500),
                                          tickInterval=10, singleStep=1,
                                          daq=self.daq, port=0, invert=False)
-
         # Additional green laser temperature indicators
         self.greenControl.tempFrame = QtGui.QFrame(self.greenControl)
-        self.greenControl.tempFrame.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Plain)
+        self.greenControl.tempFrame.setFrameStyle(self.Panel | self.Plain)
         greenTempGrid = QtGui.QGridLayout()
         self.greenControl.tempFrame.setLayout(greenTempGrid)
-        self.greenControl.psuTempInd = QtGui.QLabel('0')
+        self.greenControl.psuTempInd = QtGui.QLabel('0.0')
         self.greenControl.psuTempInd.setAlignment(QtCore.Qt.AlignRight)
-        self.greenControl.laserTempInd = QtGui.QLabel('0')
+        self.greenControl.laserTempInd = QtGui.QLabel('0.0')
         self.greenControl.laserTempInd.setAlignment(QtCore.Qt.AlignRight)
         greenTempGrid.addWidget(QtGui.QLabel('Temperature PSU'), 0, 0)
         greenTempGrid.addWidget(self.greenControl.psuTempInd, 0, 1)
@@ -77,33 +82,33 @@ class LaserWidget(QtGui.QFrame):
         greenTempGrid.addWidget(QtGui.QLabel('Temperature Laser'), 1, 0)
         greenTempGrid.addWidget(self.greenControl.laserTempInd, 1, 1)
         greenTempGrid.addWidget(QtGui.QLabel('ºC'), 1, 2)
-        self.greenControl.grid.addWidget(self.greenControl.tempFrame, 2, 0, 1, 2)
+        self.greenControl.grid.addWidget(self.greenControl.tempFrame,
+                                         2, 0, 1, 2)
 
         # Red laser control widget
         self.redControl = LaserControl(self.redlaser, '<h3>642nm</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
                                        tickInterval=100, singleStep=10,
                                        daq=self.daq, port=1)
-
         # Additional red laser temperature indicators
         self.redControl.tempFrame = QtGui.QFrame(self.redControl)
-        self.redControl.tempFrame.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Plain)
+        self.redControl.tempFrame.setFrameStyle(self.Panel | self.Plain)
         redTempGrid = QtGui.QGridLayout()
         self.redControl.tempFrame.setLayout(redTempGrid)
-        self.redControl.psuTempInd = QtGui.QLabel('0')
-        self.redControl.psuTempInd.setAlignment(QtCore.Qt.AlignRight)
-        self.redControl.laserTempInd = QtGui.QLabel('0')
+        self.redControl.shgTempInd = QtGui.QLabel('0.0')
+        self.redControl.shgTempInd.setAlignment(QtCore.Qt.AlignRight)
+        self.redControl.laserTempInd = QtGui.QLabel('0.0')
         self.redControl.laserTempInd.setAlignment(QtCore.Qt.AlignRight)
         redTempGrid.addWidget(QtGui.QLabel('Temperature SHG'), 0, 0)
-        redTempGrid.addWidget(self.greenControl.psuTempInd, 0, 1)
+        redTempGrid.addWidget(self.redControl.shgTempInd, 0, 1)
         redTempGrid.addWidget(QtGui.QLabel('ºC'), 0, 2)
         redTempGrid.addWidget(QtGui.QLabel('Temperature Laser'), 1, 0)
-        redTempGrid.addWidget(self.greenControl.laserTempInd, 1, 1)
+        redTempGrid.addWidget(self.redControl.laserTempInd, 1, 1)
         redTempGrid.addWidget(QtGui.QLabel('ºC'), 1, 2)
         self.redControl.grid.addWidget(self.redControl.tempFrame, 2, 0, 1, 2)
 
-        self.shuttLasers = np.array([self.redControl, self.greenControl])
-        self.controls = (self.blueControl, self.redControl, self.greenControl)
+        self.shuttLasers = np.array([self.greenControl, self.redControl])
+        self.controls = (self.blueControl, self.greenControl, self.redControl)
 
         self.findTirfButton = QtGui.QPushButton('Find TIRF (no anda)')
         self.setEpiButton = QtGui.QPushButton('Set EPI (no anda)')
@@ -329,7 +334,7 @@ class LaserControl(QtGui.QFrame):
         self.powerGrid.addWidget(QtGui.QLabel('mW'), 4, 1)
         self.powerGrid.addWidget(self.intensityLabel, 5, 0, 1, 2)
         self.powerGrid.addWidget(self.intensityEdit, 6, 0)
-        self.powerGrid.addWidget(QtGui.QLabel('kW/cm^2'), 5, 1)
+        self.powerGrid.addWidget(QtGui.QLabel('kW/cm^2'), 6, 1)
         self.powerGrid.addWidget(self.voltageLabel, 7, 0)
         self.powerGrid.addWidget(QtGui.QLabel('V'), 7, 1)
         self.powerGrid.addWidget(self.calibratedCheck, 8, 0, 1, 2)
@@ -410,15 +415,15 @@ if __name__ == '__main__':
     blueDriver = 'rgblasersystems.minilasevo.MiniLasEvo'
     greenDriver = 'laserquantum.ventus.Ventus'
 
-    with instruments.Laser('mpb.vfl.VFL', 'COM3') as redlaser, \
-            instruments.Laser(blueDriver, 'COM7') as bluelaser, \
+    with instruments.Laser(blueDriver, 'COM7') as bluelaser, \
             instruments.Laser(greenDriver, 'COM13') as greenlaser, \
+            instruments.Laser('mpb.vfl.VFL', 'COM3') as redlaser, \
             instruments.DAQ() as daq:
 
-        print(redlaser.idn, bluelaser.idn, greenlaser.idn, daq.idn)
+        print(bluelaser.idn, greenlaser.idn, redlaser.idn, daq.idn)
         win = QtGui.QMainWindow()
         win.setWindowTitle('Laser control')
-        laserWidget = LaserWidget(None, (redlaser, bluelaser, greenlaser), daq)
+        laserWidget = LaserWidget(None, (bluelaser, greenlaser, redlaser), daq)
         win.setCentralWidget(laserWidget)
         win.show()
 

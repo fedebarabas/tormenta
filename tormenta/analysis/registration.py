@@ -26,6 +26,7 @@ def load_images(filename):
     except:
         return load_hdf(filename)
 
+
 def load_tiff(filename):
 
     with tiff.TiffFile(filename) as ff:
@@ -66,10 +67,10 @@ def fit_and_plot(images, fig):
 
         # Image plot
         ax = fig.add_subplot(311 + k)
-        ax.imshow(mm.image, interpolation='None', aspect='equal', 
+        ax.imshow(mm.image, interpolation='None', aspect='equal',
                   cmap='cubehelix', vmin=0, vmax=700)
         ax.autoscale(False)
-        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5, 
+        ax.plot(mm.results['fit_y'] - 0.5, mm.results['fit_x'] - 0.5,
                 marks[k], mew=1, ms=5, markerfacecolor='None')
         ax.set_adjustable('box-forced')
 
@@ -368,7 +369,7 @@ def h_affine_transform(image, H):
 def matrix_from_stack(filename, Hfilename):
 
     images = load_images(filename)
-    
+
     points = points_registration(images)
     H = matrix_from_points(points[0], points[1])
     print('Transformation matrix 1 --> 0')
@@ -397,7 +398,7 @@ def transformation_check(H, filename):
 
 
 def get_affine_shapes(H):
-    
+
     data = np.ones((128, 266))
     datac = h_affine_transform(data, H)
     indices = np.where(datac == 1)
@@ -421,7 +422,7 @@ def get_affine_shapes(H):
     xlim = (xmin, xmax + 1)
     ylim = (indices[1].min(), indices[1].max() + 1)
     cropShape = (xlim[1] - xlim[0], ylim[1] - ylim[0])
-    
+
     return xlim, ylim, cropShape
 
 if __name__ == '__main__':
@@ -434,7 +435,7 @@ if __name__ == '__main__':
     filename = filedialog.askopenfilename(filetypes=types, parent=root,
                                           title='Load bead stack')
     folder = os.path.split(filename)[0]
-    
+
     arrayType = [('numpy array', '.npy')]
     Hfilename = filedialog.asksaveasfilename(filetypes=arrayType,
                                              parent=root, initialdir=folder,
