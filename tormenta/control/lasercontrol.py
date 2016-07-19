@@ -6,12 +6,14 @@ Created on Tue Aug 12 11:51:21 2014
 """
 
 import os
-
-import numpy as np
 import time
+import numpy as np
+import matplotlib.pyplot as plt
 from PyQt4 import QtGui, QtCore
 from lantz import Q_
+
 from tormenta.control.instruments import daqStream
+import tormenta.analysis.calibration as calibration
 
 
 class UpdatePowers(QtCore.QObject):
@@ -45,7 +47,7 @@ class UpdatePowers(QtCore.QObject):
 
 class LaserWidget(QtGui.QFrame):
 
-    def __init__(self, main, lasers, daq, *args, **kwargs):
+    def __init__(self, main, lasers, daq, aptMotor, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.main = main
@@ -54,6 +56,7 @@ class LaserWidget(QtGui.QFrame):
         self.V = Q_(1, 'V')
         self.daq = daq
         self.daq.digital_IO[3] = True
+        self.aptMotor = aptMotor
 
         calibrationFilename = r'tormenta/control/calibration.txt'
         self.calibrationPath = os.path.join(os.getcwd(), calibrationFilename)
@@ -110,15 +113,25 @@ class LaserWidget(QtGui.QFrame):
         self.shuttLasers = np.array([self.greenControl, self.redControl])
         self.controls = (self.blueControl, self.greenControl, self.redControl)
 
+        # EPI/TIRF motor movements
         self.findTirfButton = QtGui.QPushButton('Find TIRF (no anda)')
-        self.setEpiButton = QtGui.QPushButton('Set EPI (no anda)')
         self.tirfButton = QtGui.QPushButton('TIRF (no anda)')
-        self.tirfButton.setCheckable(True)
-        self.epiButton = QtGui.QPushButton('EPI (no anda)')
-        self.epiButton.setCheckable(True)
+        self.epiButton = QtGui.QPushButton('EPI')
         self.stagePosLabel = QtGui.QLabel('0 mm')
         self.getIntButton = QtGui.QPushButton('Get intensities')
+        self.getIntButton.setStyleSheet("font-size:14px")
+        self.getIntButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                        QtGui.QSizePolicy.Expanding)
         self.getIntButton.clicked.connect(self.getIntensities)
+
+        # A separate thread for motor movements to keep the GUI responsive
+        self.moveMotor = MoveMotor(self.aptMotor, self)
+        self.motorThread = QtCore.QThread()
+        self.moveMotor.moveToThread(self.motorThread)
+        self.motorThread.start()
+        self.epiButton.pressed.connect(self.moveMotor.goEPI)
+        self.motorThread.started.connect(self.moveMotor.update)
+        self.findTirfButton.pressed.connect(self.moveMotor.findTIRF)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
@@ -127,11 +140,10 @@ class LaserWidget(QtGui.QFrame):
         grid.addWidget(self.greenControl, 0, 1)
         grid.addWidget(self.redControl, 0, 2)
         grid.addWidget(self.findTirfButton, 1, 0)
-        grid.addWidget(self.setEpiButton, 2, 0)
-        grid.addWidget(self.tirfButton, 1, 1)
-        grid.addWidget(self.epiButton, 2, 1)
-        grid.addWidget(self.stagePosLabel, 1, 2)
-        grid.addWidget(self.getIntButton, 2, 2)
+        grid.addWidget(self.tirfButton, 2, 1)
+        grid.addWidget(self.epiButton, 2, 0)
+        grid.addWidget(self.stagePosLabel, 1, 1)
+        grid.addWidget(self.getIntButton, 1, 2, 2, 1)
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
@@ -176,7 +188,59 @@ class LaserWidget(QtGui.QFrame):
     def closeEvent(self, *args, **kwargs):
         self.closeShutters()
         self.updateThread.quit()
+        self.moveMotor.goEPI()
+        self.motorThread.quit()
+        self.aptMotor.cleanUpAPT()
         super().closeEvent(*args, **kwargs)
+
+
+class MoveMotor(QtCore.QObject):
+
+    doneSignal = QtCore.pyqtSignal()
+
+    def __init__(self, motor, laserwidget, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.motor = motor
+        self.laserwidget = laserwidget
+
+    def update(self):
+        # TODO: usar otro QTimer
+        text = 'Position: {0:.2f} mm'.format(self.motor.getPos())
+        self.laserwidget.stagePosLabel.setText(text)
+        time.sleep(1)
+        QtCore.QTimer.singleShot(1, self.update)
+
+    def goEPI(self):
+        self.motor.mAbs(0)
+
+    def findTIRF(self):
+
+        self.goEPI()
+        int0 = np.mean(calibration.frame(self.laserwidget.main.image,
+                                         center=self.laserwidget.main.shape))
+
+        x = np.arange(4.1, 4.4, 0.001)
+        n = x.size
+        intensity = np.zeros(n)
+        for i in np.arange(n):
+            self.motor.mAbs(x[i])
+            data = calibration.frame(self.laserwidget.main.image,
+                                     center=self.laserwidget.main.shape)
+            intensity[i] = np.mean(data) / int0
+            text = 'Position: {0:.2f} mm'.format(self.motor.getPos())
+            self.laserwidget.stagePosLabel.setText(text)
+
+        hMax = np.argmax(intensity)
+        cMin = np.where(x < x[hMax] - 0.1)[-1]
+        cMax = np.where(x > x[hMax] + 0.1)[0]
+        print(hMax, cMin, cMax)
+        pol = np.poly1d(np.polyfit(x[cMin:cMax], intensity[cMin:cMax], 2))
+        xTIRF = x[cMin:cMax][np.argmin(pol(x[cMin:cMax]))]
+
+        plt.plot(x, intensity)
+        plt.plot(x[cMin:cMax], pol(x[cMin:cMax]), 'r', linewidth=2)
+        plt.title(str(xTIRF))
+        plt.show()
 
 
 class IntensityWorker(QtCore.QObject):
@@ -420,11 +484,19 @@ if __name__ == '__main__':
             instruments.Laser('mpb.vfl.VFL', 'COM3') as redlaser, \
             instruments.DAQ() as daq:
 
-        print(bluelaser.idn, greenlaser.idn, redlaser.idn, daq.idn)
+        aptMotor = instruments.Motor()
+
+        print(bluelaser.idn)
+        print(greenlaser.idn)
+        print(redlaser.idn)
+        print(daq.idn)
+        print('APT Thorlabs Motor', aptMotor.getHardwareInformation())
         win = QtGui.QMainWindow()
         win.setWindowTitle('Laser control')
-        laserWidget = LaserWidget(None, (bluelaser, greenlaser, redlaser), daq)
+        laserWidget = LaserWidget(None, (bluelaser, greenlaser, redlaser), daq,
+                                  aptMotor)
         win.setCentralWidget(laserWidget)
         win.show()
 
         app.exec_()
+        aptMotor.cleanUpAPT()

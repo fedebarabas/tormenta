@@ -20,15 +20,18 @@ def main():
             instruments.Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser, \
             instruments.DAQ() as daq, instruments.ScanZ(12) as scanZ:
 
+        aptMotor = instruments.Motor()
+
         print(andor.idn)
         print(redlaser.idn)
         print(bluelaser.idn)
         print(greenlaser.idn)
         print(daq.idn)
         print('Prior Z stage')
+        print(aptMotor.getHardwareInformation())
 
         win = control.TormentaGUI(andor, redlaser, bluelaser, greenlaser,
-                                  scanZ, daq)
+                                  scanZ, daq, aptMotor)
         win.show()
 
         app.exec_()

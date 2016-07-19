@@ -21,6 +21,19 @@ from lantz.errors import InstrumentError
 import tormenta.control.mockers as mockers
 
 
+class Motor(object):
+
+    def __new__(cls, serial=83839646, HWTYPE=31, *args):
+        try:
+            from tormenta.control.external.PyAPT import APTMotor
+            motor = APTMotor(serial, HWTYPE=HWTYPE)
+            motor.initializeHardwareDevice()
+            return motor
+
+        except:
+            return mockers.MockMotor()
+
+
 class Webcam(object):
 
     def __new__(cls, *args):

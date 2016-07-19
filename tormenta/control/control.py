@@ -662,7 +662,7 @@ class TormentaGUI(QtGui.QMainWindow):
     liveviewEnds = QtCore.pyqtSignal()
 
     def __init__(self, andor, redlaser, bluelaser, greenlaser, scanZ, daq,
-                 *args, **kwargs):
+                 aptMotor, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.andor = andor
@@ -673,6 +673,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.bluelaser = bluelaser
         self.scanZ = scanZ
         self.daq = daq
+        self.aptMotor = aptMotor
 
         self.s = Q_(1, 's')
         self.lastTime = ptime.time()
@@ -970,7 +971,7 @@ class TormentaGUI(QtGui.QMainWindow):
         laserDock = Dock("Laser Control", size=(1, 1))
         self.lasers = (bluelaser, greenlaser, redlaser)
         self.laserWidgets = lasercontrol.LaserWidget(self, self.lasers,
-                                                     self.daq)
+                                                     self.daq, self.aptMotor)
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', moleculesDock)
 

@@ -24,11 +24,22 @@ class constants:
         self.GND = 0
 
 
-class MockWebcam(object):
+class MockMotor(object):
 
     def __init__(self):
         super().__init__()
 
+    def getHardwareInformation(self):
+        return 'Simulated Motor'
+
+    def cleanUpAPT(self):
+        pass
+
+
+class MockWebcam(object):
+
+    def __init__(self):
+        super().__init__()
         print('Simulated Webcam')
 
     def start(self):
