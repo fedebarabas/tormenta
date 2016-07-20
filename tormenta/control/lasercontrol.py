@@ -219,7 +219,7 @@ class MoveMotor(QtCore.QObject):
         int0 = np.mean(calibration.frame(self.laserwidget.main.image,
                                          center=self.laserwidget.main.shape))
 
-        x = np.arange(4.1, 4.4, 0.001)
+        x = np.arange(4.0, 4.3, 0.001)
         n = x.size
         intensity = np.zeros(n)
         for i in np.arange(n):
@@ -231,11 +231,11 @@ class MoveMotor(QtCore.QObject):
             self.laserwidget.stagePosLabel.setText(text)
 
         hMax = np.argmax(intensity)
-        cMin = np.where(x < x[hMax] - 0.1)[-1]
-        cMax = np.where(x > x[hMax] + 0.1)[0]
+        cMin = np.where(x < x[hMax] - 0.03)[0][-1]
+        cMax = np.where(x > x[hMax] + 0.03)[0][0]
         print(hMax, cMin, cMax)
         pol = np.poly1d(np.polyfit(x[cMin:cMax], intensity[cMin:cMax], 2))
-        xTIRF = x[cMin:cMax][np.argmin(pol(x[cMin:cMax]))]
+        xTIRF = x[cMin:cMax][np.argmax(pol(x[cMin:cMax]))]
 
         plt.plot(x, intensity)
         plt.plot(x[cMin:cMax], pol(x[cMin:cMax]), 'r', linewidth=2)
