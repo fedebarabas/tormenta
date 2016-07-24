@@ -13,7 +13,7 @@ import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
 from pyqtgraph.dockarea import Dock, DockArea
 import pyqtgraph.ptime as ptime
-import pygame
+#import pygame
 
 from lantz import Q_
 
@@ -205,7 +205,8 @@ class ProcessData(pg.GraphicsLayoutWidget):
 
         self.webcam = webcam
         image = self.webcam.get_image()
-        self.sensorSize = np.array(pygame.surfarray.array2d(image).shape)
+#        self.sensorSize = np.array(pygame.surfarray.array2d(image).shape)
+        self.sensorSize = np.array(image.shape)
         self.focusSignal = 0
 
     def update(self):
@@ -216,7 +217,8 @@ class ProcessData(pg.GraphicsLayoutWidget):
         # mucha CPU
         for i in range(runs):
             image = self.webcam.get_image()
-            image = pygame.surfarray.array2d(image).astype(np.float)
+#            image = pygame.surfarray.array2d(image).astype(np.float)
+            image = image.astype(np.float)
             try:
                 imageArray[i] = image / np.sum(image)
             except:

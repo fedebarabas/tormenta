@@ -7,7 +7,7 @@ Created on Tue Aug 12 20:02:08 2014
 
 import logging
 import numpy as np
-import pygame
+#import pygame
 import tifffile as tiff
 import os
 
@@ -47,7 +47,8 @@ class MockWebcam(object):
 
     def get_image(self):
         arr = (100 * np.random.rand(480, 640)).astype(np.float)
-        return pygame.surfarray.make_surface(arr)
+        return arr
+#        return pygame.surfarray.make_surface(arr)
 
     def stop(self):
         pass

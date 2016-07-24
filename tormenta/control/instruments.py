@@ -10,11 +10,8 @@ import importlib
 
 from PyQt4 import QtCore
 
-import pygame
-import pygame.camera
-
+import lantz
 from lantz.drivers.legacy.andor.ccd import CCD
-from lantz.drivers.legacy.labjack.t7 import T7
 from lantz import Q_
 from lantz.errors import InstrumentError
 
@@ -33,17 +30,35 @@ class Motor(object):
         except:
             return mockers.MockMotor()
 
+try:
+    import pygame
+    import pygame.camera
 
-class Webcam(object):
+    class PygameCamera(pygame.camera.Camera):
 
-    def __new__(cls, *args):
-        try:
-            pygame.camera.init()
-            webcam = pygame.camera.Camera(pygame.camera.list_cameras()[0])
-            webcam.start()
-            return webcam
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
 
-        except:
+        def get_image(self):
+            image = super().get_image()
+            return pygame.surfarray.array2d(image)
+
+    class Webcam(object):
+
+        def __new__(cls, *args):
+            try:
+                pygame.camera.init()
+                webcam = PygameCamera(pygame.camera.list_cameras()[0])
+                webcam.start()
+
+                return webcam
+
+            except:
+                return mockers.MockWebcam()
+except:
+    class Webcam(object):
+
+        def __new__(cls, *args):
             return mockers.MockWebcam()
 
 
@@ -62,55 +77,60 @@ class Laser(object):
         except:
             return mockers.MockLaser()
 
+try:
+    class DAQ(object):
+        def __new__(cls, *args):
 
-class DAQ(object):
-    def __new__(cls, *args):
+            try:
+                from labjack import ljm
+                handle = ljm.openS("ANY", "ANY", "ANY")
+                ljm.close(handle)
+                return STORMDAQ(*args)
 
-        try:
-            from labjack import ljm
-            handle = ljm.openS("ANY", "ANY", "ANY")
-            ljm.close(handle)
-            return STORMDAQ(*args)
+            except:
+                return mockers.MockDAQ()
 
-        except:
+
+    class STORMDAQ(lantz.drivers.legacy.labjack.t7.T7):
+        """ Subclass of the Labjack lantz driver. """
+        def __init__(self, *args):
+
+            super().__init__(*args)
+            super().initialize(*args)
+
+            # Clock configuration for the flipper
+            self.writeName("DIO_EF_CLOCK0_ENABLE", 0)
+            self.writeName("DIO_EF_CLOCK0_DIVISOR", 1)
+            self.writeName("DIO_EF_CLOCK0_ROLL_VALUE", 1600000)
+            self.writeName("DIO_EF_CLOCK0_ENABLE", 1)
+            self.writeName("DIO2_EF_ENABLE", 0)
+            self.writeName("DIO2_EF_INDEX", 0)
+            self.writeName("DIO2_EF_OPTIONS", 0)
+            self.flipperState = True
+            self.flipper = self.flipperState
+            self.writeName("DIO2_EF_ENABLE", 1)
+
+        @property
+        def flipper(self):
+            """ Flipper True means the ND filter is in the light path."""
+            return self.flipperState
+
+        @flipper.setter
+        def flipper(self, value):
+            if value:
+                self.writeName("DIO2_EF_CONFIG_A", 150000)
+            else:
+                self.writeName("DIO2_EF_CONFIG_A", 70000)
+
+            self.flipperState = value
+
+        def toggleFlipper(self):
+            self.flipper = not(self.flipper)
+
+except:
+    class DAQ(object):
+        def __new__(cls, *args):
             return mockers.MockDAQ()
-
-
-class STORMDAQ(T7):
-    """ Subclass of the Labjack lantz driver. """
-    def __init__(self, *args):
-
-        super().__init__(*args)
-        super().initialize(*args)
-
-        # Clock configuration for the flipper
-        self.writeName("DIO_EF_CLOCK0_ENABLE", 0)
-        self.writeName("DIO_EF_CLOCK0_DIVISOR", 1)
-        self.writeName("DIO_EF_CLOCK0_ROLL_VALUE", 1600000)
-        self.writeName("DIO_EF_CLOCK0_ENABLE", 1)
-        self.writeName("DIO2_EF_ENABLE", 0)
-        self.writeName("DIO2_EF_INDEX", 0)
-        self.writeName("DIO2_EF_OPTIONS", 0)
-        self.flipperState = True
-        self.flipper = self.flipperState
-        self.writeName("DIO2_EF_ENABLE", 1)
-
-    @property
-    def flipper(self):
-        """ Flipper True means the ND filter is in the light path."""
-        return self.flipperState
-
-    @flipper.setter
-    def flipper(self, value):
-        if value:
-            self.writeName("DIO2_EF_CONFIG_A", 150000)
-        else:
-            self.writeName("DIO2_EF_CONFIG_A", 70000)
-
-        self.flipperState = value
-
-    def toggleFlipper(self):
-        self.flipper = not(self.flipper)
 
 
 class daqStream(QtCore.QObject):
