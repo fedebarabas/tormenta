@@ -1286,12 +1286,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.grid2Button.setEnabled(True)
         self.crosshairButton.setEnabled(True)
         self.snapShortcut.setEnabled(True)
-        self.findTIRFAction.setEnabled(True)
+        self.findTIRFAc.setEnabled(True)
 
         self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
 
     def liveviewStop(self):
-        self.findTIRFAction.setEnabled(False)
+        self.findTIRFAc.setEnabled(False)
         self.snapShortcut.setEnabled(False)
         self.viewtimer.stop()
         self.recWidget.readyToRecord = False
