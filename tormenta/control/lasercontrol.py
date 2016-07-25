@@ -114,7 +114,8 @@ class LaserWidget(QtGui.QFrame):
         self.controls = (self.blueControl, self.greenControl, self.redControl)
 
         # EPI/TIRF motor movements
-        self.findTirfButton = QtGui.QPushButton('Find TIRF')
+        self.motorPosEdit = QtGui.QLineEdit('0')
+        self.motorPosEdit.returnPressed.connect(self.changeMotorPos)
         self.tirfButton = QtGui.QPushButton('TIRF')
         self.epiButton = QtGui.QPushButton('EPI')
         self.stagePosLabel = QtGui.QLabel('0 mm')
@@ -131,7 +132,6 @@ class LaserWidget(QtGui.QFrame):
         self.moveMotorThread.start()
         self.epiButton.pressed.connect(self.moveMotor.goEPI)
         self.tirfButton.pressed.connect(self.moveMotor.goTIRF)
-        self.findTirfButton.pressed.connect(self.moveMotor.findTIRF)
 
         self.updateMotor = UpdateMotorPos(self.aptMotor, self)
         self.updateMotorThread = QtCore.QThread(self)
@@ -145,10 +145,10 @@ class LaserWidget(QtGui.QFrame):
         grid.addWidget(self.blueControl, 0, 0)
         grid.addWidget(self.greenControl, 0, 1)
         grid.addWidget(self.redControl, 0, 2)
-        grid.addWidget(self.findTirfButton, 1, 0)
+        grid.addWidget(self.motorPosEdit, 1, 0)
+        grid.addWidget(self.stagePosLabel, 1, 1)
         grid.addWidget(self.tirfButton, 2, 1)
         grid.addWidget(self.epiButton, 2, 0)
-        grid.addWidget(self.stagePosLabel, 1, 1)
         grid.addWidget(self.getIntButton, 1, 2, 2, 1)
 
         # Current power update routine
@@ -164,6 +164,14 @@ class LaserWidget(QtGui.QFrame):
         self.intensityThread = QtCore.QThread(self)
         self.worker.moveToThread(self.intensityThread)
         self.intensityThread.started.connect(self.worker.start)
+
+    def changeMotorPos(self):
+        try:
+            newPos = float(self.motorPosEdit.text())
+            if newPos >= -1 and newPos <= 50:
+                self.moveMotor.motor.mAbs(newPos)
+        except:
+            pass
 
     def getIntensities(self):
         # Get initial flipper mirror state and put it on path
@@ -195,7 +203,8 @@ class LaserWidget(QtGui.QFrame):
         self.closeShutters()
         self.updateThread.quit()
         self.moveMotor.goEPI()
-        self.motorThread.quit()
+        self.updateMotorThread.quit()
+        self.moveMotorThread.quit()
         self.aptMotor.cleanUpAPT()
         super().closeEvent(*args, **kwargs)
 

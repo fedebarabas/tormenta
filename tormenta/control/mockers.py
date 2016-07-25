@@ -32,7 +32,7 @@ class MockMotor(object):
         return 'Simulated Motor'
 
     def getPos(self):
-        return 55
+        return 5.55
 
     def mAbs(self, x):
         pass

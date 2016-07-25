@@ -765,6 +765,11 @@ class TormentaGUI(QtGui.QMainWindow):
         optMenu.addAction(self.uvOff)
         self.uvOff.setChecked(True)
 
+        tirfMenu = menubar.addMenu('&TIRF')
+        self.findTIRFAc = QtGui.QAction('Find TIRF position', tirfMenu)
+        self.findTIRFAc.setEnabled(False)
+        tirfMenu.addAction(self.findTIRFAc)
+
         self.tree = pyqtsub.CamParamTree(self.andor)
 
         # Frame signals
@@ -986,6 +991,7 @@ class TormentaGUI(QtGui.QMainWindow):
                                                      self.daq, self.aptMotor)
         laserDock.addWidget(self.laserWidgets)
         dockArea.addDock(laserDock, 'above', moleculesDock)
+        self.findTIRFAc.triggered.connect(self.laserWidgets.moveMotor.findTIRF)
 
         # Camera settings widget
         self.cameraWidget = QtGui.QFrame()
@@ -1280,10 +1286,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.grid2Button.setEnabled(True)
         self.crosshairButton.setEnabled(True)
         self.snapShortcut.setEnabled(True)
+        self.findTIRFAction.setEnabled(True)
 
         self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
 
     def liveviewStop(self):
+        self.findTIRFAction.setEnabled(False)
         self.snapShortcut.setEnabled(False)
         self.viewtimer.stop()
         self.recWidget.readyToRecord = False
