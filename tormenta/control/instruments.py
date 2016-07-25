@@ -10,7 +10,6 @@ import importlib
 
 from PyQt4 import QtCore
 
-import lantz
 from lantz.drivers.legacy.andor.ccd import CCD
 from lantz import Q_
 from lantz.errors import InstrumentError
@@ -77,19 +76,9 @@ class Laser(object):
             return mockers.MockLaser()
 
 try:
-    class DAQ(object):
-        def __new__(cls, *args):
+    from lantz.drivers.legacy.labjack.t7 import T7
 
-            try:
-                from labjack import ljm
-                handle = ljm.openS("ANY", "ANY", "ANY")
-                ljm.close(handle)
-                return STORMDAQ(*args)
-
-            except:
-                return mockers.MockDAQ()
-
-    class STORMDAQ(lantz.drivers.legacy.labjack.t7.T7):
+    class STORMDAQ(T7):
         """ Subclass of the Labjack lantz driver. """
         def __init__(self, *args):
 
@@ -124,6 +113,18 @@ try:
 
         def toggleFlipper(self):
             self.flipper = not(self.flipper)
+
+    class DAQ(object):
+        def __new__(cls, *args):
+
+            try:
+                from labjack import ljm
+                handle = ljm.openS("ANY", "ANY", "ANY")
+                ljm.close(handle)
+                return STORMDAQ(*args)
+
+            except:
+                return mockers.MockDAQ()
 
 except:
     class DAQ(object):

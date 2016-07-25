@@ -39,20 +39,25 @@ class Grid():
         pen = QtGui.QPen(QtCore.Qt.yellow, 1.5, QtCore.Qt.DotLine)
         pen2 = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
 
+        self.yline3 = pg.InfiniteLine(pen=pen2)
+        self.xline3 = pg.InfiniteLine(pen=pen2, angle=0)
+        self.rect0 = QtGui.QGraphicsRectItem()
+        self.rect0.setPen(pen)
         self.rect1 = QtGui.QGraphicsRectItem()
         self.rect1.setPen(pen)
         self.rect2 = QtGui.QGraphicsRectItem()
         self.rect2.setPen(pen)
-        self.yline3 = pg.InfiniteLine(pen=pen2)
-        self.xline3 = pg.InfiniteLine(pen=pen2, angle=0)
+        self.circle = QtGui.QGraphicsEllipseItem()
 
         self.update(self.shape)
 
     def update(self, shape):
-        self.rect1.setRect(0.5*shape[0] - 64, 0.5*shape[1] - 64, 128, 128)
-        self.rect2.setRect(0.5*shape[0] - 128, 0.5*shape[1] - 128, 255, 255)
         self.yline3.setPos(0.5*shape[0])
         self.xline3.setPos(0.5*shape[1])
+        self.rect0.setRect(0.5*shape[0] - 43, 0.5*shape[1] - 44, 84, 84)
+        self.rect1.setRect(0.5*shape[0] - 64, 0.5*shape[1] - 64, 128, 128)
+        self.rect2.setRect(0.5*shape[0] - 128, 0.5*shape[1] - 128, 255, 255)
+        self.circle.setRect(0.5*shape[0] - 128, 0.5*shape[1] - 128, 255, 255)
 
     def toggle(self):
         if self.showed:
@@ -61,17 +66,21 @@ class Grid():
             self.show()
 
     def show(self):
-        self.vb.addItem(self.rect1)
-        self.vb.addItem(self.rect2)
         self.vb.addItem(self.xline3)
         self.vb.addItem(self.yline3)
+        self.vb.addItem(self.rect0)
+        self.vb.addItem(self.rect1)
+        self.vb.addItem(self.rect2)
+        self.vb.addItem(self.circle)
         self.showed = True
 
     def hide(self):
-        self.vb.removeItem(self.rect1)
-        self.vb.removeItem(self.rect2)
         self.vb.removeItem(self.xline3)
         self.vb.removeItem(self.yline3)
+        self.vb.removeItem(self.rect0)
+        self.vb.removeItem(self.rect1)
+        self.vb.removeItem(self.rect2)
+        self.vb.removeItem(self.circle)
         self.showed = False
 
 
