@@ -114,8 +114,8 @@ class LaserWidget(QtGui.QFrame):
         self.controls = (self.blueControl, self.greenControl, self.redControl)
 
         # EPI/TIRF motor movements
-        self.findTirfButton = QtGui.QPushButton('Find TIRF (no anda)')
-        self.tirfButton = QtGui.QPushButton('TIRF (no anda)')
+        self.findTirfButton = QtGui.QPushButton('Find TIRF')
+        self.tirfButton = QtGui.QPushButton('TIRF')
         self.epiButton = QtGui.QPushButton('EPI')
         self.stagePosLabel = QtGui.QLabel('0 mm')
         self.getIntButton = QtGui.QPushButton('Get intensities')
@@ -124,14 +124,20 @@ class LaserWidget(QtGui.QFrame):
                                         QtGui.QSizePolicy.Expanding)
         self.getIntButton.clicked.connect(self.getIntensities)
 
-        # A separate thread for motor movements to keep the GUI responsive
+        # Qhreads for motor movements to keep the GUI responsive
         self.moveMotor = MoveMotor(self.aptMotor, self)
-        self.motorThread = QtCore.QThread()
-        self.moveMotor.moveToThread(self.motorThread)
-        self.motorThread.start()
+        self.moveMotorThread = QtCore.QThread(self)
+        self.moveMotor.moveToThread(self.moveMotorThread)
+        self.moveMotorThread.start()
         self.epiButton.pressed.connect(self.moveMotor.goEPI)
-        self.motorThread.started.connect(self.moveMotor.update)
+        self.tirfButton.pressed.connect(self.moveMotor.goTIRF)
         self.findTirfButton.pressed.connect(self.moveMotor.findTIRF)
+
+        self.updateMotor = UpdateMotorPos(self.aptMotor, self)
+        self.updateMotorThread = QtCore.QThread(self)
+        self.updateMotor.moveToThread(self.updateMotorThread)
+        self.updateMotorThread.start()
+        self.updateMotorThread.started.connect(self.updateMotor.update)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)
         grid = QtGui.QGridLayout()
@@ -147,7 +153,7 @@ class LaserWidget(QtGui.QFrame):
 
         # Current power update routine
         self.updatePowers = UpdatePowers(self)
-        self.updateThread = QtCore.QThread()
+        self.updateThread = QtCore.QThread(self)
         self.updatePowers.moveToThread(self.updateThread)
         self.updateThread.start()
         self.updateThread.started.connect(self.updatePowers.update)
@@ -155,7 +161,7 @@ class LaserWidget(QtGui.QFrame):
         # Intensity measurement in separate thread to keep the GUI responsive
         self.worker = IntensityWorker(self, 20, 3, self.calibrationPath)
         self.worker.updateSignal.connect(self.updateIntensities)
-        self.intensityThread = QtCore.QThread()
+        self.intensityThread = QtCore.QThread(self)
         self.worker.moveToThread(self.intensityThread)
         self.intensityThread.started.connect(self.worker.start)
 
@@ -203,12 +209,13 @@ class MoveMotor(QtCore.QObject):
         self.motor = motor
         self.laserwidget = laserwidget
 
-    def update(self):
-        # TODO: usar otro QTimer
-        text = 'Position: {0:.2f} mm'.format(self.motor.getPos())
-        self.laserwidget.stagePosLabel.setText(text)
-        time.sleep(1)
-        QtCore.QTimer.singleShot(1, self.update)
+        self.xTIRFPath = os.path.join(os.getcwd(), 'tormenta', 'control',
+                                      'xtif.npy')
+        try:
+            self.xTIRF = np.load(self.xTIRFPath)
+        except:
+            self.xTIRF = 4
+            np.save(self.xTIRFPath, self.xTIRF)
 
     def goEPI(self):
         self.motor.mAbs(0)
@@ -235,12 +242,41 @@ class MoveMotor(QtCore.QObject):
         cMax = np.where(x > x[hMax] + 0.03)[0][0]
         print(hMax, cMin, cMax)
         pol = np.poly1d(np.polyfit(x[cMin:cMax], intensity[cMin:cMax], 2))
-        xTIRF = x[cMin:cMax][np.argmax(pol(x[cMin:cMax]))]
+        self.xTIRF = x[cMin:cMax][np.argmax(pol(x[cMin:cMax]))]
 
         plt.plot(x, intensity)
         plt.plot(x[cMin:cMax], pol(x[cMin:cMax]), 'r', linewidth=2)
-        plt.title(str(xTIRF))
+        plt.title(str(self.xTIRF))
         plt.show()
+        np.save(self.xTIRFPath, self.xTIRF)
+
+    def goTIRF(self):
+        self.motor.mAbs(self.xTIRF)
+
+
+class UpdateMotorPos(QtCore.QObject):
+
+    doneSignal = QtCore.pyqtSignal()
+
+    def __init__(self, motor, laserwidget, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.motor = motor
+        self.laserwidget = laserwidget
+
+        self.xTIRFPath = os.path.join(os.getcwd(), 'tormenta', 'control',
+                                      'xtif.npy')
+        try:
+            self.xTIRF = np.load(self.xTIRFPath)
+        except:
+            self.xTIRF = 4
+            np.save(self.xTIRFPath, self.xTIRF)
+
+    def update(self):
+        # TODO: usar otro QTimer
+        text = 'Position: {0:.2f} mm'.format(self.motor.getPos())
+        self.laserwidget.stagePosLabel.setText(text)
+        time.sleep(1)
+        QtCore.QTimer.singleShot(1, self.update)
 
 
 class IntensityWorker(QtCore.QObject):

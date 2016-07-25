@@ -74,7 +74,7 @@ class FocusWidget(QtGui.QFrame):
         self.max_dev = 0
 
         self.focusCalib = FocusCalibration(self)
-        self.focusCalibThread = QtCore.QThread()
+        self.focusCalibThread = QtCore.QThread(self)
         self.focusCalib.moveToThread(self.focusCalibThread)
         self.focusCalibButton = QtGui.QPushButton('Calibrate')
         self.focusCalibButton.clicked.connect(self.focusCalib.start)
