@@ -34,23 +34,13 @@ try:
     import pygame
     import pygame.camera
 
-    class PygameCamera(pygame.camera.Camera):
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-
-        def get_image(self):
-            image = super().get_image()
-            return pygame.surfarray.array2d(image)
-
     class Webcam(object):
 
         def __new__(cls, *args):
             try:
                 pygame.camera.init()
-                webcam = PygameCamera(pygame.camera.list_cameras()[0])
+                webcam = pygame.camera.Camera(pygame.camera.list_cameras()[0])
                 webcam.start()
-
                 return webcam
 
             except:
@@ -60,6 +50,15 @@ except:
 
         def __new__(cls, *args):
             return mockers.MockWebcam()
+
+
+def getWebcamImage(webcam):
+    try:
+        image = webcam.get_image()
+        return pygame.surfarray.array2d(image)
+
+    except:
+        return webcam.get_image()
 
 
 class Laser(object):
@@ -89,7 +88,6 @@ try:
 
             except:
                 return mockers.MockDAQ()
-
 
     class STORMDAQ(lantz.drivers.legacy.labjack.t7.T7):
         """ Subclass of the Labjack lantz driver. """
