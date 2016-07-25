@@ -7,7 +7,6 @@ Created on Tue Aug 12 20:02:08 2014
 
 import logging
 import numpy as np
-#import pygame
 import tifffile as tiff
 import os
 
@@ -31,6 +30,12 @@ class MockMotor(object):
 
     def getHardwareInformation(self):
         return 'Simulated Motor'
+
+    def getPos(self):
+        return 55
+
+    def mAbs(self, x):
+        pass
 
     def cleanUpAPT(self):
         pass

@@ -50,6 +50,7 @@ class RecordingWidget(QtGui.QFrame):
         self.cropShape = None
         self.xlim = None
         self.ylim = None
+        self.shape = self.main.shape
 
         # Title
         recTitle = QtGui.QLabel('<h2><strong>Recording</strong></h2>')
@@ -97,6 +98,7 @@ class RecordingWidget(QtGui.QFrame):
         self.numExpositionsEdit = QtGui.QLineEdit('100')
         self.numExpositionsEdit.setFixedWidth(45)
         self.tRemaining = QtGui.QLabel()
+        self.tRemaining.setStyleSheet("font-size:14px")
         self.tRemaining.setAlignment((QtCore.Qt.AlignCenter |
                                       QtCore.Qt.AlignVCenter))
         self.numExpositionsEdit.textChanged.connect(self.nChanged)
@@ -104,6 +106,10 @@ class RecordingWidget(QtGui.QFrame):
 
         self.progressBar = QtGui.QProgressBar()
         self.progressBar.setTextVisible(False)
+        self.progressBar.setSizePolicy(QtGui.QSizePolicy.Preferred,
+                                       QtGui.QSizePolicy.Expanding)
+        self.fileSizeLabel = QtGui.QLabel()
+        self.nChanged()
 
         # Recording buttons layout
         buttonWidget = QtGui.QWidget()
@@ -128,12 +134,14 @@ class RecordingWidget(QtGui.QFrame):
         recGrid.addWidget(QtGui.QLabel('Number of expositions'), 5, 0)
         recGrid.addWidget(self.currentFrame, 5, 1)
         recGrid.addWidget(self.numExpositionsEdit, 5, 2)
-        recGrid.addWidget(self.progressBar, 5, 3, 1, 2)
-        recGrid.addWidget(self.tRemaining, 5, 3, 1, 2)
-        recGrid.addWidget(buttonWidget, 6, 0, 1, 5)
+        recGrid.addWidget(self.progressBar, 5, 3, 2, 2)
+        recGrid.addWidget(self.tRemaining, 5, 3, 2, 2)
+        recGrid.addWidget(QtGui.QLabel('File size'), 6, 0)
+        recGrid.addWidget(self.fileSizeLabel, 6, 2)
+        recGrid.addWidget(buttonWidget, 7, 0, 1, 5)
 
         recGrid.setColumnMinimumWidth(0, 70)
-        recGrid.setRowMinimumHeight(6, 40)
+        recGrid.setRowMinimumHeight(7, 40)
 
         self.writable = True
         self.readyToRecord = False
@@ -171,6 +179,9 @@ class RecordingWidget(QtGui.QFrame):
     def nChanged(self):
         self.updateRemaining()
         self.limitExpositions(9)
+        shape = [self.n(), self.shape[0], self.shape[1]]
+        size = guitools.fileSizeGB(shape)
+        self.fileSizeLabel.setText("{0:.2f} GB".format(size))
 
     def updateRemaining(self):
         rSecs = self.main.t_acc_real.magnitude * self.n()
@@ -241,8 +252,8 @@ class RecordingWidget(QtGui.QFrame):
 
             dim = (self.main.umxpx * np.array(self.main.shape)).astype(np.int)
             sh = str(dim[0]) + 'x' + str(dim[1])
-            savename = (os.path.join(folder, self.filenameEdit.text()) +
-                        '_wf' + sh + '.tiff')
+            rootname = os.path.join(folder, self.filenameEdit.text()) + '_wf'
+            savename = rootname + sh + '.tiff'
             savename = guitools.getUniqueName(savename)
             image = np.flipud(image.astype(np.uint16))
             tiff.imsave(savename, image, software='Tormenta', imagej=True,
@@ -254,8 +265,8 @@ class RecordingWidget(QtGui.QFrame):
             imageFramePar = self.main.tree.p.param('Field of view')
             twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
             if twoColors and (self.H is not None):
-                newData = np.zeros((2*self.cropShape[0], self.cropShape[1]),
-                                   dtype=np.uint16)
+                corrShape = (2*self.cropShape[0], self.cropShape[1])
+                newData = np.zeros(corrShape, dtype=np.uint16)
                 im0 = image[self.xlim[0]:self.xlim[1],
                             self.ylim[0]:self.ylim[1]]
                 im1 = reg.h_affine_transform(image[-128:, :], self.H)
@@ -264,6 +275,9 @@ class RecordingWidget(QtGui.QFrame):
                 newData[:self.cropShape[0], :] = im0
                 newData[-self.cropShape[0]:, :] = im1c
 
+                dim = (self.main.umxpx * np.array(corrShape)).astype(np.int)
+                sh = str(dim[0]) + 'x' + str(dim[1])
+                savename = rootname + sh + '.tiff'
                 tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
                             newData, software='Tormenta', imagej=True,
                             resolution=(1/self.main.umxpx, 1/self.main.umxpx),
@@ -342,9 +356,9 @@ class RecordingWidget(QtGui.QFrame):
                 self.folderWarning()
                 self.recButton.setChecked(False)
 
-#            elif guitools.fileSizeGB(shape) > 2 and recFormat == 'tiff':
-#                self.tiffWarning()
-#                self.recButton.setChecked(False)
+            elif guitools.fileSizeGB(shape) > 2 and recFormat == 'tiff':
+                self.tiffWarning()
+                self.recButton.setChecked(False)
 
             else:
                 self.writable = False
@@ -367,9 +381,11 @@ class RecordingWidget(QtGui.QFrame):
                                         self.getAttrs(), twoColors, self.H,
                                         self.cropShape, self.xlim, self.ylim)
                 self.worker.updateSignal.connect(self.updateGUI)
-                self.worker.doneSignal.connect(self.endRecording)
-                self.recordingThread = QtCore.QThread()
+                self.recordingThread = QtCore.QThread(self)
                 self.worker.moveToThread(self.recordingThread)
+                self.worker.doneSignal.connect(self.endRecording)
+                self.worker.doneSignal.connect(self.recordingThread.quit)
+                self.worker.doneSignal.connect(self.worker.deleteLater)
                 self.recordingThread.started.connect(self.worker.start)
                 self.recordingThread.start()
 
@@ -383,8 +399,6 @@ class RecordingWidget(QtGui.QFrame):
             self.main.flipperInPath(True)
         if self.main.uvOff.isChecked():
             self.main.laserWidgets.blueControl.laser.power_sp = Q_(0, 'mW')
-
-        self.recordingThread.terminate()
 
         if self.main.focusWidget.focusDataBox.isChecked():
             self.main.focusWidget.exportData()
@@ -727,7 +741,7 @@ class TormentaGUI(QtGui.QMainWindow):
                                            'using an affine transformation ' +
                                            'matrix')
         fileMenu.addAction(self.HtransformAction)
-        self.transformerThread = QtCore.QThread()
+        self.transformerThread = QtCore.QThread(self)
         self.transformer = pyqtsub.HtransformStack()
         self.transformer.moveToThread(self.transformerThread)
         self.transformer.finished.connect(self.transformerThread.quit)
@@ -862,7 +876,7 @@ class TormentaGUI(QtGui.QMainWindow):
         # Temperature stabilization functionality
         self.tempSetPoint = -50     # in degC
         self.stabilizer = TemperatureStabilizer(self)
-        self.stabilizerThread = QtCore.QThread()
+        self.stabilizerThread = QtCore.QThread(self)
         self.stabilizer.moveToThread(self.stabilizerThread)
         self.stabilizerThread.started.connect(self.stabilizer.start)
         self.stabilizerThread.start()
@@ -1133,6 +1147,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.grid.update(self.shape)
         self.recWidget.shape = self.shape
+        self.recWidget.nChanged()
 
     def fullChip(self):
         try:

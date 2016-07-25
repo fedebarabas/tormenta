@@ -92,10 +92,10 @@ class FocusWidget(QtGui.QFrame):
         self.webcamgraph = WebcamGraph(self)
 
         dockArea = DockArea()
-        graphDock = Dock("Laser position", size=(400, 200))
+        graphDock = Dock("Focus laser graph", size=(400, 200))
         graphDock.addWidget(self.graph)
         dockArea.addDock(graphDock)
-        webcamDock = Dock("Webcam view", size=(200, 200))
+        webcamDock = Dock("Focus laser view", size=(200, 200))
         webcamDock.addWidget(self.webcamgraph)
         dockArea.addDock(webcamDock, 'right', graphDock)
 
