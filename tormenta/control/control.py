@@ -47,7 +47,7 @@ class RecordingWidget(QtGui.QFrame):
         self.Hname = None
         self.H = None
         self.corrShape = None
-        self.reducedShape = None
+        self.cropShape = None
         self.xlim = None
         self.ylim = None
 
@@ -365,8 +365,7 @@ class RecordingWidget(QtGui.QFrame):
                                         shape, self.main.t_exp_real, name,
                                         recFormat, self.dataname,
                                         self.getAttrs(), twoColors, self.H,
-                                        self.reducedShape, self.xlim,
-                                        self.ylim)
+                                        self.cropShape, self.xlim, self.ylim)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.worker.doneSignal.connect(self.endRecording)
                 self.recordingThread = QtCore.QThread()
@@ -419,7 +418,7 @@ class RecWorker(QtCore.QObject):
     doneSignal = QtCore.pyqtSignal()
 
     def __init__(self, andor, umPerPx, shape, t_exp, savename, fileformat,
-                 dataname, attrs, twoColors, H, reducedShape, xlim, ylim,
+                 dataname, attrs, twoColors, H, cropShape, xlim, ylim,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -437,9 +436,9 @@ class RecWorker(QtCore.QObject):
 
         self.twoColors = twoColors
         self.H = H
-        self.reducedShape = reducedShape
+        self.cropShape = cropShape
         try:
-            self.corrShape = (2*self.reducedShape[0], self.reducedShape[1])
+            self.corrShape = (2*self.cropShape[0], self.cropShape[1])
         except:
             self.corrShape = None
         self.xlim = xlim
@@ -596,17 +595,16 @@ class RecWorker(QtCore.QObject):
                                                     1, self.n)
                     self.updateSignal.emit(np.transpose(newImages[-1]))
                     data = newImages[:, ::-1]
-                    dataset[i - 1:self.j] = data
-
-                    im0 = self.reducedStack(data[:, :128, :])
+                    im0 = data[:, :128, :][:, self.xlim[0]:self.xlim[1],
+                                           self.ylim[0]:self.ylim[1]]
                     im1 = np.zeros(data[:, -128:, :].shape)
                     for k in np.arange(len(im1)):
                         im1[k] = reg.h_affine_transform(data[k, -128:, :],
                                                         self.H)
                     im1c = im1[:, self.xlim[0]:self.xlim[1],
                                self.ylim[0]:self.ylim[1]]
-                    corrDataset[i - 1:self.j, :self.reducedShape[0], :] = im0
-                    corrDataset[i - 1:self.j, self.reducedShape[0]:, :] = im1c
+                    corrDataset[i - 1:self.j, :self.cropShape[0], :] = im0
+                    corrDataset[i - 1:self.j, self.cropShape[0]:, :] = im1c
 
             # Crop dataset if it's stopped before finishing
             if self.j < self.shape[0]:

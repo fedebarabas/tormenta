@@ -151,6 +151,15 @@ def ch_superposition(ax, points):
     ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=1, ms=5)
     ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
             markerfacecolor='None')
+
+    for i in np.arange(len(points[0])):
+        ax.annotate(str(i), xy=(points[0][:, 1][i] - 0.6,
+                                points[0][:, 0][i] - 0.6), color='r')
+
+    for i in np.arange(len(points[1])):
+        ax.annotate(str(i), xy=(points[1][:, 1][i] - 5,
+                                points[1][:, 0][i] - 1.6), color='b')
+
     ax.set_aspect('equal')
     ax.set_xlim(0, 266)
     ax.set_ylim(128, 0)
