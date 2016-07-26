@@ -405,6 +405,47 @@ def transformation_check(H, filename):
     print('Mean distance: ', np.mean(dist))
     print('Maximum distance: ', np.max(dist))
 
+s = '''0 0 0 0 1 0
+0 0 1 0 0 1
+0 0 0 0 0 0
+1 0 0 0 0 0
+0 0 0 0 0 1
+0 0 1 0 0 0'''
+nrows = 6
+ncols = 6
+a = np.fromstring(s, dtype=int, sep=' ').reshape(nrows, ncols)
+
+
+def find_largest_rectangle(a):
+
+    area_max = (0, [])
+    skip = 1
+
+    w = np.zeros(dtype=int, shape=a.shape)
+    h = np.zeros(dtype=int, shape=a.shape)
+    for r in range(nrows):
+        for c in range(ncols):
+            if a[r][c] == skip:
+                continue
+            if r == 0:
+                h[r][c] = 1
+            else:
+                h[r][c] = h[r-1][c]+1
+            if c == 0:
+                w[r][c] = 1
+            else:
+                w[r][c] = w[r][c-1]+1
+            minw = w[r][c]
+            for dh in range(h[r][c]):
+                minw = min(minw, w[r-dh][c])
+                area = (dh+1)*minw
+                if area > area_max[0]:
+                    area_max = (area, [(r-dh, c-minw+1, r, c)])
+
+    print('area', area_max[0])
+    for t in area_max[1]:
+        print('Cell 1:({}, {}) and Cell 2:({}, {})'.format(*t))
+
 
 def get_affine_shapes(H):
 
@@ -413,10 +454,12 @@ def get_affine_shapes(H):
     indices = np.where(datac == 1)
 
     # This may only work with the present setup and two-color scheme
-    ylim = (indices[1].min(), indices[1].max() + 1)
+    ylim = (indices[1].min() + 1, indices[1].max() + 1)
     xmin = indices[0].min()
+    print(xmin, ylim)
     while True:
         if np.sum(datac[xmin, ylim[0]:ylim[1]] == 0) == 0:
+            # If all the elements are ones
             break
         else:
             xmin += 1

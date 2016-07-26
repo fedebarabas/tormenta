@@ -235,26 +235,28 @@ class MoveMotor(QtCore.QObject):
         int0 = np.mean(calibration.frame(self.laserwidget.main.image,
                                          center=self.laserwidget.main.shape))
 
-        x = np.arange(4.0, 4.3, 0.001)
+        x = np.arange(3.9, 4.35, 0.001)
+        xr = np.zeros(x.shape)
         n = x.size
         intensity = np.zeros(n)
         for i in np.arange(n):
             self.motor.mAbs(x[i])
+            xr[i] = self.motor.getPos()
             data = calibration.frame(self.laserwidget.main.image,
                                      center=self.laserwidget.main.shape)
             intensity[i] = np.mean(data) / int0
-            text = 'Position: {0:.2f} mm'.format(self.motor.getPos())
+            text = 'Position: {0:.3f} mm'.format(xr[i])
             self.laserwidget.stagePosLabel.setText(text)
 
         hMax = np.argmax(intensity)
-        cMin = np.where(x < x[hMax] - 0.03)[0][-1]
-        cMax = np.where(x > x[hMax] + 0.03)[0][0]
+        cMin = np.where(xr < xr[hMax] - 0.03)[0][-1]
+        cMax = np.where(xr > xr[hMax] + 0.03)[0][0]
         print(hMax, cMin, cMax)
-        pol = np.poly1d(np.polyfit(x[cMin:cMax], intensity[cMin:cMax], 2))
-        self.xTIRF = x[cMin:cMax][np.argmax(pol(x[cMin:cMax]))]
+        pol = np.poly1d(np.polyfit(xr[cMin:cMax], intensity[cMin:cMax], 2))
+        self.xTIRF = xr[cMin:cMax][np.argmax(pol(xr[cMin:cMax]))]
 
-        plt.plot(x, intensity)
-        plt.plot(x[cMin:cMax], pol(x[cMin:cMax]), 'r', linewidth=2)
+        plt.plot(xr, intensity)
+        plt.plot(xr[cMin:cMax], pol(xr[cMin:cMax]), 'r', linewidth=2)
         plt.title(str(self.xTIRF))
         plt.show()
         np.save(self.xTIRFPath, self.xTIRF)
@@ -282,7 +284,7 @@ class UpdateMotorPos(QtCore.QObject):
 
     def update(self):
         # TODO: usar otro QTimer
-        text = 'Position: {0:.2f} mm'.format(self.motor.getPos())
+        text = 'Position: {0:.3f} mm'.format(self.motor.getPos())
         self.laserwidget.stagePosLabel.setText(text)
         time.sleep(1)
         QtCore.QTimer.singleShot(1, self.update)
