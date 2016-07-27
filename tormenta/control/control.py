@@ -1136,6 +1136,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.andor.set_vert_clock(n_vsa)
 
         self.updateTimings()
+        self.recWidget.updateRemaining()
 
     def adjustFrame(self):
         """ Method to change the area of the CCD to be used and adjust the
