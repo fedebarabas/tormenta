@@ -1073,10 +1073,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.updateTimings()
 
         self.grid.update(self.shape)
-        self.updateLevels()     # not working  # TODO: make this work
+        self.updateLevels(self.image)     # not working  # TODO: make this work
 
     def setCropMode(self, state):
         self.andor.crop_mode = state
+        self.tree.cropModeParam.param('Apply').hide()
         if not(state):
             self.shape = self.andor.detector_shape
             self.adjustFrame()

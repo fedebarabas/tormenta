@@ -117,7 +117,9 @@ class CamParamTree(ParameterTree):
 
         self.timeParams = self.p.param('Timings')
         self.cropModeParam = self.timeParams.param('Cropped sensor mode')
+        self.cropModeParam.param('Apply').hide()
         self.cropModeEnableParam = self.cropModeParam.param('Enable')
+        self.cropModeEnableParam.sigValueChanged.connect(self.cropButton)
         self.cropModeEnableParam.setWritable(False)
         self.frameTransferParam = self.timeParams.param('Frame Transfer Mode')
         self.frameTransferParam.sigValueChanged.connect(self.enableCropMode)
@@ -129,6 +131,12 @@ class CamParamTree(ParameterTree):
         else:
             self.cropModeEnableParam.setValue(False)
             self.cropModeEnableParam.setWritable(False)
+
+    def cropButton(self):
+        if self.cropModeEnableParam.value():
+            self.cropModeParam.param('Apply').show()
+        else:
+            self.cropModeParam.param('Apply').hide()
 
     @property
     def writable(self):
@@ -167,6 +175,10 @@ class CamParamTree(ParameterTree):
                                 ssPar = sPar.param(str(ssParName))
                                 attrs.append((str(ssParName), ssPar.value()))
         return attrs
+
+    def cropModeOn(self):
+        if self.cropModeEnableParam.value():
+            self.cropModeParam.param('Apply').show()
 
     def shapeChanged(self):
         if self.fovGroup.param('Shape').value() == 'Two-colors':
