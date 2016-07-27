@@ -51,6 +51,10 @@ class CamParamTree(ParameterTree):
                       "light collected outside the cropped area could \n"
                       "corrupt the images which were acquired in this mode.")
 
+        loadMatrixTip = ("Load the affine matrix between channels for \n"
+                         "online transformation while recording two-color \n"
+                         "stacks")
+
         maxExp = andor.max_exposure.magnitude
 
         # Parameter tree for the camera configuration
@@ -62,7 +66,10 @@ class CamParamTree(ParameterTree):
                       {'name': 'Shape', 'type': 'list',
                        'values': ['Full chip', '256x256', '128x128', '84x84',
                                   '64x64', 'Two-colors', 'Custom']},
-                      {'name': 'Apply', 'type': 'action'}]},
+                      {'name': 'Apply', 'type': 'action'},
+                      {'name': 'Load matrix', 'type': 'action',
+                       'tip': loadMatrixTip}
+                  ]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Horizontal readout rate', 'type': 'list',
                        'values': andor.HRRates, 'tip': hrrTip},
@@ -102,6 +109,11 @@ class CamParamTree(ParameterTree):
         self.setParameters(self.p, showTop=False)
         self._writable = True
         self.p.param('Camera').setWritable(False)
+
+        self.fovGroup = self.p.param('Field of view')
+        self.fovGroup.param('Load matrix').hide()
+        self.fovGroup.param('Apply').hide()
+        self.fovGroup.param('Shape').sigValueChanged.connect(self.shapeChanged)
 
         self.timeParams = self.p.param('Timings')
         self.cropModeParam = self.timeParams.param('Cropped sensor mode')
@@ -155,6 +167,17 @@ class CamParamTree(ParameterTree):
                                 ssPar = sPar.param(str(ssParName))
                                 attrs.append((str(ssParName), ssPar.value()))
         return attrs
+
+    def shapeChanged(self):
+        if self.fovGroup.param('Shape').value() == 'Two-colors':
+            self.fovGroup.param('Apply').hide()
+            self.fovGroup.param('Load matrix').show()
+        elif self.fovGroup.param('Shape').value() == 'Custom':
+            self.fovGroup.param('Apply').show()
+            self.fovGroup.param('Load matrix').hide()
+        else:
+            self.fovGroup.param('Apply').hide()
+            self.fovGroup.param('Load matrix').hide()
 
 
 # HDF <--> Tiff converter
@@ -237,7 +260,7 @@ class HtransformStack(QtCore.QObject):
         Hname = guitools.getFilename("Select affine transformation matrix",
                                      [('npy files', '.npy')])
         H = np.load(Hname)
-        xlim, ylim, cropShape, corrShape = reg.get_affine_shapes(H)
+        xlim, ylim, cropShape = reg.get_affine_shapes(H)
 
         text = "Select files for affine transformation"
         filenames = guitools.getFilenames(text, types=[],

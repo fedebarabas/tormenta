@@ -730,11 +730,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         fileMenu.addSeparator()
 
-        self.loadHAction = QtGui.QAction('Load affine matrix...', self)
-        self.loadHAction.setStatusTip('Load the affine matrix between ' +
-                                      'channels for online transformation ' +
-                                      'while recording two-color stacks')
-        fileMenu.addAction(self.loadHAction)
         self.HtransformAction = QtGui.QAction('Affine transform stacks or ' +
                                               'snaps...', self)
         self.HtransformAction.setStatusTip('Correct stacks or single shots ' +
@@ -890,7 +885,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Recording settings widget
         self.recWidget = RecordingWidget(self)
-        self.loadHAction.triggered.connect(self.recWidget.loadH)
+        loadMatrixParam = self.tree.fovGroup.param('Load matrix')
+        loadMatrixParam.sigActivated.connect(self.recWidget.loadH)
         self.snapShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+S'), self,
                                             self.recWidget.snap)
         self.snapShortcut.setEnabled(False)
@@ -1183,7 +1179,7 @@ class TormentaGUI(QtGui.QMainWindow):
                                              translateSnap=True)
                 # Signals
                 applyParam = frameParam.param('Apply')
-                applyParam.sigStateChanged.connect(self.customFrame)
+                applyParam.sigActivated.connect(self.customFrame)
 
         elif frameParam.param('Shape').value() == 'Full chip':
             self.fullChip()
