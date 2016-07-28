@@ -265,6 +265,8 @@ class MockCamera(Driver):
                            'beads.tif')) as ff:
             self.image = ff.asarray()
 
+        self.expTime = 0.1 * self.s
+
     @property
     def idn(self):
         """Identification of the device
@@ -444,7 +446,7 @@ class MockCamera(Driver):
 
     @property
     def acquisition_timings(self):
-        return 0.001 * self.s, 0.001 * self.s, 0.001 * self.s
+        return 1.1*self.expTime, 1.1*self.expTime, 1.1*self.expTime
 
     @property
     def EM_gain_range(self):
@@ -476,7 +478,8 @@ class MockCamera(Driver):
         pass
 
     def set_exposure_time(self, t):
-        pass
+        values = [t.to('s').magnitude, self.max_exposure.to('s').magnitude]
+        self.expTime = Q_(np.min(values), 's')
 
     @property
     def frame_transfer_mode(self):

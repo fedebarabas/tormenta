@@ -887,6 +887,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget = RecordingWidget(self)
         loadMatrixParam = self.tree.fovGroup.param('Load matrix')
         loadMatrixParam.sigActivated.connect(self.recWidget.loadH)
+        expTime = self.tree.timeParams.param('Set exposure time')
+        expTime.sigValueChanged.connect(self.recWidget.updateRemaining)
         self.snapShortcut = QtGui.QShortcut(QtGui.QKeySequence('Ctrl+S'), self,
                                             self.recWidget.snap)
         self.snapShortcut.setEnabled(False)
@@ -1136,7 +1138,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.andor.set_vert_clock(n_vsa)
 
         self.updateTimings()
-        self.recWidget.updateRemaining()
 
     def adjustFrame(self):
         """ Method to change the area of the CCD to be used and adjust the
