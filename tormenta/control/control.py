@@ -1215,6 +1215,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.ROI.hide()
         self.grid.update(self.shape)
         self.recWidget.shape = self.shape
+        self.tree.fovGroup.param('Apply').hide()
 
     def updateTimings(self):
         """ Update the real exposition and accumulation times in the parameter
