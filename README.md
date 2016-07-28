@@ -3,12 +3,17 @@ Measurement control and analysis for optical microscopy
 
 ### Installation
 
-#### Prerequisites
- - [LJM Library](https://labjack.com/support/software/installers/ljm)
- - [LJM Library Python wrapper](https://labjack.com/support/software/examples/ljm/python)
+#### Optional prerequisites (not needed for offline testing)
+Our setup uses LabJack's T7 as DAQ and a webcam as a position-sensitive detector. Don't install these libraries if you have different equipment or you just want to test the software without instruments (offline mode).
+ - LabJack DAQ dependencies
+     - [LJM Library](https://labjack.com/support/software/installers/ljm)
+     - [LJM Library Python wrapper](https://labjack.com/support/software/examples/ljm/python)
+ - Support for webcam acquisition
+     - Pygame
+
+
 
 #### Ubuntu
- - Download and install [pygame](http://pygame.org/wiki/index). 
  - Run in terminal:
 
     ```
@@ -19,10 +24,10 @@ Measurement control and analysis for optical microscopy
 
 #### Windows
 - Install [WinPython 3.4](https://sourceforge.net/projects/winpython/files/).
-- Browse to [Laboratory for Fluorescence Dynamics](http://www.lfd.uci.edu/~gohlke/pythonlibs/) and download pygame and tifffile for Python 3.4 to `$PATH\WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
+- Browse to [Laboratory for Fluorescence Dynamics](http://www.lfd.uci.edu/~gohlke/pythonlibs/) and download tifffile for Python 3.4 to `$PATH\WinPython-64bit-3.4.4.1\python-3.4.4.amd64\`.
 - Open WinPython Command Prompt and run:
     ```
-    $ pip install comtypes lantz pygame-1.9.2a0-cp34-none-win_amd64.whl tifffile-2016.4.19-cp34-cp34m-win_amd64.whl
+    $ pip install comtypes lantz tifffile-2016.4.19-cp34-cp34m-win_amd64.whl
     ```
 - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta).
 
