@@ -730,20 +730,6 @@ class TormentaGUI(QtGui.QMainWindow):
 
         fileMenu.addSeparator()
 
-        self.HtransformAction = QtGui.QAction('Affine transform stacks or ' +
-                                              'snaps...', self)
-        self.HtransformAction.setStatusTip('Correct stacks or single shots ' +
-                                           'using an affine transformation ' +
-                                           'matrix')
-        fileMenu.addAction(self.HtransformAction)
-        self.transformerThread = QtCore.QThread(self)
-        self.transformer = pyqtsub.HtransformStack()
-        self.transformer.moveToThread(self.transformerThread)
-        self.transformer.finished.connect(self.transformerThread.quit)
-        self.transformerThread.started.connect(self.transformer.run)
-        self.HtransformAction.triggered.connect(self.transformerThread.start)
-
-        fileMenu.addSeparator()
         exitAction = QtGui.QAction(QtGui.QIcon('exit.png'), '&Exit', self)
         exitAction.setShortcut('Ctrl+Q')
         exitAction.setStatusTip('Exit application')
@@ -760,10 +746,37 @@ class TormentaGUI(QtGui.QMainWindow):
         optMenu.addAction(self.uvOff)
         self.uvOff.setChecked(True)
 
+        # TIRF menu
         tirfMenu = menubar.addMenu('&TIRF')
         self.findTIRFAc = QtGui.QAction('Find TIRF position', tirfMenu)
         self.findTIRFAc.setEnabled(False)
         tirfMenu.addAction(self.findTIRFAc)
+
+        # Analysis menu
+        analysisMenu = menubar.addMenu('&Analysis')
+
+        text = 'Affine transform stacks or snaps...'
+        self.HtransformAction = QtGui.QAction(text, self)
+        tip = ('Correct stacks or single shots using an affine ' +
+               'transformation matrix')
+        self.HtransformAction.setStatusTip(tip)
+        analysisMenu.addAction(self.HtransformAction)
+
+        self.transformerThread = QtCore.QThread(self)
+        self.transformer = pyqtsub.HtransformStack()
+        self.transformer.moveToThread(self.transformerThread)
+        self.transformer.finished.connect(self.transformerThread.quit)
+        self.transformerThread.started.connect(self.transformer.run)
+        self.HtransformAction.triggered.connect(self.transformerThread.start)
+
+        text = 'Subtract background from stacks...'
+        self.bkgSubtAction = QtGui.QAction(text, self)
+        tip = 'Remove noise from data using a running median filter'
+        self.bkgSubtAction.setStatusTip(tip)
+        analysisMenu.addAction(self.bkgSusAction)
+
+        self.bkgSubtThread = QtCore.QThread(self)
+        self.bkgSubtractor = pyqtsub.BkgSubtractor(self)
 
         self.tree = pyqtsub.CamParamTree(self.andor)
 

@@ -55,7 +55,7 @@ class Grid():
     def update(self, shape):
         self.yline3.setPos(0.5*shape[0])
         self.xline3.setPos(0.5*shape[1])
-        self.rect0.setRect(0.5*shape[0] - 43, 0.5*shape[1] - 44, 84, 84)
+        self.rect0.setRect(0.5*shape[0] - 45, 0.5*shape[1] - 45, 90, 90)
         self.rect1.setRect(0.5*shape[0] - 64, 0.5*shape[1] - 64, 128, 128)
         self.rect2.setRect(0.5*shape[0] - 128, 0.5*shape[1] - 128, 255, 255)
         self.circle.setRect(0.5*shape[0] - np.sqrt(2)*128,

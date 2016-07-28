@@ -16,6 +16,7 @@ from pyqtgraph.parametertree import Parameter, ParameterTree
 
 import tormenta.control.guitools as guitools
 import tormenta.analysis.registration as reg
+import tormenta.analysis.stack as stack
 
 
 class CamParamTree(ParameterTree):
@@ -64,7 +65,7 @@ class CamParamTree(ParameterTree):
                       {'name': 'Pixel size', 'type': 'float', 'value': 0.12,
                        'readonly': True, 'siPrefix': False, 'suffix': ' um'},
                       {'name': 'Shape', 'type': 'list',
-                       'values': ['Full chip', '256x256', '128x128', '84x84',
+                       'values': ['Full chip', '256x256', '128x128', '90x90',
                                   '64x64', 'Two-colors', 'Custom']},
                       {'name': 'Apply', 'type': 'action'},
                       {'name': 'Load matrix', 'type': 'action',
@@ -298,7 +299,6 @@ class HtransformStack(QtCore.QObject):
                 with tiff.TiffFile(filename) as tt:
 
                     dat0 = tt.asarray()
-
                     if len(dat0.shape) > 2:
 
                         dat1 = self.mpStack(dat0, xlim, ylim, H)
@@ -345,3 +345,46 @@ def transformChunk(args):
         out[f] = reg.h_affine_transform(data[f], H)
 
     return out
+
+
+class BkgSubtractor(QtCore.QObject):
+
+    def __init__(self, main, window, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.main = main
+        self.window = window
+
+    def run(self):
+
+        txt = "Select files for background sustraction"
+        initialdir = self.main.recWidget.folderEdit.text()
+        filenames = guitools.getFilenames(txt, types=[], initialdir=initialdir)
+        print('Background subtraction started')
+        for filename in filenames:
+            print(time.strftime("%Y-%m-%d %H:%M:%S") +
+                  ' Processing stack ' + os.path.split(filename)[1])
+            ext = os.path.splitext(filename)[1]
+            filename2 = guitools.insertSuffix(filename, '_subtracted')
+            if ext == '.hdf5':
+                with hdf.File(filename, 'r') as f0, \
+                        hdf.File(filename2, 'w') as f1:
+
+                    dat0 = f0['data'].value
+                    if len(dat0) > self.window:
+                        dat1 = stack.
+
+                        # Store
+                        f1.create_dataset(name='data', data=dat1)
+                    else:
+                        print('Stack shorter than filter window --> ignore')
+
+            elif ext in ['.tiff', '.tif']:
+
+
+def subtractChunk(args):
+
+    data = args
+
+    data -= stack.bkg_estimation(data)
+
+    return data

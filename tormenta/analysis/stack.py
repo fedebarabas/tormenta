@@ -155,17 +155,19 @@ class Stack(object):
         self.file.close()
 
 
-def bkg_estimation(data_stack, window=100):
+def bkg_estimation(data_stack, window=101):
     ''' Background estimation. It's a running (time) mean.
     Hoogendoorn et al. in "The fidelity of stochastic single-molecule
     super-resolution reconstructions critically depends upon robust background
     estimation" recommend a median filter, but that takes too long, so we're
     using an uniform filter.'''
 
+    # Normalization
     intensity = np.mean(data_stack, (1, 2))
-    norm_data = data_stack / intensity[:, np.newaxis, np.newaxis]
+    data_stack = data_stack / intensity[:, np.newaxis, np.newaxis]
+
 #    bkg_estimate = median_filter(norm_data, size=(window, 1, 1))
-    bkg_estimate = uniform_filter(norm_data, size=(window, 1, 1))
+    bkg_estimate = uniform_filter(data_stack, size=(window, 1, 1))
     bkg_estimate *= intensity[:, np.newaxis, np.newaxis]
 
     return bkg_estimate
