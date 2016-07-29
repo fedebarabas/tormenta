@@ -5,6 +5,8 @@ Created on Sun Dec 22 16:44:59 2013
 @author: Federico Barabas
 """
 
+import os
+import time
 import numpy as np
 import h5py as hdf
 import multiprocessing as mp
@@ -12,11 +14,12 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 from scipy.ndimage.filters import uniform_filter
 
+from pyqtgraph.Qt import QtCore
 from tkinter import Tk, filedialog
 
 import tormenta.analysis.tools as tools
 import tormenta.analysis.maxima as maxima
-from tormenta.control.guitools import insertSuffix
+import tormenta.control.guitools as guitools
 
 
 def convert(word):
@@ -47,10 +50,10 @@ def split_two_colors(files):
 
             center = int(0.5*ff['data'].value.shape[1])
 
-            with hdf.File(insertSuffix(name, '_ch0'), 'w') as ff0:
+            with hdf.File(guitools.insertSuffix(name, '_ch0'), 'w') as ff0:
                 ff0['data'] = ff['data'][:, center - 5 - 128:center - 5, :]
 
-            with hdf.File(insertSuffix(name, '_ch1'), 'w') as ff1:
+            with hdf.File(guitools.insertSuffix(name, '_ch1'), 'w') as ff1:
                 ff1['data'] = ff['data'][:, center + 5:center + 5 + 128, :]
 
 
@@ -171,6 +174,49 @@ def bkg_estimation(data_stack, window=101):
     bkg_estimate *= intensity[:, np.newaxis, np.newaxis]
 
     return bkg_estimate
+
+
+class BkgSubtractor(QtCore.QObject):
+
+    def __init__(self, main, window, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.main = main
+        self.window = window
+
+    def run(self):
+
+        txt = "Select files for background sustraction"
+        initialdir = self.main.recWidget.folderEdit.text()
+        filenames = guitools.getFilenames(txt, types=[], initialdir=initialdir)
+        print('Background subtraction started')
+        for filename in filenames:
+            print(time.strftime("%Y-%m-%d %H:%M:%S") +
+                  ' Processing stack ' + os.path.split(filename)[1])
+            ext = os.path.splitext(filename)[1]
+            filename2 = guitools.insertSuffix(filename, '_subtracted')
+            if ext == '.hdf5':
+                with hdf.File(filename, 'r') as f0, \
+                        hdf.File(filename2, 'w') as f1:
+
+                    dat0 = f0['data'].value
+                    if len(dat0) > self.window:
+#                        dat1 = stack.
+
+                        # Store
+                        f1.create_dataset(name='data', data=dat1)
+                    else:
+                        print('Stack shorter than filter window --> ignore')
+
+#            elif ext in ['.tiff', '.tif']:
+
+
+def subtractChunk(args):
+
+    data = args
+
+    data -= bkg_estimation(data)
+
+    return data
 
 
 def localize_chunk(args, index=0):

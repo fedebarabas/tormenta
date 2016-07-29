@@ -371,14 +371,14 @@ class BkgSubtractor(QtCore.QObject):
 
                     dat0 = f0['data'].value
                     if len(dat0) > self.window:
-                        dat1 = stack.
+#                        dat1 = stack.
 
                         # Store
                         f1.create_dataset(name='data', data=dat1)
                     else:
                         print('Stack shorter than filter window --> ignore')
 
-            elif ext in ['.tiff', '.tif']:
+#            elif ext in ['.tiff', '.tif']:
 
 
 def subtractChunk(args):

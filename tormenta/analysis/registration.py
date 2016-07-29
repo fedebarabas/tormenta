@@ -6,15 +6,19 @@ Created on Tue Dec  8 20:51:54 2015
 """
 
 import os
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import math
 from scipy.ndimage import affine_transform
 import tifffile as tiff
 import h5py as hdf
+from pyqtgraph.Qt import QtCore
 from tkinter import Tk, filedialog
+import multiprocessing as mp
 
 from tormenta.analysis.maxima import Maxima
+import tormenta.control.guitools as guitools
 
 # epsilon for testing whether a number is close to zero
 _EPS = np.finfo(float).eps * 4.0
@@ -484,6 +488,90 @@ def get_affine_shapes(H):
     cropShape = (xlim[1] - xlim[0], ylim[1] - ylim[0])
 
     return xlim, ylim, cropShape
+
+
+class HtransformStack(QtCore.QObject):
+    """ Transforms all frames of channel 1 using matrix H."""
+
+    finished = QtCore.pyqtSignal()
+
+    def run(self):
+        Hname = guitools.getFilename("Select affine transformation matrix",
+                                     [('npy files', '.npy')])
+        H = np.load(Hname)
+        xlim, ylim, cropShape = get_affine_shapes(H)
+
+        text = "Select files for affine transformation"
+        filenames = guitools.getFilenames(text, types=[],
+                                          initialdir=os.path.split(Hname)[0])
+        for filename in filenames:
+            print(time.strftime("%Y-%m-%d %H:%M:%S") +
+                  ' Transforming stack ' + os.path.split(filename)[1])
+            ext = os.path.splitext(filename)[1]
+            filename2 = guitools.insertSuffix(filename, '_corrected')
+
+            if ext == '.hdf5':
+                with hdf.File(filename, 'r') as f0, \
+                        hdf.File(filename2, 'w') as f1:
+
+                    dat0 = f0['data']
+                    dat1 = self.mpStack(dat0, xlim, ylim, H)
+
+                    # Store
+                    f1.create_dataset(name='data', data=dat1)
+#                    f1['data'][:, -cropShape[0]:, :] = im1c
+
+            elif ext in ['.tiff', '.tif']:
+                with tiff.TiffFile(filename) as tt:
+
+                    dat0 = tt.asarray()
+                    if len(dat0.shape) > 2:
+
+                        dat1 = self.mpStack(dat0, xlim, ylim, H)
+                        tiff.imsave(filename2, dat1)
+
+                    else:
+                        tiff.imsave(guitools.insertSuffix(filename, '_ch0'),
+                                    dat0[:128, :])
+                        tiff.imsave(guitools.insertSuffix(filename, '_ch1'),
+                                    h_affine_transform(dat0[-128:, :], H))
+
+            print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
+
+        self.finished.emit()
+
+    def mpStack(self, dat0, xlim, ylim, H):
+
+        # Multiprocessing
+        n = len(dat0)
+        cpus = mp.cpu_count()
+        step = n // cpus
+        chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
+        chunks[-1][1] = n
+        args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
+        pool = mp.Pool(processes=cpus)
+        results = pool.map(transformChunk, args)
+        pool.close()
+        pool.join()
+        im1c = np.concatenate(results[:])
+
+        # Stack channels
+        im1c = im1c[:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
+        im0 = dat0[:, :128, :][:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
+        return np.append(im0, im1c, 1)
+
+
+def transformChunk(args):
+
+    data, H = args
+
+    n = len(data)
+    out = np.zeros((n, 128, 266), dtype=np.uint16)
+    for f in np.arange(n):
+        out[f] = h_affine_transform(data[f], H)
+
+    return out
+
 
 if __name__ == '__main__':
 

@@ -178,7 +178,7 @@ class RecordingWidget(QtGui.QFrame):
 
     def nChanged(self):
         self.updateRemaining()
-        self.limitExpositions(9)
+#        self.limitExpositions(9)
         shape = [self.n(), self.shape[0], self.shape[1]]
         size = guitools.fileSizeGB(shape)
         self.fileSizeLabel.setText("{0:.2f} GB".format(size))
@@ -763,20 +763,20 @@ class TormentaGUI(QtGui.QMainWindow):
         analysisMenu.addAction(self.HtransformAction)
 
         self.transformerThread = QtCore.QThread(self)
-        self.transformer = pyqtsub.HtransformStack()
+        self.transformer = reg.HtransformStack()
         self.transformer.moveToThread(self.transformerThread)
         self.transformer.finished.connect(self.transformerThread.quit)
         self.transformerThread.started.connect(self.transformer.run)
         self.HtransformAction.triggered.connect(self.transformerThread.start)
 
-        text = 'Subtract background from stacks...'
-        self.bkgSubtAction = QtGui.QAction(text, self)
-        tip = 'Remove noise from data using a running median filter'
-        self.bkgSubtAction.setStatusTip(tip)
-        analysisMenu.addAction(self.bkgSusAction)
-
-        self.bkgSubtThread = QtCore.QThread(self)
-        self.bkgSubtractor = pyqtsub.BkgSubtractor(self)
+#        text = 'Subtract background from stacks...'
+#        self.bkgSubtAction = QtGui.QAction(text, self)
+#        tip = 'Remove noise from data using a running median filter'
+#        self.bkgSubtAction.setStatusTip(tip)
+#        analysisMenu.addAction(self.bkgSusAction)
+#
+#        self.bkgSubtThread = QtCore.QThread(self)
+#        self.bkgSubtractor = stack.BkgSubtractor(self)
 
         self.tree = pyqtsub.CamParamTree(self.andor)
 
