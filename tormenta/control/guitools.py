@@ -30,14 +30,6 @@ def getUniqueName(name):
     return name
 
 
-def insertSuffix(filename, suffix, newExt=None):
-    names = os.path.splitext(filename)
-    if newExt is None:
-        return names[0] + suffix + names[1]
-    else:
-        return names[0] + suffix + newExt
-
-
 def attrsToTxt(filename, attrs):
     fp = open(filename + '.txt', 'w')
     fp.write('\n'.join('{}= {}'.format(x[0], x[1]) for x in attrs))
@@ -51,30 +43,6 @@ def fileSizeGB(shape):
 
 def nFramesPerChunk(shape):
     return int(1.8 * 2**29 / (shape[1] * shape[2]))
-
-
-def getFilename(title, types, initialdir=None):
-    try:
-        root = Tk()
-        root.withdraw()
-        filename = filedialog.askopenfilename(title=title, filetypes=types,
-                                              initialdir=initialdir)
-        root.destroy()
-        return filename
-    except OSError:
-        print("No file selected!")
-
-
-def getFilenames(title, types=[], initialdir=None):
-    try:
-        root = Tk()
-        root.withdraw()
-        filenames = filedialog.askopenfilenames(title=title, filetypes=types,
-                                                initialdir=initialdir)
-        root.destroy()
-        return root.tk.splitlist(filenames)
-    except OSError:
-        print("No files selected!")
 
 
 # Preset tools

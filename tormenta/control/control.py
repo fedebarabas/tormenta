@@ -24,6 +24,8 @@ from pyqtgraph.dockarea import Dock, DockArea
 from pyqtgraph.console import ConsoleWidget
 
 # tormenta imports
+from tormenta.control.filter_table import FilterTable
+import tormenta.utils as utils
 import tormenta.control.lasercontrol as lasercontrol
 import tormenta.control.focus as focus
 import tormenta.control.molecules_counter as moleculesCounter
@@ -32,7 +34,7 @@ import tormenta.control.guitools as guitools
 import tormenta.control.pyqtsubclasses as pyqtsub
 import tormenta.control.viewbox_tools as viewbox_tools
 import tormenta.analysis.registration as reg
-from tormenta.control.filter_table import FilterTable
+import tormenta.analysis.stack as stack
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -236,9 +238,9 @@ class RecordingWidget(QtGui.QFrame):
         return attrs
 
     def loadH(self):
-        self.Hname = guitools.getFilename('Load affine matrix',
-                                          [('Numpy arrays', '.npy')],
-                                          self.folderEdit.text())
+        self.Hname = utils.getFilename('Load affine matrix',
+                                       [('Numpy arrays', '.npy')],
+                                       self.folderEdit.text())
         self.H = np.load(self.Hname)
         self.xlim, self.ylim, self.cropShape = reg.get_affine_shapes(self.H)
 
@@ -278,7 +280,7 @@ class RecordingWidget(QtGui.QFrame):
                 dim = (self.main.umxpx * np.array(corrShape)).astype(np.int)
                 sh = str(dim[0]) + 'x' + str(dim[1])
                 savename = rootname + sh + '.tiff'
-                tiff.imsave(guitools.insertSuffix(savename, '_corrected'),
+                tiff.imsave(utils.insertSuffix(savename, '_corrected'),
                             newData, software='Tormenta', imagej=True,
                             resolution=(1/self.main.umxpx, 1/self.main.umxpx),
                             metadata={'spacing': 1, 'unit': 'um'})
@@ -520,7 +522,7 @@ class RecWorker(QtCore.QObject):
 
     def twoColorTIFF(self):
 
-        corrSavename = guitools.insertSuffix(self.savename, '_corrected')
+        corrSavename = utils.insertSuffix(self.savename, '_corrected')
 
         with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile,\
           tiff.TiffWriter(corrSavename, software='Tormenta') as corrStoreFile:
@@ -551,7 +553,7 @@ class RecWorker(QtCore.QObject):
 
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
-        corrMetaName = guitools.insertSuffix(metaName, '_corrected')
+        corrMetaName = utils.insertSuffix(metaName, '_corrected')
         with hdf.File(metaName, "w") as metaFile, \
                 hdf.File(corrMetaName, "w") as corrMetaFile:
             for item in self.attrs:
@@ -588,7 +590,7 @@ class RecWorker(QtCore.QObject):
 
     def twoColorHDF5(self):
 
-        corrSavename = guitools.insertSuffix(self.savename, '_corrected')
+        corrSavename = utils.insertSuffix(self.savename, '_corrected')
         corrShape = (self.shape[0], self.corrShape[0], self.corrShape[1])
 
         with hdf.File(self.savename, "w") as storeFile, \
@@ -769,14 +771,18 @@ class TormentaGUI(QtGui.QMainWindow):
         self.transformerThread.started.connect(self.transformer.run)
         self.HtransformAction.triggered.connect(self.transformerThread.start)
 
-#        text = 'Subtract background from stacks...'
-#        self.bkgSubtAction = QtGui.QAction(text, self)
-#        tip = 'Remove noise from data using a running median filter'
-#        self.bkgSubtAction.setStatusTip(tip)
-#        analysisMenu.addAction(self.bkgSusAction)
-#
-#        self.bkgSubtThread = QtCore.QThread(self)
-#        self.bkgSubtractor = stack.BkgSubtractor(self)
+        text = 'Subtract background from stacks...'
+        self.bkgSubtAction = QtGui.QAction(text, self)
+        tip = 'Remove noise from data using a running median filter'
+        self.bkgSubtAction.setStatusTip(tip)
+        analysisMenu.addAction(self.bkgSubtAction)
+
+        self.bkgSubtThread = QtCore.QThread(self)
+        self.bkgSubtractor = stack.BkgSubtractor(self)
+        self.bkgSubtractor.moveToThread(self.bkgSubtThread)
+        self.bkgSubtractor.finished.connect(self.bkgSubtThread.quit)
+        self.bkgSubtThread.started.connect(self.bkgSubtractor.run)
+        self.bkgSubtAction.triggered.connect(self.bkgSubtThread.start)
 
         self.tree = pyqtsub.CamParamTree(self.andor)
 

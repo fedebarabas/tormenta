@@ -68,7 +68,7 @@ class LaserWidget(QtGui.QFrame):
         # Green laser control widget
         self.greenControl = LaserControl(self.greenlaser, '<h3>532nm</h3>',
                                          color=(80, 255, 0), prange=(0, 1500),
-                                         tickInterval=10, singleStep=1,
+                                         tickInterval=100, singleStep=1,
                                          daq=self.daq, port=0, invert=False)
         # Additional green laser temperature indicators
         self.greenControl.tempFrame = QtGui.QFrame(self.greenControl)

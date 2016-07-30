@@ -10,16 +10,17 @@ import time
 import numpy as np
 import h5py as hdf
 import multiprocessing as mp
+import tifffile as tiff
 
 import matplotlib.pyplot as plt
-from scipy.ndimage.filters import uniform_filter
+from scipy.ndimage.filters import median_filter
 
 from pyqtgraph.Qt import QtCore
 from tkinter import Tk, filedialog
 
+import tormenta.utils as utils
 import tormenta.analysis.tools as tools
 import tormenta.analysis.maxima as maxima
-import tormenta.control.guitools as guitools
 
 
 def convert(word):
@@ -50,10 +51,10 @@ def split_two_colors(files):
 
             center = int(0.5*ff['data'].value.shape[1])
 
-            with hdf.File(guitools.insertSuffix(name, '_ch0'), 'w') as ff0:
+            with hdf.File(utils.insertSuffix(name, '_ch0'), 'w') as ff0:
                 ff0['data'] = ff['data'][:, center - 5 - 128:center - 5, :]
 
-            with hdf.File(guitools.insertSuffix(name, '_ch1'), 'w') as ff1:
+            with hdf.File(utils.insertSuffix(name, '_ch1'), 'w') as ff1:
                 ff1['data'] = ff['data'][:, center + 5:center + 5 + 128, :]
 
 
@@ -158,67 +159,6 @@ class Stack(object):
         self.file.close()
 
 
-def bkg_estimation(data_stack, window=101):
-    ''' Background estimation. It's a running (time) mean.
-    Hoogendoorn et al. in "The fidelity of stochastic single-molecule
-    super-resolution reconstructions critically depends upon robust background
-    estimation" recommend a median filter, but that takes too long, so we're
-    using an uniform filter.'''
-
-    # Normalization
-    intensity = np.mean(data_stack, (1, 2))
-    data_stack = data_stack / intensity[:, np.newaxis, np.newaxis]
-
-#    bkg_estimate = median_filter(norm_data, size=(window, 1, 1))
-    bkg_estimate = uniform_filter(data_stack, size=(window, 1, 1))
-    bkg_estimate *= intensity[:, np.newaxis, np.newaxis]
-
-    return bkg_estimate
-
-
-class BkgSubtractor(QtCore.QObject):
-
-    def __init__(self, main, window, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.main = main
-        self.window = window
-
-    def run(self):
-
-        txt = "Select files for background sustraction"
-        initialdir = self.main.recWidget.folderEdit.text()
-        filenames = guitools.getFilenames(txt, types=[], initialdir=initialdir)
-        print('Background subtraction started')
-        for filename in filenames:
-            print(time.strftime("%Y-%m-%d %H:%M:%S") +
-                  ' Processing stack ' + os.path.split(filename)[1])
-            ext = os.path.splitext(filename)[1]
-            filename2 = guitools.insertSuffix(filename, '_subtracted')
-            if ext == '.hdf5':
-                with hdf.File(filename, 'r') as f0, \
-                        hdf.File(filename2, 'w') as f1:
-
-                    dat0 = f0['data'].value
-                    if len(dat0) > self.window:
-#                        dat1 = stack.
-
-                        # Store
-                        f1.create_dataset(name='data', data=dat1)
-                    else:
-                        print('Stack shorter than filter window --> ignore')
-
-#            elif ext in ['.tiff', '.tif']:
-
-
-def subtractChunk(args):
-
-    data = args
-
-    data -= bkg_estimation(data)
-
-    return data
-
-
 def localize_chunk(args, index=0):
 
     stack, init_frame, fit_model, max_args = args
@@ -261,10 +201,100 @@ def localize_chunk(args, index=0):
 
     return results[0:index]
 
+
+def bkg_estimation(data_stack, window=101):
+    ''' Background estimation. It's a running (time) mean.
+    Hoogendoorn et al. in "The fidelity of stochastic single-molecule
+    super-resolution reconstructions critically depends upon robust background
+    estimation" recommend a median filter, but that takes too long, so we're
+    using an uniform filter.'''
+
+    # Normalization
+    intensity = np.mean(data_stack, (1, 2))
+    data_stack = data_stack / intensity[:, np.newaxis, np.newaxis]
+
+    bkg_estimate = median_filter(data_stack, size=(window, 1, 1))
+#    bkg_estimate = uniform_filter(data_stack, size=(window, 1, 1))
+    bkg_estimate *= intensity[:, np.newaxis, np.newaxis]
+
+    return bkg_estimate
+
+
+class BkgSubtractor(QtCore.QObject):
+
+    finished = QtCore.pyqtSignal()
+
+    def __init__(self, main, window=101, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.main = main
+        self.window = window
+
+    def run(self):
+
+        txt = "Select files for background sustraction"
+        initialdir = self.main.recWidget.folderEdit.text()
+        filenames = utils.getFilenames(txt, types=[], initialdir=initialdir)
+        print(time.strftime("%Y-%m-%d %H:%M:%S") +
+              ' Background subtraction started')
+        for filename in filenames:
+            print(time.strftime("%Y-%m-%d %H:%M:%S") +
+                  ' Processing stack ' + os.path.split(filename)[1])
+            ext = os.path.splitext(filename)[1]
+            filename2 = utils.insertSuffix(filename, '_subtracted')
+            if ext == '.hdf5':
+                with hdf.File(filename, 'r') as f0, \
+                        hdf.File(filename2, 'w') as f1:
+
+                    self.data = f0['data'].value
+                    if len(self.data) > self.window:
+                        dataSub = self.mpSubtract()
+                        f1.create_dataset(name='data', data=dataSub)
+                    else:
+                        print('Stack shorter than filter window --> ignore')
+
+            elif ext in ['.tiff', '.tif']:
+                with tiff.TiffFile(filename) as tt:
+
+                    self.data = tt.asarray()
+                    if len(self.data) > self.window:
+                        dataSub = self.mpSubtract()
+                        tiff.imsave(filename2, dataSub)
+
+                    else:
+                        print('Stack shorter than filter window --> ignore')
+        print(time.strftime("%Y-%m-%d %H:%M:%S") + ' Background subtraction finished')
+        self.finished.emit()
+
+    # Multiprocessing
+    def mpSubtract(self):
+        n = len(self.data)
+        cpus = mp.cpu_count() - 1
+        step = n // cpus
+        chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
+        chunks[-1][1] = n
+        args = [self.data[i:j] for i, j in chunks]
+        pool = mp.Pool(processes=cpus)
+        results = pool.map(subtractChunk, args)
+        pool.close()
+        pool.join()
+        return np.concatenate(results[:])
+
+
+def subtractChunk(data):
+    data = data - bkg_estimation(data)
+    data[data < 0] = 0
+    return data.astype(np.uint16)
+
+
 if __name__ == "__main__":
 
+    split_two_colors(ask_files('Select hdf5 file'))
+
 #    import matplotlib.pyplot as plt
-#    se = Stack(r'/home/federico/Desktop/20160212 Tetraspeck registration/filename_9.hdf5')
+#    filename = os.path.join(r'/home/federico/Desktop/',
+#                            '20160212 Tetraspeck registration',
+#                            'filename_9.hdf5')
+#    se = Stack(filename)
 #    mm = maxima.Maxima(se.imageData[10], se.fwhm)
 #    mm.find()
 #    peak = mm.area(mm.image, 5)
@@ -275,11 +305,11 @@ if __name__ == "__main__":
 #    print(gme)
 #
 #    plt.plot(mle[2] - 0.5, mle[1] - 0.5, 'rx', mew=2, ms=5)
-#    plt.plot(gme[0] - 0.5, gme[1] - 0.5, 'bs', mew=1, ms=5, markerfacecolor='none')
+#    plt.plot(gme[0] - 0.5, gme[1] - 0.5, 'bs', mew=1, ms=5,
+#             markerfacecolor='none')
 #    plt.colorbar()
 #    plt.show()
 
-    split_two_colors(ask_files('Select hdf5 file'))
 
 #    stack = Stack()
 #    maxima = Peaks(stack.image[10], stack.fwhm)
