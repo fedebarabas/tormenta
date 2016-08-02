@@ -454,7 +454,7 @@ class RecWorker(QtCore.QObject):
         self.H = H
         self.cropShape = cropShape
         try:
-            self.corrShape = (2*self.cropShape[0], self.cropShape[1])
+            self.corrShape = (self.n, 2*self.cropShape[0], self.cropShape[1])
         except:
             self.corrShape = None
         self.xlim = xlim
@@ -500,18 +500,23 @@ class RecWorker(QtCore.QObject):
 
     def singleColorTIFF(self):
 
-        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile:
+#        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile:
 
-            while self.j < self.shape[0] and self.pressed:
-                time.sleep(self.t_exp.magnitude)
-                if self.andor.n_images_acquired > self.j:
-                    i, self.j = self.andor.new_images_index
-                    newImages = self.andor.images16(i, self.j, self.frameShape,
-                                                    1, self.n)
-                    self.updateSignal.emit(np.transpose(newImages[-1]))
-                    storeFile.save(newImages[:, ::-1].astype(np.uint16),
-                                   extratags=self.tags,
-                                   resolution=self.resolution)
+        data = np.zeros(self.shape, dtype=np.uint16)
+        while self.j < self.shape[0] and self.pressed:
+            time.sleep(self.t_exp.magnitude)
+            if self.andor.n_images_acquired > self.j:
+                i, self.j = self.andor.new_images_index
+                newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                1, self.n)
+                self.updateSignal.emit(np.transpose(newImages[-1]))
+                data[i - 1:self.j] = newImages[:, ::-1]
+
+        tiff.imsave(self.savename, data[:self.j], extratags=self.tags,
+                    resolution=self.resolution)
+#                storeFile.save(newImages[:, ::-1].astype(np.uint16)),
+#                               extratags=self.tags,
+#                               resolution=self.resolution)
 
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
@@ -524,32 +529,43 @@ class RecWorker(QtCore.QObject):
 
         corrSavename = utils.insertSuffix(self.savename, '_corrected')
 
-        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile,\
-          tiff.TiffWriter(corrSavename, software='Tormenta') as corrStoreFile:
+#        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile,\
+#          tiff.TiffWriter(corrSavename, software='Tormenta') as corrStoreFile:
 
-            while self.j < self.shape[0] and self.pressed:
+        data = np.zeros(self.shape, dtype=np.uint16)
+        dataCorr = np.zeros(self.corrShape, dtype=np.uint16)
 
-                time.sleep(self.t_exp.magnitude)
-                if self.andor.n_images_acquired > self.j:
-                    i, self.j = self.andor.new_images_index
-                    newImages = self.andor.images16(i, self.j, self.frameShape,
-                                                    1, self.n)
-                    self.updateSignal.emit(np.transpose(newImages[-1]))
-                    data = newImages[:, ::-1]
-                    storeFile.save(data.astype(np.uint16), extratags=self.tags,
-                                   resolution=self.resolution)
+        while self.j < self.shape[0] and self.pressed:
 
-                    im0 = data[:, :128, :][:, self.xlim[0]:self.xlim[1],
-                                           self.ylim[0]:self.ylim[1]]
-                    im1 = np.zeros(data[:, -128:, :].shape)
-                    for k in np.arange(len(im1)):
-                        im1[k] = reg.h_affine_transform(data[k, -128:, :],
-                                                        self.H)
-                    im1c = im1[:, self.xlim[0]:self.xlim[1],
-                               self.ylim[0]:self.ylim[1]]
-                    im = np.hstack((im0, im1c)).astype(np.uint16)
-                    corrStoreFile.save(im, extratags=self.tags,
-                                       resolution=self.resolution)
+            time.sleep(self.t_exp.magnitude)
+            if self.andor.n_images_acquired > self.j:
+                i, self.j = self.andor.new_images_index
+                newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                1, self.n)
+                self.updateSignal.emit(np.transpose(newImages[-1]))
+                newData = newImages[:, ::-1]
+                data[i - 1:self.j] = newData
+#                    storeFile.save(data.astype(np.uint16),
+#                                   extratags=self.tags,
+#                                   resolution=self.resolution)
+
+                im0 = newData[:, :128, :][:, self.xlim[0]:self.xlim[1],
+                                          self.ylim[0]:self.ylim[1]]
+                im1 = np.zeros(newData[:, -128:, :].shape)
+                for k in np.arange(len(im1)):
+                    im1[k] = reg.h_affine_transform(newData[k, -128:, :],
+                                                    self.H)
+                im1c = im1[:, self.xlim[0]:self.xlim[1],
+                           self.ylim[0]:self.ylim[1]]
+                im = np.hstack((im0, im1c)).astype(np.uint16)
+                dataCorr[i - 1:self.j] = im
+#                corrStoreFile.save(im, extratags=self.tags,
+#                                   resolution=self.resolution)
+
+        tiff.imsave(self.savename, data[:self.j], extratags=self.tags,
+                    resolution=self.resolution)
+        tiff.imsave(corrSavename, dataCorr[:self.j], extratags=self.tags,
+                    resolution=self.resolution)
 
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
@@ -591,7 +607,6 @@ class RecWorker(QtCore.QObject):
     def twoColorHDF5(self):
 
         corrSavename = utils.insertSuffix(self.savename, '_corrected')
-        corrShape = (self.shape[0], self.corrShape[0], self.corrShape[1])
 
         with hdf.File(self.savename, "w") as storeFile, \
                 hdf.File(corrSavename, "w") as corrStoreFile:

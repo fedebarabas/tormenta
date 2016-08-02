@@ -182,6 +182,7 @@ class ScanZ(object):
             from lantz.drivers.legacy.prior.nanoscanz import NanoScanZ
             scan = NanoScanZ(*args)
             scan.initialize()
+            scan.idn
             return scan
 
         except:

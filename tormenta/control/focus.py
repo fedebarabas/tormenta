@@ -35,8 +35,6 @@ class FocusWidget(QtGui.QFrame):
         self.setPoint = 0
         self.calibrationResult = [0, 0]
 
-        self.z.hostPosition = 'left'
-
         self.V = Q_(1, 'V')
         self.um = Q_(1, 'um')
         self.nm = Q_(1, 'nm')
@@ -161,7 +159,7 @@ class FocusWidget(QtGui.QFrame):
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
         else:
-            self.z.moveRelative(out * self.um)
+            self.z.moveRel(out * self.um)
 
     def exportData(self):
 
@@ -332,7 +330,7 @@ class FocusCalibration(QtCore.QObject):
             self.focusCalibSignal = self.mainwidget.ProcessData.focusSignal
             self.signalData.append(self.focusCalibSignal)
             self.positionData.append(self.z.position.magnitude)
-            self.z.moveRelative(self.step)
+            self.z.moveRel(self.step)
             time.sleep(0.5)
 
         self.argmax = np.argmax(self.signalData)

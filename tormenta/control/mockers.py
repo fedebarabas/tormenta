@@ -108,6 +108,10 @@ class MockScanZ(Driver):
         self._hostPosition = 'left'
 
     @property
+    def idn(self):
+        return '''Simulated Prior's NanoScanZ'''
+
+    @property
     def position(self):
         '''Gets and sets current position.
         If the value is set to z = 0, the display changes to REL 0 (relative
@@ -131,7 +135,7 @@ class MockScanZ(Driver):
         except:
             self._position = value
 
-    def moveRelative(self, value):
+    def moveRel(self, value):
         self.position = self.position + value
 
     @property

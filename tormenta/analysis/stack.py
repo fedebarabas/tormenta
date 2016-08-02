@@ -256,13 +256,15 @@ class BkgSubtractor(QtCore.QObject):
                 with tiff.TiffFile(filename) as tt:
 
                     self.data = tt.asarray()
+                    print(len(self.data), self.window)
                     if len(self.data) > self.window:
                         dataSub = self.mpSubtract()
                         tiff.imsave(filename2, dataSub)
 
                     else:
                         print('Stack shorter than filter window --> ignore')
-        print(time.strftime("%Y-%m-%d %H:%M:%S") + ' Background subtraction finished')
+        print(time.strftime("%Y-%m-%d %H:%M:%S") +
+              ' Background subtraction finished')
         self.finished.emit()
 
     # Multiprocessing

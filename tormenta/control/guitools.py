@@ -8,12 +8,14 @@ import os
 import numpy as np
 import configparser
 from ast import literal_eval
-from tkinter import Tk, filedialog, simpledialog
+from tkinter import Tk, simpledialog
 from lantz import Q_
 from PIL import Image
 import matplotlib.cm as cm
 from scipy.misc import imresize
 import tifffile as tiff
+
+import tormenta.utils as utils
 
 
 # Check for same name conflict
@@ -24,7 +26,7 @@ def getUniqueName(name):
         if n > 1:
             name = name.replace('_{}.'.format(n - 1), '_{}.'.format(n))
         else:
-            name = insertSuffix(name, '_{}'.format(n))
+            name = utils.insertSuffix(name, '_{}'.format(n))
         n += 1
 
     return name
@@ -163,9 +165,10 @@ def mouseMoved(main, pos):
 def tiff2png(main, filenames=None):
 
     if filenames is None:
-        filenames = getFilenames('Load TIFF files', [('Tiff files', '.tiff'),
-                                                     ('Tif files', '.tif')],
-                                 main.recWidget.folderEdit.text())
+        filenames = utils.getFilenames('Load TIFF files',
+                                       [('Tiff files', '.tiff'),
+                                        ('Tif files', '.tif')],
+                                       main.recWidget.folderEdit.text())
 
     for filename in filenames:
         with tiff.TiffFile(filename) as tt:

@@ -18,7 +18,7 @@ def main():
             instruments.Laser('mpb.vfl.VFL', 'COM3') as redlaser, \
             instruments.Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
             instruments.Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser, \
-            instruments.DAQ() as daq, instruments.ScanZ(12) as scanZ:
+            instruments.DAQ() as daq, instruments.ScanZ('COM5') as scanZ:
 
         aptMotor = instruments.Motor()
 
@@ -27,7 +27,7 @@ def main():
         print(bluelaser.idn)
         print(greenlaser.idn)
         print(daq.idn)
-        print('Prior Z stage')
+        print(scanZ.idn)
         print(aptMotor.getHardwareInformation())
 
         win = control.TormentaGUI(andor, redlaser, bluelaser, greenlaser,
