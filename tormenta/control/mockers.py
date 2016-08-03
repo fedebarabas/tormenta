@@ -135,23 +135,50 @@ class MockScanZ(Driver):
         except:
             self._position = value
 
+    @property
+    def zPosition(self):
+        '''Gets and sets current position.
+        If the value is set to z = 0, the display changes to REL 0 (relative
+        display mode). To return to ABS mode use inst.move_absolute(0) and then
+        inst.position = 0. Thus, the stage will return to 0 micrometers and the
+        display screen will switch to ABS mode.
+        '''
+        return self._position
+
+    @zPosition.setter
+    def zPosition(self, value):
+        '''Gets and sets current position.
+        If the value is set to z = 0, the display changes to REL 0 (relative
+        display mode). To return to ABS mode use inst.move_absolute(0) and then
+        inst.position = 0. Thus, the stage will return to 0 micrometers and the
+        display screen will switch to ABS mode.
+        '''
+        try:
+            value.magnitude
+            self._position = value.to('um')
+        except:
+            self._position = value
+
     def moveRel(self, value):
         self.position = self.position + value
 
+    def zMoveRelative(self, value):
+        self.position = self.position + value
+
     @property
-    def umPerRevolution(self):
+    def zUmPerRevolution(self):
         return 100 * self.um
 
-    @umPerRevolution.setter
-    def umPerRevolution(self, value):
+    @zUmPerRevolution.setter
+    def zUmPerRevolution(self, value):
         pass
 
     @property
-    def hostPosition(self):
+    def zHostPosition(self):
         return self._hostPosition
 
-    @hostPosition.setter
-    def hostPosition(self, value):
+    @zHostPosition.setter
+    def zHostPosition(self, value):
         self._hostPosition = value
 
     def finalize(self):

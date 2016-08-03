@@ -32,6 +32,7 @@ class FocusWidget(QtGui.QFrame):
         self.webcam = instruments.Webcam()
 
         self.z = scanZ
+        self.z.zHostPosition = 'left'
         self.setPoint = 0
         self.calibrationResult = [0, 0]
 
@@ -132,7 +133,7 @@ class FocusWidget(QtGui.QFrame):
             self.lockMean = self.setPoint
             self.graph.setLine = self.graph.plot.addLine(y=self.lockMean,
                                                          pen='c')
-            self.initialZ = self.z.position
+            self.initialZ = self.z.zPosition
             self.locked = True
 
         else:
@@ -148,7 +149,7 @@ class FocusWidget(QtGui.QFrame):
     def updatePI(self):
 
         # Safety unlocking
-        self.distance = self.z.position - self.initialZ
+        self.distance = self.z.zPosition - self.initialZ
         cm = self.ProcessData.focusSignal
         out = self.PI.update(cm)
 
@@ -159,7 +160,7 @@ class FocusWidget(QtGui.QFrame):
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
         else:
-            self.z.moveRel(out * self.um)
+            self.z.zMoveRelative(out * self.um)
 
     def exportData(self):
 
@@ -329,8 +330,8 @@ class FocusCalibration(QtCore.QObject):
         for i in range(20):
             self.focusCalibSignal = self.mainwidget.ProcessData.focusSignal
             self.signalData.append(self.focusCalibSignal)
-            self.positionData.append(self.z.position.magnitude)
-            self.z.moveRel(self.step)
+            self.positionData.append(self.z.zPosition.magnitude)
+            self.z.zMoveRelative(self.step)
             time.sleep(0.5)
 
         self.argmax = np.argmax(self.signalData)

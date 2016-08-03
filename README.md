@@ -4,7 +4,7 @@ Measurement control and analysis for optical microscopy
 ### Installation
 
 #### Ubuntu
- - Run in terminal:
+Run in terminal:
 
     ```
     $ sudo apt-get install python3-pip python3-h5py git
@@ -21,7 +21,7 @@ Measurement control and analysis for optical microscopy
     ```
 - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta).
 
-#### Optional dependencies (not needed for offline testing):
+#### Optional dependencies
 Don't install these libraries if you have different equipment or you just want to test the software without instruments (offline mode).
  - Support for Labjack's T7 DAQ
      - [LJM Library](https://labjack.com/support/software/installers/ljm)

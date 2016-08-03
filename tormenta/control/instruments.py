@@ -179,10 +179,10 @@ class ScanZ(object):
     def __new__(cls, *args):
 
         try:
-            from lantz.drivers.legacy.prior.nanoscanz import NanoScanZ
-            scan = NanoScanZ(*args)
+            from lantz.drivers.legacy.prior.proscaniii import ProScanIII
+            scan = ProScanIII(*args)
             scan.initialize()
-            scan.idn
+            print('ProScanIII controller')
             return scan
 
         except:
