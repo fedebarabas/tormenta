@@ -3,16 +3,6 @@ Measurement control and analysis for optical microscopy
 
 ### Installation
 
-#### Optional prerequisites (not needed for offline testing)
-Our setup uses LabJack's T7 as DAQ and a webcam as a position-sensitive detector. Don't install these libraries if you have different equipment or you just want to test the software without instruments (offline mode).
- - LabJack DAQ dependencies
-     - [LJM Library](https://labjack.com/support/software/installers/ljm)
-     - [LJM Library Python wrapper](https://labjack.com/support/software/examples/ljm/python)
- - Support for webcam acquisition
-     - Pygame
-
-
-
 #### Ubuntu
  - Run in terminal:
 
@@ -30,6 +20,14 @@ Our setup uses LabJack's T7 as DAQ and a webcam as a position-sensitive detector
     $ pip install comtypes lantz tifffile-2016.4.19-cp34-cp34m-win_amd64.whl
     ```
 - Clone [Tormenta repo](https://github.com/fedebarabas/tormenta).
+
+#### Optional dependencies (not needed for offline testing):
+Don't install these libraries if you have different equipment or you just want to test the software without instruments (offline mode).
+ - Support for Labjack's T7 DAQ
+     - [LJM Library](https://labjack.com/support/software/installers/ljm)
+     - [LJM Library Python wrapper](https://labjack.com/support/software/examples/ljm/python)
+ - Support for webcam image acquisition
+     - Pygame
 
 ### Launch Tormenta
  - Open WinPython Command Prompt, go to tormenta's repository directory and run:

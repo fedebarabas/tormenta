@@ -500,23 +500,26 @@ class RecWorker(QtCore.QObject):
 
     def singleColorTIFF(self):
 
-#        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile:
+        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile:
 
-        data = np.zeros(self.shape, dtype=np.uint16)
-        while self.j < self.shape[0] and self.pressed:
-            time.sleep(self.t_exp.magnitude)
-            if self.andor.n_images_acquired > self.j:
-                i, self.j = self.andor.new_images_index
-                newImages = self.andor.images16(i, self.j, self.frameShape,
-                                                1, self.n)
-                self.updateSignal.emit(np.transpose(newImages[-1]))
-                data[i - 1:self.j] = newImages[:, ::-1]
+            while self.j < self.shape[0] and self.pressed:
+                time.sleep(self.t_exp.magnitude)
+                if self.andor.n_images_acquired > self.j:
+                    i, self.j = self.andor.new_images_index
+                    newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                    1, self.n)
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
 
-        tiff.imsave(self.savename, data[:self.j], extratags=self.tags,
-                    resolution=self.resolution)
-#                storeFile.save(newImages[:, ::-1].astype(np.uint16)),
-#                               extratags=self.tags,
-#                               resolution=self.resolution)
+                    newData = newImages[:, ::-1].astype(np.uint16)
+
+                    # This is done frame by frame in order to have a
+                    # contiguously saved tiff so it's easily opened in ImageJ
+                    # or in python through tifffile
+                    for frame in newData:
+                        storeFile.save(frame, photometric='minisblack',
+                                       resolution=self.resolution,
+                                       extratags=self.tags)
+
 
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
@@ -527,45 +530,38 @@ class RecWorker(QtCore.QObject):
 
     def twoColorTIFF(self):
 
-        corrSavename = utils.insertSuffix(self.savename, '_corrected')
+        corrName = utils.insertSuffix(self.savename, '_corrected')
 
-#        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile,\
-#          tiff.TiffWriter(corrSavename, software='Tormenta') as corrStoreFile:
+        with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile,\
+                tiff.TiffWriter(corrName, software='Tormenta') as corrFile:
 
-        data = np.zeros(self.shape, dtype=np.uint16)
-        dataCorr = np.zeros(self.corrShape, dtype=np.uint16)
+            while self.j < self.shape[0] and self.pressed:
 
-        while self.j < self.shape[0] and self.pressed:
+                time.sleep(self.t_exp.magnitude)
+                if self.andor.n_images_acquired > self.j:
+                    i, self.j = self.andor.new_images_index
+                    newImages = self.andor.images16(i, self.j, self.frameShape,
+                                                    1, self.n)
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    newData = newImages[:, ::-1]
 
-            time.sleep(self.t_exp.magnitude)
-            if self.andor.n_images_acquired > self.j:
-                i, self.j = self.andor.new_images_index
-                newImages = self.andor.images16(i, self.j, self.frameShape,
-                                                1, self.n)
-                self.updateSignal.emit(np.transpose(newImages[-1]))
-                newData = newImages[:, ::-1]
-                data[i - 1:self.j] = newData
-#                    storeFile.save(data.astype(np.uint16),
-#                                   extratags=self.tags,
-#                                   resolution=self.resolution)
+                    # This is done frame by frame in order to have contiguously
+                    # saved tiff files so they're easily opened in ImageJ
+                    # or in python through tifffile
+                    for frame in newData:
+                        im0 = frame[:128, :][:, self.xlim[0]:self.xlim[1],
+                                             self.ylim[0]:self.ylim[1]]
 
-                im0 = newData[:, :128, :][:, self.xlim[0]:self.xlim[1],
-                                          self.ylim[0]:self.ylim[1]]
-                im1 = np.zeros(newData[:, -128:, :].shape)
-                for k in np.arange(len(im1)):
-                    im1[k] = reg.h_affine_transform(newData[k, -128:, :],
-                                                    self.H)
-                im1c = im1[:, self.xlim[0]:self.xlim[1],
-                           self.ylim[0]:self.ylim[1]]
-                im = np.hstack((im0, im1c)).astype(np.uint16)
-                dataCorr[i - 1:self.j] = im
-#                corrStoreFile.save(im, extratags=self.tags,
-#                                   resolution=self.resolution)
-
-        tiff.imsave(self.savename, data[:self.j], extratags=self.tags,
-                    resolution=self.resolution)
-        tiff.imsave(corrSavename, dataCorr[:self.j], extratags=self.tags,
-                    resolution=self.resolution)
+                        im1 = reg.h_affine_transform(frame[-128:, :], self.H)
+                        im1c = im1[self.xlim[0]:self.xlim[1],
+                                   self.ylim[0]:self.ylim[1]]
+                        im = np.hstack((im0, im1c)).astype(np.uint16)
+                        corrFile.save(im, photometric='minisblack',
+                                      resolution=self.resolution,
+                                      extratags=self.tags)
+                        storeFile.save(frame, photometric='minisblack',
+                                       resolution=self.resolution,
+                                       extratags=self.tags)
 
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
