@@ -18,7 +18,8 @@ from tkinter import Tk, filedialog
 import multiprocessing as mp
 
 from tormenta.analysis.maxima import Maxima
-import tormenta.control.guitools as guitools
+import tormenta.utils as utils
+
 
 # epsilon for testing whether a number is close to zero
 _EPS = np.finfo(float).eps * 4.0
@@ -496,19 +497,19 @@ class HtransformStack(QtCore.QObject):
     finished = QtCore.pyqtSignal()
 
     def run(self):
-        Hname = guitools.getFilename("Select affine transformation matrix",
-                                     [('npy files', '.npy')])
+        Hname = utils.getFilename("Select affine transformation matrix",
+                                  [('npy files', '.npy')])
         H = np.load(Hname)
         xlim, ylim, cropShape = get_affine_shapes(H)
 
         text = "Select files for affine transformation"
-        filenames = guitools.getFilenames(text, types=[],
-                                          initialdir=os.path.split(Hname)[0])
+        filenames = utils.getFilenames(text, types=[],
+                                       initialdir=os.path.split(Hname)[0])
         for filename in filenames:
             print(time.strftime("%Y-%m-%d %H:%M:%S") +
                   ' Transforming stack ' + os.path.split(filename)[1])
             ext = os.path.splitext(filename)[1]
-            filename2 = guitools.insertSuffix(filename, '_corrected')
+            filename2 = utils.insertSuffix(filename, '_corrected')
 
             if ext == '.hdf5':
                 with hdf.File(filename, 'r') as f0, \
@@ -531,9 +532,9 @@ class HtransformStack(QtCore.QObject):
                         tiff.imsave(filename2, dat1)
 
                     else:
-                        tiff.imsave(guitools.insertSuffix(filename, '_ch0'),
+                        tiff.imsave(utils.insertSuffix(filename, '_ch0'),
                                     dat0[:128, :])
-                        tiff.imsave(guitools.insertSuffix(filename, '_ch1'),
+                        tiff.imsave(utils.insertSuffix(filename, '_ch1'),
                                     h_affine_transform(dat0[-128:, :], H))
 
             print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')

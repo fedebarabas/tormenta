@@ -16,6 +16,7 @@ from tkinter import Tk, filedialog, messagebox
 import h5py as hdf
 import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
+import lantz.log
 
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
@@ -520,7 +521,6 @@ class RecWorker(QtCore.QObject):
                                        resolution=self.resolution,
                                        extratags=self.tags)
 
-
         # Saving parameters
         metaName = os.path.splitext(self.savename)[0] + '_metadata.hdf5'
         with hdf.File(metaName, "w") as metaFile:
@@ -608,8 +608,10 @@ class RecWorker(QtCore.QObject):
                 hdf.File(corrSavename, "w") as corrStoreFile:
             storeFile.create_dataset(name=self.dataname, shape=self.shape,
                                      maxshape=self.shape, dtype=np.uint16)
-            corrStoreFile.create_dataset(name=self.dataname, shape=corrShape,
-                                         maxshape=corrShape, dtype=np.uint16)
+            corrStoreFile.create_dataset(name=self.dataname,
+                                         shape=self.corrShape,
+                                         maxshape=self.corrShape,
+                                         dtype=np.uint16)
             dataset = storeFile[self.dataname]
             corrDataset = corrStoreFile[self.dataname]
 
@@ -636,7 +638,8 @@ class RecWorker(QtCore.QObject):
             # Crop dataset if it's stopped before finishing
             if self.j < self.shape[0]:
                 dataset.resize((self.j, self.shape[1], self.shape[2]))
-                corrDataset.resize((self.j, corrShape[1], corrShape[2]))
+                newCorrShape = (self.j, self.corrShape[1], self.corrShape[2])
+                corrDataset.resize(newCorrShape)
 
             # Saving parameters
             for item in self.attrs:
@@ -689,6 +692,8 @@ class TormentaGUI(QtGui.QMainWindow):
     def __init__(self, andor, redlaser, bluelaser, greenlaser, scanZ, daq,
                  aptMotor, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        lantz.log.log_to_screen(lantz.log.CRITICAL)
 
         self.andor = andor
         self.shape = self.andor.detector_shape
