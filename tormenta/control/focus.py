@@ -33,6 +33,8 @@ class FocusWidget(QtGui.QFrame):
 
         self.z = scanZ
         self.z.zHostPosition = 'left'
+        self.z.zobject.HostBackLashEnable = False
+
         self.setPoint = 0
         self.calibrationResult = [0, 0]
 
@@ -47,9 +49,11 @@ class FocusWidget(QtGui.QFrame):
 
         # Focus lock widgets
         self.kpEdit = QtGui.QLineEdit('4')
+        self.kpEdit.setFixedWidth(60)
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('0.0055')
+        self.kiEdit = QtGui.QLineEdit('0.01')
+        self.kiEdit.setFixedWidth(60)
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')
         self.lockButton = QtGui.QPushButton('Lock')
@@ -57,6 +61,11 @@ class FocusWidget(QtGui.QFrame):
         self.lockButton.clicked.connect(self.toggleFocus)
         self.lockButton.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                       QtGui.QSizePolicy.Expanding)
+        moveLabel = QtGui.QLabel('Move [nm]')
+        moveLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.moveEdit = QtGui.QLineEdit('0')
+        self.moveEdit.setFixedWidth(60)
+        self.moveEdit.returnPressed.connect(self.zMove)
 
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
         self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
@@ -104,12 +113,26 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(dockArea, 0, 0, 1, 6)
         grid.addWidget(self.focusCalibButton, 1, 0)
         grid.addWidget(self.calibrationDisplay, 2, 0)
+        grid.addWidget(self.focusDataBox, 1, 1)
+        grid.addWidget(moveLabel, 1, 2)
+        grid.addWidget(self.moveEdit, 2, 2)
         grid.addWidget(self.kpLabel, 1, 3)
         grid.addWidget(self.kpEdit, 1, 4)
         grid.addWidget(self.kiLabel, 2, 3)
         grid.addWidget(self.kiEdit, 2, 4)
         grid.addWidget(self.lockButton, 1, 5, 2, 1)
-        grid.addWidget(self.focusDataBox, 1, 2)
+        grid.setColumnMinimumWidth(5, 170)
+
+    def zMove(self):
+        if self.locked:
+            self.unlockFocus()
+            self.z.zMoveRelative(float(self.moveEdit.text())/1000 * self.um)
+            self.update()
+            self.lockButton.setChecked(True)
+            self.toggleFocus()
+
+        else:
+            self.z.zMoveRelative(float(self.moveEdit.text())/1000 * self.um)
 
     def update(self):
         try:
@@ -125,6 +148,7 @@ class FocusWidget(QtGui.QFrame):
     def toggleFocus(self):
         if self.lockButton.isChecked():
             self.setPoint = self.ProcessData.focusSignal
+            print(self.setPoint)
             self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
             self.PI = pi.PI(self.setPoint, 0.001, np.float(self.kpEdit.text()),
                             np.float(self.kiEdit.text()))
@@ -148,7 +172,6 @@ class FocusWidget(QtGui.QFrame):
 
     def updatePI(self):
 
-        # Safety unlocking
         self.distance = self.z.zPosition - self.initialZ
         cm = self.ProcessData.focusSignal
         out = self.PI.update(cm)
@@ -157,6 +180,7 @@ class FocusWidget(QtGui.QFrame):
         self.lockMean += (cm - self.lockMean)/(self.lockN + 1)
         self.graph.setLine.setValue(self.lockMean)
 
+        # Safety unlocking
         if abs(self.distance) > 10 * self.um or abs(out) > 5:
             self.unlockFocus()
         else:
@@ -196,7 +220,7 @@ class FocusWidget(QtGui.QFrame):
         super().closeEvent(*args, **kwargs)
 
 
-class ProcessData(pg.GraphicsLayoutWidget):
+class ProcessData(QtCore.QObject):
 
     def __init__(self, webcam, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -205,6 +229,9 @@ class ProcessData(pg.GraphicsLayoutWidget):
         image = instruments.getWebcamImage(self.webcam)
         self.sensorSize = np.array(image.shape)
         self.focusSignal = 0
+
+    def wait(self):
+        time.sleep(1)
 
     def update(self):
 
