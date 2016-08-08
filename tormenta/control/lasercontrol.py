@@ -219,7 +219,7 @@ class MoveMotor(QtCore.QObject):
         self.laserwidget = laserwidget
 
         self.xTIRFPath = os.path.join(os.getcwd(), 'tormenta', 'control',
-                                      'xtif.npy')
+                                      'xtirf.npy')
         try:
             self.xTIRF = np.load(self.xTIRFPath)
         except:
@@ -232,26 +232,25 @@ class MoveMotor(QtCore.QObject):
     def findTIRF(self):
 
         self.goEPI()
-        int0 = np.mean(calibration.frame(self.laserwidget.main.image,
-                                         center=self.laserwidget.main.shape))
-
-        x = np.arange(3.9, 4.35, 0.001)
+        int0 = np.mean(calibration.frame(self.laserwidget.main.image))
+        x = np.arange(3.8, 4.3, 0.0025)
         xr = np.zeros(x.shape)
         n = x.size
         intensity = np.zeros(n)
         for i in np.arange(n):
             self.motor.mAbs(x[i])
             xr[i] = self.motor.getPos()
-            data = calibration.frame(self.laserwidget.main.image,
-                                     center=self.laserwidget.main.shape)
+            data = calibration.frame(self.laserwidget.main.image)
             intensity[i] = np.mean(data) / int0
             text = 'Position: {0:.3f} mm'.format(xr[i])
             self.laserwidget.stagePosLabel.setText(text)
 
         hMax = np.argmax(intensity)
+        print(hMax, xr[hMax])
         cMin = np.where(xr < xr[hMax] - 0.03)[0][-1]
+        print(cMin, xr[cMin])
         cMax = np.where(xr > xr[hMax] + 0.03)[0][0]
-        print(hMax, cMin, cMax)
+        print(cMax, xr[cMax])
         pol = np.poly1d(np.polyfit(xr[cMin:cMax], intensity[cMin:cMax], 2))
         self.xTIRF = xr[cMin:cMax][np.argmax(pol(xr[cMin:cMax]))]
 
@@ -275,7 +274,7 @@ class UpdateMotorPos(QtCore.QObject):
         self.laserwidget = laserwidget
 
         self.xTIRFPath = os.path.join(os.getcwd(), 'tormenta', 'control',
-                                      'xtif.npy')
+                                      'xtirf.npy')
         try:
             self.xTIRF = np.load(self.xTIRFPath)
         except:

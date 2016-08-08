@@ -709,7 +709,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.lastTime = ptime.time()
         self.fps = None
 
-        self.umxpx = 0.12
+        self.umxpx = 0.133
 
         # Actions in menubar
         menubar = self.menuBar()
@@ -839,9 +839,10 @@ class TormentaGUI(QtGui.QMainWindow):
         updateGain()        # Set default values
 
         self.presetsMenu = QtGui.QComboBox()
-        self.presetDir = r'C:\Users\Usuario\Documents\Data\Presets'
+        presetPath = os.path.join(os.getcwd(), 'tormenta/control/Presets')
+        self.presetDir = presetPath
         if not(os.path.isdir(self.presetDir)):
-            self.presetDir = os.path.join(os.getcwd(), 'control/Presets')
+            self.presetDir = presetPath
         try:
             for preset in os.listdir(self.presetDir):
                 self.presetsMenu.addItem(preset)

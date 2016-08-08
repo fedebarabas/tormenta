@@ -7,16 +7,12 @@ Created on Tue Jun  7 11:50:36 2016
 
 import os
 import time
-import numpy as np
 import h5py as hdf
 import tifffile as tiff
-import multiprocessing as mp
 from PyQt4 import QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
 
 import tormenta.control.guitools as guitools
-import tormenta.analysis.registration as reg
-import tormenta.analysis.stack as stack
 
 
 class CamParamTree(ParameterTree):
@@ -62,10 +58,10 @@ class CamParamTree(ParameterTree):
         params = [{'name': 'Camera', 'type': 'str',
                    'value': andor.idn.split(',')[0]},
                   {'name': 'Field of view', 'type': 'group', 'children': [
-                      {'name': 'Pixel size', 'type': 'float', 'value': 0.12,
+                      {'name': 'Pixel size', 'type': 'float', 'value': 0.133,
                        'readonly': True, 'siPrefix': False, 'suffix': ' um'},
                       {'name': 'Shape', 'type': 'list',
-                       'values': ['Full chip', '256x256', '128x128', '90x90',
+                       'values': ['Full chip', '256x256', '128x128', '81x81',
                                   '64x64', 'Two-colors', 'Custom']},
                       {'name': 'Apply', 'type': 'action'},
                       {'name': 'Load matrix', 'type': 'action',
