@@ -10,9 +10,11 @@
 *.png
 *.npy
 *.dat
-/control/tifffile.py
-/control/tifffile.c
-/control/focus_data
-/control/*_focusdata
-/control/external/
-/Presets/*
+tormenta/control/tifffile.py
+tormenta/control/tifffile.c
+tormenta/control/focus_data
+tormenta/control/*_focusdata
+tormenta/control/external/
+tormenta/control/Presets/*
+calibration
+calibrationcurves

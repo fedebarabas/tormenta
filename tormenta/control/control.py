@@ -256,7 +256,7 @@ class RecordingWidget(QtGui.QFrame):
             dim = (self.main.umxpx * np.array(self.main.shape)).astype(np.int)
             sh = str(dim[0]) + 'x' + str(dim[1])
             rootname = os.path.join(folder, self.filenameEdit.text()) + '_wf'
-            savename = rootname + sh + '.tiff'
+            savename = rootname + sh + '.tif'
             savename = guitools.getUniqueName(savename)
             image = np.flipud(image.astype(np.uint16))
             tiff.imsave(savename, image, software='Tormenta', imagej=True,
@@ -280,7 +280,7 @@ class RecordingWidget(QtGui.QFrame):
 
                 dim = (self.main.umxpx * np.array(corrShape)).astype(np.int)
                 sh = str(dim[0]) + 'x' + str(dim[1])
-                savename = rootname + sh + '.tiff'
+                savename = rootname + sh + '.tif'
                 tiff.imsave(utils.insertSuffix(savename, '_corrected'),
                             newData, software='Tormenta', imagej=True,
                             resolution=(1/self.main.umxpx, 1/self.main.umxpx),
@@ -1240,6 +1240,8 @@ class TormentaGUI(QtGui.QMainWindow):
             self.frameStart = (start, start)
 
             self.changeParameter(self.adjustFrame)
+
+        self.recWidget.nChanged()
 
     def customFrame(self):
 

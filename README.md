@@ -35,3 +35,8 @@ Don't install these libraries if you have different equipment or you just want t
     ```
     $ python -m tormenta
     ```
+
+### Contact
+Feel free to contact me with comments or suggestions. Use any part of the code that suits your needs.
+
+Federico Barabas federico.barabas[AT]cibion.conicet.gov.ar
