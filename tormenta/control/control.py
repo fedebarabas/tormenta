@@ -549,7 +549,7 @@ class RecWorker(QtCore.QObject):
                     # saved tiff files so they're easily opened in ImageJ
                     # or in python through tifffile
                     for frame in newData:
-                        im0 = frame[:128, :][:, self.xlim[0]:self.xlim[1],
+                        im0 = frame[:128, :][self.xlim[0]:self.xlim[1],
                                              self.ylim[0]:self.ylim[1]]
 
                         im1 = reg.h_affine_transform(frame[-128:, :], self.H)
