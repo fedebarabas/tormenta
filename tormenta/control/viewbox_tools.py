@@ -121,8 +121,9 @@ class TwoColorGrid():
                            self.side)
         self.sqrT.setRect(0.5*(self.pxs - self.side),
                           0.5*(self.pxs - self.side), self.side, self.side)
-        self.sqrR.setRect(0.5*self.pxs - self.side, 0.5*(self.pxs - self.side),
-                          self.side, self.side)
+        self.sqrR.setRect(0.5*(self.pxs - self.side),
+                          0.5*(self.pxs - (self.side*3 + 20)), self.side,
+                          self.side)
         self.yLine.setPos(0.5*self.pxs)
         self.xLine.setPos(0.5*self.pxs)
         self.xLineR.setPos(0.5*self.pxs - self.side - 10)
@@ -132,8 +133,8 @@ class TwoColorGrid():
                            2*self.side + 8.5, self.side - 1)
         self.rectR.setRect(self.side - shape, self.side - shape,
                            2*self.side + 8.5, self.side - 1)
-        self.sqrT.setRect(self.side - shape, self.side - shape, self.side - 1,
-                          self.side - 1)
+        self.sqrT.setRect(0.5*(shape - self.side), 2*self.side + 10 - shape,
+                          self.side - 1, self.side - 1)
         self.sqrR.setRect(0.5*self.side - shape, 0.5*self.side - shape,
                           self.side - 1, self.side - 1)
         self.yLine.setPos(shape + 5)
@@ -149,6 +150,8 @@ class TwoColorGrid():
     def show(self):
         self.vb.addItem(self.rectT)
         self.vb.addItem(self.rectR)
+        self.vb.addItem(self.sqrT)
+        self.vb.addItem(self.sqrR)
         self.vb.addItem(self.yLine)
         self.vb.addItem(self.xLine)
         self.vb.addItem(self.xLineR)
@@ -157,6 +160,8 @@ class TwoColorGrid():
     def hide(self):
         self.vb.removeItem(self.rectT)
         self.vb.removeItem(self.rectR)
+        self.vb.removeItem(self.sqrT)
+        self.vb.removeItem(self.sqrR)
         self.vb.removeItem(self.yLine)
         self.vb.removeItem(self.xLine)
         self.vb.removeItem(self.xLineR)
