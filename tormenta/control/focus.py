@@ -354,12 +354,19 @@ class FocusCalibration(QtCore.QObject):
 
     def start(self):
 
-        for i in range(20):
+        steps = 20
+
+        # Calibration centered in the initial position
+        self.z.zMoveRelative(-0.5*steps*self.step)
+        for i in range(steps):
             self.focusCalibSignal = self.mainwidget.ProcessData.focusSignal
             self.signalData.append(self.focusCalibSignal)
             self.positionData.append(self.z.zPosition.magnitude)
             self.z.zMoveRelative(self.step)
             time.sleep(0.5)
+
+        # Go back to initial position
+        self.z.zMoveRelative(-0.5*steps*self.step)
 
         self.argmax = np.argmax(self.signalData)
         self.argmin = np.argmin(self.signalData)

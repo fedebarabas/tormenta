@@ -49,8 +49,10 @@ def load_hdf(filename):
 
 def split_images(arr):
 
-    images = np.zeros((2, 128, 266), dtype=np.uint16)
+    shape = arr.shape
+
     center = int(0.5*arr.shape[0])
+    images = np.zeros((2, center - 5, shape[1]), dtype=np.uint16)
     images[0] = arr[:center - 5, :]
     images[1] = arr[center + 5:, :]
 
@@ -85,7 +87,7 @@ def fit_and_plot(images, fig):
 
     # superposition of channels plot
     ax = fig.add_subplot(313)
-    ch_superposition(ax, points)
+    ch_superposition(ax, points, images[0].shape)
     plt.tight_layout()
 
     return points
@@ -99,11 +101,13 @@ def points_registration(images):
     fig.set_size_inches(7, 25, forward=True)
     points = fit_and_plot(images, fig)
 
-    if len(points[0]) != len(points[1]):
-        plt.show(block=False)
-        points = remove_bad_points(points)
+    plt.show(block=False)
+    points = remove_bad_points(points)
 
     plt.close()
+
+    if len(points[0]) != len(points[1]):
+        raise ValueError('The number of points in each channel is different')
 
     # Replotting images
     fig = plt.figure()
@@ -129,6 +133,8 @@ def points_registration(images):
 
 def plot_points(images, points, fig):
 
+    shape = images[0].shape
+
     marks = ['rx', 'bs']
     for k in [0, 1]:
         # Image plot
@@ -146,12 +152,12 @@ def plot_points(images, points, fig):
 
     # superposition of channels plot
     ax = fig.add_subplot(313)
-    ch_superposition(ax, points)
+    ch_superposition(ax, points, shape)
     plt.tight_layout()
     fig.set_size_inches(7, 25, forward=True)
 
 
-def ch_superposition(ax, points):
+def ch_superposition(ax, points, shape):
     # superposition of channels plot
     ax.plot(points[0][:, 1] - 0.5, points[0][:, 0] - 0.5, 'rx', mew=1, ms=5)
     ax.plot(points[1][:, 1] - 0.5, points[1][:, 0] - 0.5, 'bs', mew=1, ms=5,
@@ -166,8 +172,8 @@ def ch_superposition(ax, points):
                                 points[1][:, 0][i] - 1.6), color='b')
 
     ax.set_aspect('equal')
-    ax.set_xlim(0, 266)
-    ax.set_ylim(128, 0)
+    ax.set_xlim(0, shape[1])
+    ax.set_ylim(shape[0], 0)
 
 
 def remove_bad_points(points):
@@ -399,7 +405,9 @@ def transformation_check(H, filename):
 
     images = load_images(filename)
 
-    images2 = np.zeros((2, 128, 266), dtype=np.uint16)
+    shape = images[0].shape
+
+    images2 = np.zeros((2, shape[0], shape[1]), dtype=np.uint16)
     images2[0] = images[0]
     images2[1] = h_affine_transform(images[1], H)
 
@@ -458,9 +466,9 @@ def find_largest_rectangle(a):
     return xlim, ylim
 
 
-def get_affine_shapes(H):
+def get_affine_shapes(shape, H):
 
-    data = np.ones((128, 266))
+    data = np.ones(shape)
     datac = h_affine_transform(data, H)
 
 #    indices = np.where(datac == 1)
@@ -500,7 +508,6 @@ class HtransformStack(QtCore.QObject):
         Hname = utils.getFilename("Select affine transformation matrix",
                                   [('npy files', '.npy')])
         H = np.load(Hname)
-        xlim, ylim, cropShape = get_affine_shapes(H)
 
         text = "Select files for affine transformation"
         filenames = utils.getFilenames(text, types=[],
@@ -516,6 +523,7 @@ class HtransformStack(QtCore.QObject):
                         hdf.File(filename2, 'w') as f1:
 
                     dat0 = f0['data']
+                    xlim, ylim, cropShape = get_affine_shapes(dat0.shape, H)
                     dat1 = self.mpStack(dat0, xlim, ylim, H)
 
                     # Store
@@ -526,16 +534,17 @@ class HtransformStack(QtCore.QObject):
                 with tiff.TiffFile(filename) as tt:
 
                     dat0 = tt.asarray()
+                    sh0 = dat0.shape
                     if len(dat0.shape) > 2:
-
+                        xlim, ylim, cropShape = get_affine_shapes(sh0, H)
                         dat1 = self.mpStack(dat0, xlim, ylim, H)
                         tiff.imsave(filename2, dat1)
 
                     else:
                         tiff.imsave(utils.insertSuffix(filename, '_ch0'),
-                                    dat0[:128, :])
+                                    dat0[:sh0[0], :])
                         tiff.imsave(utils.insertSuffix(filename, '_ch1'),
-                                    h_affine_transform(dat0[-128:, :], H))
+                                    h_affine_transform(dat0[-sh0[0]:, :], H))
 
             print(time.strftime("%Y-%m-%d %H:%M:%S") + ' done')
 
@@ -549,7 +558,7 @@ class HtransformStack(QtCore.QObject):
         step = n // cpus
         chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
         chunks[-1][1] = n
-        args = [[dat0[i:j, -128:, :], H] for i, j in chunks]
+        args = [[dat0[i:j, -dat0.shape[1]:, :], H] for i, j in chunks]
         pool = mp.Pool(processes=cpus)
         results = pool.map(transformChunk, args)
         pool.close()
@@ -558,7 +567,7 @@ class HtransformStack(QtCore.QObject):
 
         # Stack channels
         im1c = im1c[:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
-        im0 = dat0[:, :128, :][:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
+        im0 = dat0[:, :dat0.shape[0], :][:, xlim[0]:xlim[1], ylim[0]:ylim[1]]
         return np.append(im0, im1c, 1)
 
 
@@ -567,7 +576,7 @@ def transformChunk(args):
     data, H = args
 
     n = len(data)
-    out = np.zeros((n, 128, 266), dtype=np.uint16)
+    out = np.zeros(data.shape, dtype=np.uint16)
     for f in np.arange(n):
         out[f] = h_affine_transform(data[f], H)
 

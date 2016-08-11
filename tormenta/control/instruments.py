@@ -186,7 +186,7 @@ class ScanZ(object):
             return scan
 
         except:
-            return mockers.MockScanZ()
+            return mockers.MockProscan()
 
 
 class Camera(object):

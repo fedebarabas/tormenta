@@ -69,7 +69,7 @@ class LaserWidget(QtGui.QFrame):
         self.greenControl = LaserControl(self.greenlaser, '<h3>532nm</h3>',
                                          color=(80, 255, 0), prange=(0, 1500),
                                          tickInterval=100, singleStep=1,
-                                         daq=self.daq, port=0, invert=False)
+                                         daq=self.daq, port=0)
         # Additional green laser temperature indicators
         self.greenControl.tempFrame = QtGui.QFrame(self.greenControl)
         self.greenControl.tempFrame.setFrameStyle(self.Panel | self.Plain)
@@ -206,6 +206,10 @@ class LaserWidget(QtGui.QFrame):
         self.updateMotorThread.quit()
         self.moveMotorThread.quit()
         self.aptMotor.cleanUpAPT()
+        try:
+            self.worker.stream.stop()
+        except:
+            pass
         super().closeEvent(*args, **kwargs)
 
 

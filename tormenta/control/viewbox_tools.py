@@ -55,7 +55,7 @@ class Grid():
     def update(self, shape):
         self.yline3.setPos(0.5*shape[0])
         self.xline3.setPos(0.5*shape[1])
-        self.rect0.setRect(0.5*shape[0] - 45, 0.5*shape[1] - 45, 90, 90)
+        self.rect0.setRect(0.5*(shape[0] - 82), 0.5*(shape[1] - 82), 82, 82)
         self.rect1.setRect(0.5*shape[0] - 64, 0.5*shape[1] - 64, 128, 128)
         self.rect2.setRect(0.5*shape[0] - 128, 0.5*shape[1] - 128, 255, 255)
         self.circle.setRect(0.5*shape[0] - np.sqrt(2)*128,
@@ -89,38 +89,56 @@ class Grid():
 
 class TwoColorGrid():
 
-    def __init__(self, viewBox, shape=(512, 512)):
+    def __init__(self, viewBox, side, pxs=512):
 
         self.showed = False
         self.vb = viewBox
-        self.shape = shape
+        self.side = side
+        self.pxs = pxs
 
-        self.pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
-        self.pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
+        pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
+        pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
 
         self.rectT = QtGui.QGraphicsRectItem()
-        self.rectT.setPen(self.pen)
+        self.rectT.setPen(pen)
         self.rectR = QtGui.QGraphicsRectItem()
-        self.rectR.setPen(self.pen)
-        self.yLine = pg.InfiniteLine(pen=self.pen2)
-        self.xLine = pg.InfiniteLine(pen=self.pen2, angle=0)
-        self.xLineR = pg.InfiniteLine(pen=self.pen2, angle=0)
+        self.rectR.setPen(pen)
+        self.sqrT = QtGui.QGraphicsRectItem()
+        self.sqrT.setPen(pen2)
+        self.sqrR = QtGui.QGraphicsRectItem()
+        self.sqrR.setPen(pen2)
+        self.yLine = pg.InfiniteLine(pen=pen2)
+        self.xLine = pg.InfiniteLine(pen=pen2, angle=0)
+        self.xLineR = pg.InfiniteLine(pen=pen2, angle=0)
 
         self.setDimensions()
 
     def setDimensions(self):
-        self.rectT.setRect(128, 192, 256, 128)
-        self.rectR.setRect(128, 54, 256, 128)
-        self.yLine.setPos(0.5*self.shape[0])
-        self.xLine.setPos(0.5*self.shape[1])
-        self.xLineR.setPos(118)
+        self.rectT.setRect(0.5*self.pxs - self.side,
+                           0.5*(self.pxs - self.side), 2*self.side, self.side)
+        self.rectR.setRect(0.5*self.pxs - self.side,
+                           0.5*(self.pxs - (self.side*3 + 20)), 2*self.side,
+                           self.side)
+        self.sqrT.setRect(0.5*(self.pxs - self.side),
+                          0.5*(self.pxs - self.side), self.side, self.side)
+        self.sqrR.setRect(0.5*self.pxs - self.side, 0.5*(self.pxs - self.side),
+                          self.side, self.side)
+        self.yLine.setPos(0.5*self.pxs)
+        self.xLine.setPos(0.5*self.pxs)
+        self.xLineR.setPos(0.5*self.pxs - self.side - 10)
 
-    def changeToSmall(self):
-        self.rectT.setRect(0, 138, 264.5, 127)
-        self.rectR.setRect(0, 0, 264.5, 128)
-        self.yLine.setPos(133)
-        self.xLine.setPos(202)
-        self.xLineR.setPos(64)
+    def changeToSmall(self, shape):
+        self.rectT.setRect(self.side - shape, 2*self.side + 10 - shape,
+                           2*self.side + 8.5, self.side - 1)
+        self.rectR.setRect(self.side - shape, self.side - shape,
+                           2*self.side + 8.5, self.side - 1)
+        self.sqrT.setRect(self.side - shape, self.side - shape, self.side - 1,
+                          self.side - 1)
+        self.sqrR.setRect(0.5*self.side - shape, 0.5*self.side - shape,
+                          self.side - 1, self.side - 1)
+        self.yLine.setPos(shape + 5)
+        self.xLine.setPos(1.5*self.side + 10 + self.side - shape)
+        self.xLineR.setPos(0.5*self.side + self.side - shape)
 
     def toggle(self):
         if self.showed:

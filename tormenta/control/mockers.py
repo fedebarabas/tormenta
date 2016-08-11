@@ -98,10 +98,17 @@ class MockDAQ(Driver):
         pass
 
 
+class MockProscan(Driver):
+
+    def __init__(self):
+        super().__init__()
+        self.zobject = MockScanZ()
+
+
 class MockScanZ(Driver):
 
     def __init__(self):
-        super(MockScanZ).__init__()
+        super().__init__()
         self.um = Q_(1, 'um')
 
         self._position = 1000 * self.um
@@ -180,6 +187,14 @@ class MockScanZ(Driver):
     @zHostPosition.setter
     def zHostPosition(self, value):
         self._hostPosition = value
+
+    @property
+    def HostBacklashEnable(self):
+        return True
+
+    @HostBacklashEnable.setter
+    def HostBacklashEnable(self, value):
+        pass
 
     def finalize(self):
         pass

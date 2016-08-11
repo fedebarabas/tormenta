@@ -266,26 +266,46 @@ class RecordingWidget(QtGui.QFrame):
 
             # Two-color-corrected snap saving
             imageFramePar = self.main.tree.p.param('Field of view')
-            twoColors = imageFramePar.param('Shape').value() == 'Two-colors'
+            shapeStr = imageFramePar.param('Shape').value()
+            twoColors = shapeStr.startswith('Two-colors')
             if twoColors and (self.H is not None):
-                corrShape = (2*self.cropShape[0], self.cropShape[1])
-                newData = np.zeros(corrShape, dtype=np.uint16)
-                im0 = image[self.xlim[0]:self.xlim[1],
-                            self.ylim[0]:self.ylim[1]]
-                im1 = reg.h_affine_transform(image[-128:, :], self.H)
-                im1c = im1[self.xlim[0]:self.xlim[1],
-                           self.ylim[0]:self.ylim[1]]
-                newData[:self.cropShape[0], :] = im0
-                newData[-self.cropShape[0]:, :] = im1c
+                side = int(shapeStr.split()[1][:-2])
 
-                dim = (self.main.umxpx * np.array(corrShape)).astype(np.int)
+                # Corrected image
+                im0 = image[:side, :]
+                im1 = reg.h_affine_transform(image[-side:, :], self.H)
+
+                dim = (self.main.umxpx * np.array(im0.shape)).astype(np.int)
                 sh = str(dim[0]) + 'x' + str(dim[1])
-                savename = rootname + sh + '.tif'
-                tiff.imsave(utils.insertSuffix(savename, '_corrected'),
-                            newData, software='Tormenta', imagej=True,
+                corrName = rootname + sh + '.tif'
+                tiff.imsave(utils.insertSuffix(corrName, '_corrected_ch0'),
+                            im0, software='Tormenta', imagej=True,
                             resolution=(1/self.main.umxpx, 1/self.main.umxpx),
                             metadata={'spacing': 1, 'unit': 'um'})
 
+                tiff.imsave(utils.insertSuffix(corrName, '_corrected_ch1'),
+                            im1, software='Tormenta', imagej=True,
+                            resolution=(1/self.main.umxpx, 1/self.main.umxpx),
+                            metadata={'spacing': 1, 'unit': 'um'})
+
+                # Corrected and cropped image
+                crop2chShape = (2*self.cropShape[0], self.cropShape[1])
+                im0c = im0[self.xlim[0]:self.xlim[1],
+                           self.ylim[0]:self.ylim[1]]
+                im1c = im1[self.xlim[0]:self.xlim[1],
+                           self.ylim[0]:self.ylim[1]]
+
+                dim = (self.main.umxpx * np.array(crop2chShape)).astype(np.int)
+                sh = str(dim[0]) + 'x' + str(dim[1])
+                cropName = rootname + sh + '.tif'
+                ch0Name = utils.insertSuffix(cropName, '_corrected_crop_ch0')
+                tiff.imsave(ch0Name, im0c, software='Tormenta', imagej=True,
+                            resolution=(1/self.main.umxpx, 1/self.main.umxpx),
+                            metadata={'spacing': 1, 'unit': 'um'})
+                ch1Name = utils.insertSuffix(cropName, '_corrected_crop_ch1')
+                tiff.imsave(ch1Name, im1c, software='Tormenta', imagej=True,
+                            resolution=(1/self.main.umxpx, 1/self.main.umxpx),
+                            metadata={'spacing': 1, 'unit': 'um'})
         else:
             self.folderWarning()
 
@@ -375,8 +395,9 @@ class RecordingWidget(QtGui.QFrame):
                 name = os.path.join(folder, self.filenameEdit.text())
                 self.startTime = ptime.time()
 
-                frameOption = self.main.tree.p.param('Field of view')
-                twoColors = frameOption.param('Shape').value() == 'Two-colors'
+                imageFramePar = self.main.tree.p.param('Field of view')
+                shapeStr = imageFramePar.param('Shape').value()
+                twoColors = shapeStr.startswith('Two-colors')
                 twoColors = twoColors and (self.H is not None)
                 self.worker = RecWorker(self.main.andor, self.main.umxpx,
                                         shape, self.main.t_exp_real, name,
@@ -530,10 +551,10 @@ class RecWorker(QtCore.QObject):
 
     def twoColorTIFF(self):
 
-        corrName = utils.insertSuffix(self.savename, '_corrected')
+        cropName = utils.insertSuffix(self.savename, '_corrected')
 
         with tiff.TiffWriter(self.savename, software='Tormenta') as storeFile,\
-                tiff.TiffWriter(corrName, software='Tormenta') as corrFile:
+                tiff.TiffWriter(cropName, software='Tormenta') as cropFile:
 
             while self.j < self.shape[0] and self.pressed:
 
@@ -549,16 +570,21 @@ class RecWorker(QtCore.QObject):
                     # saved tiff files so they're easily opened in ImageJ
                     # or in python through tifffile
                     for frame in newData:
-                        im0 = frame[:128, :][self.xlim[0]:self.xlim[1],
-                                             self.ylim[0]:self.ylim[1]]
-
+                        # Corrected image
+                        im0 = frame[:128, :]
                         im1 = reg.h_affine_transform(frame[-128:, :], self.H)
+
+                        # Corrected and cropped image
                         im1c = im1[self.xlim[0]:self.xlim[1],
                                    self.ylim[0]:self.ylim[1]]
-                        im = np.hstack((im0, im1c)).astype(np.uint16)
-                        corrFile.save(im, photometric='minisblack',
+                        im0c = im0[self.xlim[0]:self.xlim[1],
+                                   self.ylim[0]:self.ylim[1]]
+                        imc = np.hstack((im0c, im1c)).astype(np.uint16)
+                        cropFile.save(imc, photometric='minisblack',
                                       resolution=self.resolution,
                                       extratags=self.tags)
+
+                        # Raw image
                         storeFile.save(frame, photometric='minisblack',
                                        resolution=self.resolution,
                                        extratags=self.tags)
@@ -602,18 +628,20 @@ class RecWorker(QtCore.QObject):
 
     def twoColorHDF5(self):
 
-        corrSavename = utils.insertSuffix(self.savename, '_corrected')
+        cropSavename = utils.insertSuffix(self.savename, '_corrected')
 
         with hdf.File(self.savename, "w") as storeFile, \
-                hdf.File(corrSavename, "w") as corrStoreFile:
+                hdf.File(cropSavename, "w") as cropStoreFile:
+
             storeFile.create_dataset(name=self.dataname, shape=self.shape,
                                      maxshape=self.shape, dtype=np.uint16)
-            corrStoreFile.create_dataset(name=self.dataname,
+            dataset = storeFile[self.dataname]
+
+            cropStoreFile.create_dataset(name=self.dataname,
                                          shape=self.corrShape,
                                          maxshape=self.corrShape,
                                          dtype=np.uint16)
-            dataset = storeFile[self.dataname]
-            corrDataset = corrStoreFile[self.dataname]
+            cropDataset = cropStoreFile[self.dataname]
 
             while self.j < self.shape[0] and self.pressed:
 
@@ -624,29 +652,34 @@ class RecWorker(QtCore.QObject):
                                                     1, self.n)
                     self.updateSignal.emit(np.transpose(newImages[-1]))
                     data = newImages[:, ::-1]
-                    im0 = data[:, :128, :][:, self.xlim[0]:self.xlim[1],
-                                           self.ylim[0]:self.ylim[1]]
+
+                    # Corrected image
+                    im0 = data[:, :128, :]
                     im1 = np.zeros(data[:, -128:, :].shape)
                     for k in np.arange(len(im1)):
                         im1[k] = reg.h_affine_transform(data[k, -128:, :],
                                                         self.H)
+
+                    # Corrected and cropped image
+                    im0c = im0[:, self.xlim[0]:self.xlim[1],
+                               self.ylim[0]:self.ylim[1]]
                     im1c = im1[:, self.xlim[0]:self.xlim[1],
                                self.ylim[0]:self.ylim[1]]
-                    corrDataset[i - 1:self.j, :self.cropShape[0], :] = im0
-                    corrDataset[i - 1:self.j, self.cropShape[0]:, :] = im1c
+                    cropDataset[i - 1:self.j, :self.cropShape[0], :] = im0c
+                    cropDataset[i - 1:self.j, self.cropShape[0]:, :] = im1c
 
             # Crop dataset if it's stopped before finishing
             if self.j < self.shape[0]:
                 dataset.resize((self.j, self.shape[1], self.shape[2]))
-                newCorrShape = (self.j, self.corrShape[1], self.corrShape[2])
-                corrDataset.resize(newCorrShape)
+                newCropShape = (self.j, self.corrShape[1], self.corrShape[2])
+                cropDataset.resize(newCropShape)
 
             # Saving parameters
             for item in self.attrs:
                 if item[1] is not None:
                     dataset.attrs[item[0]] = item[1]
-                    corrDataset.attrs[item[0]] = item[1]
-            corrStoreFile.create_dataset(name='Affine matrix', data=self.H)
+                    cropDataset.attrs[item[0]] = item[1]
+            cropStoreFile.create_dataset(name='Affine matrix', data=self.H)
 
 
 class TemperatureStabilizer(QtCore.QObject):
@@ -779,7 +812,6 @@ class TormentaGUI(QtGui.QMainWindow):
                'transformation matrix')
         self.HtransformAction.setStatusTip(tip)
         analysisMenu.addAction(self.HtransformAction)
-
         self.transformerThread = QtCore.QThread(self)
         self.transformer = reg.HtransformStack()
         self.transformer.moveToThread(self.transformerThread)
@@ -873,9 +905,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.gridButton = QtGui.QPushButton('Grid')
         self.gridButton.setCheckable(True)
         self.gridButton.setEnabled(False)
-        self.grid2Button = QtGui.QPushButton('Two-color grid')
-        self.grid2Button.setCheckable(True)
-        self.grid2Button.setEnabled(False)
+        self.gridTwoChButton = QtGui.QPushButton('Two-color grid 128px')
+        self.gridTwoChButton.setCheckable(True)
+        self.gridTwoChButton.setEnabled(False)
+        self.gridTwoCh82Button = QtGui.QPushButton('Two-color grid 82px')
+        self.gridTwoCh82Button.setCheckable(True)
+        self.gridTwoCh82Button.setEnabled(False)
         self.crosshairButton = QtGui.QPushButton('Crosshair')
         self.crosshairButton.setCheckable(True)
         self.crosshairButton.setEnabled(False)
@@ -888,11 +923,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewCtrl = QtGui.QWidget()
         self.viewCtrlLayout = QtGui.QGridLayout()
         self.viewCtrl.setLayout(self.viewCtrlLayout)
-        self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 3)
+        self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 4)
         self.viewCtrlLayout.addWidget(self.gridButton, 1, 0)
-        self.viewCtrlLayout.addWidget(self.grid2Button, 1, 1)
-        self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 2)
-        self.viewCtrlLayout.addWidget(self.flipperButton, 2, 0, 1, 3)
+        self.viewCtrlLayout.addWidget(self.gridTwoChButton, 1, 1)
+        self.viewCtrlLayout.addWidget(self.gridTwoCh82Button, 1, 2)
+        self.viewCtrlLayout.addWidget(self.crosshairButton, 1, 3)
+        self.viewCtrlLayout.addWidget(self.flipperButton, 2, 0, 1, 4)
 
         # Status bar info
         self.fpsBox = QtGui.QLabel()
@@ -962,8 +998,10 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.grid = viewbox_tools.Grid(self.vb, self.shape)
         self.gridButton.clicked.connect(self.grid.toggle)
-        self.grid2 = viewbox_tools.TwoColorGrid(self.vb)
-        self.grid2Button.clicked.connect(self.grid2.toggle)
+        self.gridTwoCh = viewbox_tools.TwoColorGrid(self.vb, 128)
+        self.gridTwoChButton.clicked.connect(self.gridTwoCh.toggle)
+        self.gridTwoCh82 = viewbox_tools.TwoColorGrid(self.vb, 82)
+        self.gridTwoCh82Button.clicked.connect(self.gridTwoCh82.toggle)
         self.crosshair = viewbox_tools.Crosshair(self.vb)
         self.crosshairButton.clicked.connect(self.crosshair.toggle)
 
@@ -1198,13 +1236,15 @@ class TormentaGUI(QtGui.QMainWindow):
         self.shape = self.andor.detector_shape
         self.frameStart = (1, 1)
         self.changeParameter(self.adjustFrame)
-        self.grid2.setDimensions()
+        self.gridTwoCh.setDimensions()
+        self.gridTwoCh82.setDimensions()
 
     def updateFrame(self):
         """ Method to change the image frame size and position in the sensor
         """
         frameParam = self.tree.p.param('Field of view')
-        if frameParam.param('Shape').value() == 'Custom':
+        shapeStr = frameParam.param('Shape').value()
+        if shapeStr == 'Custom':
 
             if self.shape != self.andor.detector_shape:
                 self.fullChip()
@@ -1220,14 +1260,16 @@ class TormentaGUI(QtGui.QMainWindow):
                 applyParam = frameParam.param('Apply')
                 applyParam.sigActivated.connect(self.customFrame)
 
-        elif frameParam.param('Shape').value() == 'Full chip':
+        elif shapeStr == 'Full chip':
             self.fullChip()
 
-        elif frameParam.param('Shape').value() == 'Two-colors':
-            self.shape = (266, 266)
-            self.frameStart = (128, 54)
+        elif shapeStr.startswith('Two-colors'):
+            side = int(shapeStr.split()[1][:-2])
+            self.shape = (side*2 + 10, side*2 + 10)
+            self.frameStart = (256 - side - 5, int(0.5*(512 - (side*3 + 20))))
             self.changeParameter(self.adjustFrame)
-            self.grid2.changeToSmall()
+            self.gridTwoCh.changeToSmall(side)
+            self.gridTwoCh82.changeToSmall(side)
 
         else:
             try:
@@ -1236,7 +1278,7 @@ class TormentaGUI(QtGui.QMainWindow):
                 pass
             side = int(frameParam.param('Shape').value().split('x')[0])
             self.shape = (side, side)
-            start = int(0.5*(self.andor.detector_shape[0] - side) + 1)
+            start = int(0.5*(self.andor.detector_shape[0] - side))
             self.frameStart = (start, start)
 
             self.changeParameter(self.adjustFrame)
@@ -1321,7 +1363,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewtimer.start(20)
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
-        self.grid2Button.setEnabled(True)
+        self.gridTwoChButton.setEnabled(True)
+        self.gridTwoCh82Button.setEnabled(True)
         self.crosshairButton.setEnabled(True)
         self.snapShortcut.setEnabled(True)
         self.findTIRFAc.setEnabled(True)
@@ -1337,9 +1380,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.gridButton.setChecked(False)
         self.gridButton.setEnabled(False)
         self.grid.hide()
-        self.grid2Button.setChecked(False)
-        self.grid2Button.setEnabled(False)
-        self.grid2.hide()
+        self.gridTwoChButton.setChecked(False)
+        self.gridTwoChButton.setEnabled(False)
+        self.gridTwoCh.hide()
+        self.gridTwoCh82Button.setChecked(False)
+        self.gridTwoCh82Button.setEnabled(False)
+        self.gridTwoCh82.hide()
         self.crosshairButton.setChecked(False)
         self.crosshairButton.setEnabled(False)
         self.crosshair.hide()

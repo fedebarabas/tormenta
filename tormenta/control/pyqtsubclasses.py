@@ -61,8 +61,9 @@ class CamParamTree(ParameterTree):
                       {'name': 'Pixel size', 'type': 'float', 'value': 0.133,
                        'readonly': True, 'siPrefix': False, 'suffix': ' um'},
                       {'name': 'Shape', 'type': 'list',
-                       'values': ['Full chip', '256x256', '128x128', '81x81',
-                                  '64x64', 'Two-colors', 'Custom']},
+                       'values': ['Full chip', '256x256', '128x128',
+                                  'Two-colors 128px', '82x82',
+                                  'Two-colors 82px', '64x64', 'Custom']},
                       {'name': 'Apply', 'type': 'action'},
                       {'name': 'Load matrix', 'type': 'action',
                        'tip': loadMatrixTip}
@@ -178,7 +179,7 @@ class CamParamTree(ParameterTree):
             self.cropModeParam.param('Apply').show()
 
     def shapeChanged(self):
-        if self.fovGroup.param('Shape').value() == 'Two-colors':
+        if self.fovGroup.param('Shape').value().startswith('Two-colors'):
             self.fovGroup.param('Apply').hide()
             self.fovGroup.param('Load matrix').show()
         elif self.fovGroup.param('Shape').value() == 'Custom':
