@@ -66,7 +66,8 @@ class CamParamTree(ParameterTree):
                                   'Two-colors 82px', '64x64', 'Custom']},
                       {'name': 'Apply', 'type': 'action'},
                       {'name': 'Load matrix', 'type': 'action',
-                       'tip': loadMatrixTip}
+                       'tip': loadMatrixTip},
+                      {'name': 'Dual view', 'type': 'action'}
                   ]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Horizontal readout rate', 'type': 'list',
@@ -110,6 +111,7 @@ class CamParamTree(ParameterTree):
 
         self.fovGroup = self.p.param('Field of view')
         self.fovGroup.param('Load matrix').hide()
+        self.fovGroup.param('Dual view').hide()
         self.fovGroup.param('Apply').hide()
         self.fovGroup.param('Shape').sigValueChanged.connect(self.shapeChanged)
 
@@ -182,12 +184,15 @@ class CamParamTree(ParameterTree):
         if self.fovGroup.param('Shape').value().startswith('Two-colors'):
             self.fovGroup.param('Apply').hide()
             self.fovGroup.param('Load matrix').show()
+            self.fovGroup.param('Dual view').show()
         elif self.fovGroup.param('Shape').value() == 'Custom':
             self.fovGroup.param('Apply').show()
             self.fovGroup.param('Load matrix').hide()
+            self.fovGroup.param('Dual view').hide()
         else:
             self.fovGroup.param('Apply').hide()
             self.fovGroup.param('Load matrix').hide()
+            self.fovGroup.param('Dual view').hide()
 
 
 # HDF <--> Tiff converter
@@ -259,5 +264,3 @@ class TiffConverter(QtCore.QObject):
         # for opening attributes this should work:
         # myprops = dict(line.strip().split('=') for line in
         #                open('/Path/filename.txt'))
-
-

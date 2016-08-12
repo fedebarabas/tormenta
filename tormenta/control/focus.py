@@ -65,7 +65,7 @@ class FocusWidget(QtGui.QFrame):
         moveLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.moveEdit = QtGui.QLineEdit('0')
         self.moveEdit.setFixedWidth(60)
-        self.moveEdit.returnPressed.connect(self.zMove)
+        self.moveEdit.returnPressed.connect(self.zMoveEdit)
 
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
         self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
@@ -123,16 +123,19 @@ class FocusWidget(QtGui.QFrame):
         grid.addWidget(self.lockButton, 1, 5, 2, 1)
         grid.setColumnMinimumWidth(5, 170)
 
-    def zMove(self):
+    def zMoveEdit(self):
+        self.zMove(float(self.moveEdit.text())/1000 * self.um)
+
+    def zMove(self, step):
         if self.locked:
             self.unlockFocus()
-            self.z.zMoveRelative(float(self.moveEdit.text())/1000 * self.um)
+            self.z.zMoveRelative(step)
             self.update()
             self.lockButton.setChecked(True)
-            self.toggleFocus()
+            self.toggleFocus(1)
 
         else:
-            self.z.zMoveRelative(float(self.moveEdit.text())/1000 * self.um)
+            self.z.zMoveRelative(step)
 
     def update(self):
         try:
@@ -145,10 +148,11 @@ class FocusWidget(QtGui.QFrame):
         if self.locked:
             self.updatePI()
 
-    def toggleFocus(self):
+    def toggleFocus(self, delay=0):
         if self.lockButton.isChecked():
+
+            self.ProcessData.update(delay)
             self.setPoint = self.ProcessData.focusSignal
-            print(self.setPoint)
             self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
             self.PI = pi.PI(self.setPoint, 0.001, np.float(self.kpEdit.text()),
                             np.float(self.kiEdit.text()))
@@ -230,10 +234,9 @@ class ProcessData(QtCore.QObject):
         self.sensorSize = np.array(image.shape)
         self.focusSignal = 0
 
-    def wait(self):
-        time.sleep(1)
+    def update(self, delay=0):
 
-    def update(self):
+        time.sleep(delay)
 
         runs = 1
         imageArray = np.zeros((runs, self.sensorSize[0], self.sensorSize[1]),
