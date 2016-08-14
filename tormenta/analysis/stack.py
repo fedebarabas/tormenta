@@ -220,68 +220,6 @@ def bkg_estimation(data_stack, window=101):
     return bkg_estimate
 
 
-class BkgSubtractor(QtCore.QObject):
-
-    finished = QtCore.pyqtSignal()
-
-    def __init__(self, main, window=101, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.main = main
-        self.window = window
-
-    def run(self):
-
-        txt = "Select files for background sustraction"
-        initialdir = self.main.recWidget.folderEdit.text()
-        filenames = utils.getFilenames(txt, types=[], initialdir=initialdir)
-        print(time.strftime("%Y-%m-%d %H:%M:%S") +
-              ' Background subtraction started')
-        for filename in filenames:
-            print(time.strftime("%Y-%m-%d %H:%M:%S") +
-                  ' Processing stack ' + os.path.split(filename)[1])
-            ext = os.path.splitext(filename)[1]
-            filename2 = utils.insertSuffix(filename, '_subtracted')
-            if ext == '.hdf5':
-                with hdf.File(filename, 'r') as f0, \
-                        hdf.File(filename2, 'w') as f1:
-
-                    self.data = f0['data'].value
-                    if len(self.data) > self.window:
-                        dataSub = self.mpSubtract()
-                        f1.create_dataset(name='data', data=dataSub)
-                    else:
-                        print('Stack shorter than filter window --> ignore')
-
-            elif ext in ['.tiff', '.tif']:
-                with tiff.TiffFile(filename) as tt:
-
-                    self.data = tt.asarray()
-                    print(len(self.data), self.window)
-                    if len(self.data) > self.window:
-                        dataSub = self.mpSubtract()
-                        tiff.imsave(filename2, dataSub)
-
-                    else:
-                        print('Stack shorter than filter window --> ignore')
-        print(time.strftime("%Y-%m-%d %H:%M:%S") +
-              ' Background subtraction finished')
-        self.finished.emit()
-
-    # Multiprocessing
-    def mpSubtract(self):
-        n = len(self.data)
-        cpus = mp.cpu_count() - 1
-        step = n // cpus
-        chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
-        chunks[-1][1] = n
-        args = [self.data[i:j] for i, j in chunks]
-        pool = mp.Pool(processes=cpus)
-        results = pool.map(subtractChunk, args)
-        pool.close()
-        pool.join()
-        return np.concatenate(results[:])
-
-
 def subtractChunk(data):
     data = data - bkg_estimation(data)
     data[data < 0] = 0

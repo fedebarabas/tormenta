@@ -7,12 +7,16 @@ Created on Tue Jun  7 11:50:36 2016
 
 import os
 import time
+import numpy as np
 import h5py as hdf
 import tifffile as tiff
 from PyQt4 import QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
+import multiprocessing as mp
 
 import tormenta.control.guitools as guitools
+import tormenta.utils as utils
+from tormenta.analysis.stack import subtractChunk
 
 
 class CamParamTree(ParameterTree):
@@ -195,6 +199,47 @@ class CamParamTree(ParameterTree):
             self.fovGroup.param('Dual view').hide()
 
 
+class Calibrate3D(QtCore.QObject):
+
+    doneSignal = QtCore.pyqtSignal()
+
+    def __init__(self, main, step=0.05, rangeUm=2, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.main = main
+        self.step = Q_(step, 'um')
+        self.rangeUm = Q_(rangeUm, 'um')
+
+    def start(self):
+
+        self.main.recWidget.writable = False
+        self.main.tree.writable = False
+        self.main.liveviewButton.setEnabled(False)
+
+        path = self.main.recWidget.folderEdit.text()
+        name = '3Dcalibration_step{}'.format(self.step)
+        savename = guitools.getUniqueName(os.path.join(path, name) + '.tiff')
+
+        steps = self.rangeUm // self.step
+        self.main.focusWidget.zMove(-0.5*steps*self.step)
+        self.main.focusWidget.zMove(self.step)
+
+        with tiff.TiffWriter(savename, software='Tormenta') as calFile:
+            for s in np.arange(steps):
+                self.main.focusWidget.zMove(self.step)
+                image = self.main.andor.most_recent_image16(self.main.shape)
+                image = np.flipud(image.astype(np.uint16))
+                calFile.save(image, photometric='minisblack',
+                             resolution=(1/self.main.umxpx, 1/self.main.umxpx),
+                             extratags=[('resolution_unit', 'H', 1, 3, True)])
+
+        self.main.focusWidget.zMove(-0.5*steps*self.step)
+
+        self.main.recWidget.writable = True
+        self.main.tree.writable = True
+        self.main.liveviewButton.setEnabled(True)
+        self.doneSignal.emit()
+
+
 # HDF <--> Tiff converter
 class TiffConverterThread(QtCore.QThread):
 
@@ -264,3 +309,65 @@ class TiffConverter(QtCore.QObject):
         # for opening attributes this should work:
         # myprops = dict(line.strip().split('=') for line in
         #                open('/Path/filename.txt'))
+
+
+class BkgSubtractor(QtCore.QObject):
+
+    finished = QtCore.pyqtSignal()
+
+    def __init__(self, main, window=101, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.main = main
+        self.window = window
+
+    def run(self):
+
+        txt = "Select files for background sustraction"
+        initialdir = self.main.recWidget.folderEdit.text()
+        filenames = utils.getFilenames(txt, types=[], initialdir=initialdir)
+        print(time.strftime("%Y-%m-%d %H:%M:%S") +
+              ' Background subtraction started')
+        for filename in filenames:
+            print(time.strftime("%Y-%m-%d %H:%M:%S") +
+                  ' Processing stack ' + os.path.split(filename)[1])
+            ext = os.path.splitext(filename)[1]
+            filename2 = utils.insertSuffix(filename, '_subtracted')
+            if ext == '.hdf5':
+                with hdf.File(filename, 'r') as f0, \
+                        hdf.File(filename2, 'w') as f1:
+
+                    self.data = f0['data'].value
+                    if len(self.data) > self.window:
+                        dataSub = self.mpSubtract()
+                        f1.create_dataset(name='data', data=dataSub)
+                    else:
+                        print('Stack shorter than filter window --> ignore')
+
+            elif ext in ['.tiff', '.tif']:
+                with tiff.TiffFile(filename) as tt:
+
+                    self.data = tt.asarray()
+                    print(len(self.data), self.window)
+                    if len(self.data) > self.window:
+                        dataSub = self.mpSubtract()
+                        tiff.imsave(filename2, dataSub)
+
+                    else:
+                        print('Stack shorter than filter window --> ignore')
+        print(time.strftime("%Y-%m-%d %H:%M:%S") +
+              ' Background subtraction finished')
+        self.finished.emit()
+
+    # Multiprocessing
+    def mpSubtract(self):
+        n = len(self.data)
+        cpus = mp.cpu_count() - 1
+        step = n // cpus
+        chunks = [[i*step, (i + 1)*step] for i in np.arange(cpus)]
+        chunks[-1][1] = n
+        args = [self.data[i:j] for i, j in chunks]
+        pool = mp.Pool(processes=cpus)
+        results = pool.map(subtractChunk, args)
+        pool.close()
+        pool.join()
+        return np.concatenate(results[:])

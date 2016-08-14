@@ -450,47 +450,6 @@ class RecordingWidget(QtGui.QFrame):
             c.powerChanged = False
 
 
-class Calibrate3D(QtCore.QObject):
-
-    doneSignal = QtCore.pyqtSignal()
-
-    def __init__(self, main, step=0.05, rangeUm=2, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.main = main
-        self.step = Q_(step, 'um')
-        self.rangeUm = Q_(rangeUm, 'um')
-
-    def start(self):
-
-        self.main.recWidget.writable = False
-        self.main.tree.writable = False
-        self.main.liveviewButton.setEnabled(False)
-
-        path = self.main.recWidget.folderEdit.text()
-        name = '3Dcalibration_step{}'.format(self.step)
-        savename = guitools.getUniqueName(os.path.join(path, name) + '.tiff')
-
-        steps = self.rangeUm // self.step
-        self.main.focusWidget.zMove(-0.5*steps*self.step)
-        self.main.focusWidget.zMove(self.step)
-
-        with tiff.TiffWriter(savename, software='Tormenta') as calFile:
-            for s in np.arange(steps):
-                self.main.focusWidget.zMove(self.step)
-                image = self.main.andor.most_recent_image16(self.main.shape)
-                image = np.flipud(image.astype(np.uint16))
-                calFile.save(image, photometric='minisblack',
-                             resolution=(1/self.main.umxpx, 1/self.main.umxpx),
-                             extratags=[('resolution_unit', 'H', 1, 3, True)])
-
-        self.main.focusWidget.zMove(-0.5*steps*self.step)
-
-        self.main.recWidget.writable = True
-        self.main.tree.writable = True
-        self.main.liveviewButton.setEnabled(True)
-        self.doneSignal.emit()
-
-
 class RecWorker(QtCore.QObject):
 
     updateSignal = QtCore.pyqtSignal(np.ndarray)
@@ -851,7 +810,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.threeDAction.setEnabled(False)
         threeDMenu.addAction(self.threeDAction)
         self.threeDThread = QtCore.QThread(self)
-        self.calibrate3D = Calibrate3D(self)
+        self.calibrate3D = pyqtsub.Calibrate3D(self)
         self.calibrate3D.moveToThread(self.threeDThread)
         self.threeDAction.triggered.connect(self.threeDThread.start)
         self.calibrate3D.doneSignal.connect(self.threeDThread.quit)
