@@ -1429,13 +1429,14 @@ class TormentaGUI(QtGui.QMainWindow):
         self.recWidget.recButton.setEnabled(True)
 
         # Initial image
-        self.image = np.transpose(self.andor.most_recent_image16(self.shape))
+        self.image = self.andor.most_recent_image16(self.shape)
         if self.dualView:
-            self.img.setImage(self.image[:self.side, :])
-            self.img1.setImage(self.image[-self.side:, :])
+            print(self.side)
+            self.img.setImage(np.transpose(self.image[:, :self.side]))
+            self.img1.setImage(np.transpose(self.image[:, -self.side:]))
             self.vb1.scene().sigMouseMoved.connect(self.mouseMoved)
         else:
-            self.img.setImage(self.image, autoLevels=False)
+            self.img.setImage(np.transpose(self.image), autoLevels=False)
 
         self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
         if update:
@@ -1480,8 +1481,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         image = np.zeros(self.shape)
         if self.dualView:
-            self.img.setImage(image[:self.side, :], autoLevels=False)
-            self.img1.setImage(image[-self.side:, :], autoLevels=False)
+            self.img.setImage(image[:, :self.side], autoLevels=False)
+            self.img1.setImage(image[:, -self.side:], autoLevels=False)
         else:
             self.img.setImage(image, autoLevels=False)
 
@@ -1491,15 +1492,16 @@ class TormentaGUI(QtGui.QMainWindow):
         """ Image update while in Liveview mode
         """
         try:
-            newData = self.andor.most_recent_image16(self.shape)
-            self.image = np.transpose(newData)
+            self.image = self.andor.most_recent_image16(self.shape)
             if self.dualView:
-                self.img.setImage(self.image[:self.side], autoLevels=False)
-                self.img1.setImage(self.image[-self.side:], autoLevels=False)
+                self.img.setImage(np.transpose(self.image[:self.side]),
+                                  autoLevels=False)
+                self.img1.setImage(np.transpose(self.image[-self.side:]),
+                                   autoLevels=False)
             else:
                 if self.moleculeWidget.enabled:
                     self.moleculeWidget.graph.update(self.image)
-                self.img.setImage(self.image, autoLevels=False)
+                self.img.setImage(np.transpose(self.image), autoLevels=False)
 
                 if self.crosshair.showed:
                     ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
