@@ -13,6 +13,7 @@ import tifffile as tiff
 from PyQt4 import QtCore
 from pyqtgraph.parametertree import Parameter, ParameterTree
 import multiprocessing as mp
+from lantz import Q_
 
 import tormenta.control.guitools as guitools
 import tormenta.utils as utils
@@ -69,9 +70,10 @@ class CamParamTree(ParameterTree):
                                   'Two-colors 128px', '82x82',
                                   'Two-colors 82px', '64x64', 'Custom']},
                       {'name': 'Apply', 'type': 'action'},
+                      {'name': 'View', 'type': 'list', 'values':
+                       ['Single', 'Dual']},
                       {'name': 'Load matrix', 'type': 'action',
-                       'tip': loadMatrixTip},
-                      {'name': 'Dual view', 'type': 'action'}
+                       'tip': loadMatrixTip}
                   ]},
                   {'name': 'Timings', 'type': 'group', 'children': [
                       {'name': 'Horizontal readout rate', 'type': 'list',
@@ -115,7 +117,8 @@ class CamParamTree(ParameterTree):
 
         self.fovGroup = self.p.param('Field of view')
         self.fovGroup.param('Load matrix').hide()
-        self.fovGroup.param('Dual view').hide()
+        self.viewParam = self.fovGroup.param('View')
+        self.viewParam.hide()
         self.fovGroup.param('Apply').hide()
         self.fovGroup.param('Shape').sigValueChanged.connect(self.shapeChanged)
 
@@ -188,15 +191,15 @@ class CamParamTree(ParameterTree):
         if self.fovGroup.param('Shape').value().startswith('Two-colors'):
             self.fovGroup.param('Apply').hide()
             self.fovGroup.param('Load matrix').show()
-            self.fovGroup.param('Dual view').show()
+            self.fovGroup.param('View').show()
         elif self.fovGroup.param('Shape').value() == 'Custom':
             self.fovGroup.param('Apply').show()
             self.fovGroup.param('Load matrix').hide()
-            self.fovGroup.param('Dual view').hide()
+            self.fovGroup.param('View').hide()
         else:
             self.fovGroup.param('Apply').hide()
             self.fovGroup.param('Load matrix').hide()
-            self.fovGroup.param('Dual view').hide()
+            self.fovGroup.param('View').hide()
 
 
 class Calibrate3D(QtCore.QObject):

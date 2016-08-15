@@ -571,8 +571,9 @@ class RecWorker(QtCore.QObject):
                     # or in python through tifffile
                     for frame in newData:
                         # Corrected image
-                        im0 = frame[:128, :]
-                        im1 = reg.h_affine_transform(frame[-128:, :], self.H)
+                        im0 = frame[:self.side, :]
+                        im1 = reg.h_affine_transform(frame[-self.side:, :],
+                                                     self.H)
 
                         # Corrected and cropped image
                         im1c = im1[self.xlim[0]:self.xlim[1],
@@ -654,11 +655,11 @@ class RecWorker(QtCore.QObject):
                     data = newImages[:, ::-1]
 
                     # Corrected image
-                    im0 = data[:, :128, :]
+                    im0 = data[:, :self.side, :]
                     im1 = np.zeros(data[:, -128:, :].shape)
                     for k in np.arange(len(im1)):
-                        im1[k] = reg.h_affine_transform(data[k, -128:, :],
-                                                        self.H)
+                        newData = data[k, -self.side:, :]
+                        im1[k] = reg.h_affine_transform(newData, self.H)
 
                     # Corrected and cropped image
                     im0c = im0[:, self.xlim[0]:self.xlim[1],
@@ -839,13 +840,14 @@ class TormentaGUI(QtGui.QMainWindow):
         analysisMenu.addAction(self.bkgSubtAction)
 
         self.bkgSubtThread = QtCore.QThread(self)
-        self.bkgSubtractor = stack.BkgSubtractor(self)
+        self.bkgSubtractor = pyqtsub.BkgSubtractor(self)
         self.bkgSubtractor.moveToThread(self.bkgSubtThread)
         self.bkgSubtractor.finished.connect(self.bkgSubtThread.quit)
         self.bkgSubtThread.started.connect(self.bkgSubtractor.run)
         self.bkgSubtAction.triggered.connect(self.bkgSubtThread.start)
 
         self.tree = pyqtsub.CamParamTree(self.andor)
+        self.tree.viewParam.sigValueChanged.connect(self.changeNView)
 
         # Frame signals
         frameParam = self.tree.p.param('Field of view')
@@ -992,46 +994,11 @@ class TormentaGUI(QtGui.QMainWindow):
         self.hideColumnButton.clicked.connect(hideColumn)
 
         # Image Widget
-        imageWidget = pg.GraphicsLayoutWidget()
-        self.vb = imageWidget.addViewBox(row=1, col=1)
-        self.vb.setMouseMode(pg.ViewBox.RectMode)
-        self.img = pg.ImageItem()
-        self.lut = viewbox_tools.cubehelix()
-        self.img.translate(-0.5, -0.5)
-        self.vb.addItem(self.img)
-        self.vb.setAspectLocked(True)
-        self.hist = pg.HistogramLUTItem(image=self.img)
-        self.hist.vb.setLimits(yMin=0, yMax=20000)
+        self.imageWidget = pg.GraphicsLayoutWidget()
         cubehelix = viewbox_tools.cubehelix().astype(int)
-        pos, color = np.arange(0, 1, 1/256), cubehelix
-        self.hist.gradient.setColorMap(pg.ColorMap(pos, color))
-        for tick in self.hist.gradient.ticks:
-            tick.hide()
-        imageWidget.addItem(self.hist, row=1, col=2)
-
-        self.grid = viewbox_tools.Grid(self.vb, self.shape)
-        self.gridButton.clicked.connect(self.grid.toggle)
-        self.gridTwoCh = viewbox_tools.TwoColorGrid(self.vb, 128)
-        self.gridTwoChButton.clicked.connect(self.gridTwoCh.toggle)
-        self.gridTwoCh82 = viewbox_tools.TwoColorGrid(self.vb, 82)
-        self.gridTwoCh82Button.clicked.connect(self.gridTwoCh82.toggle)
-        self.crosshair = viewbox_tools.Crosshair(self.vb)
-        self.crosshairButton.clicked.connect(self.crosshair.toggle)
-
-        # x and y profiles
-        xPlot = imageWidget.addPlot(row=0, col=1)
-        xPlot.hideAxis('left')
-        xPlot.hideAxis('bottom')
-        self.xProfile = xPlot.plot()
-        imageWidget.ci.layout.setRowMaximumHeight(0, 40)
-        xPlot.setXLink(self.vb)
-        yPlot = imageWidget.addPlot(row=1, col=0)
-        yPlot.hideAxis('left')
-        yPlot.hideAxis('bottom')
-        self.yProfile = yPlot.plot()
-        self.yProfile.rotate(90)
-        imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
-        yPlot.setYLink(self.vb)
+        self.cubehelixCM = pg.ColorMap(np.arange(0, 1, 1/256), cubehelix)
+        self.lut = viewbox_tools.cubehelix()
+        self.setSingleView()
 
         # Initial camera configuration taken from the parameter tree
         self.andor.set_exposure_time(self.expPar.value() * self.s)
@@ -1107,10 +1074,98 @@ class TormentaGUI(QtGui.QMainWindow):
         self.layout.addWidget(self.viewCtrl, 4, 0, 1, 2)
         self.layout.addWidget(self.recWidget, 5, 0, 1, 2)
         self.layout.addWidget(self.hideColumnButton, 0, 2, 5, 1)
-        self.layout.addWidget(imageWidget, 0, 3, 6, 1)
+        self.layout.addWidget(self.imageWidget, 0, 3, 6, 1)
         self.layout.addWidget(dockArea, 0, 4, 6, 1)
 
         self.showMaximized()
+
+    def changeNView(self):
+        view = self.tree.viewParam.value()
+        if view == 'Dual':
+            self.setDualView()
+        else:
+            self.imageWidget.removeItem(self.vb1)
+            self.imageWidget.removeItem(self.hist1)
+
+    def setDualView(self):
+        self.vb1 = self.imageWidget.addViewBox(row=3, col=1)
+        self.vb1.setMouseMode(pg.ViewBox.RectMode)
+        self.img1 = pg.ImageItem()
+        self.img1.translate(-0.5, -0.5)
+        self.vb1.addItem(self.img1)
+        self.vb1.setAspectLocked(True)
+        self.hist1 = pg.HistogramLUTItem(image=self.img1)
+        self.hist1.vb.setLimits(yMin=0, yMax=20000)
+        self.hist1.gradient.setColorMap(self.cubehelixCM)
+        for tick in self.hist1.gradient.ticks:
+            tick.hide()
+        self.imageWidget.addItem(self.hist1, row=3, col=2)
+        self.dualView = True
+
+#        self.grid = viewbox_tools.Grid(self.vb, self.shape)
+#        self.gridButton.clicked.connect(self.grid.toggle)
+#        self.gridTwoCh = viewbox_tools.TwoColorGrid(self.vb, 128)
+#        self.gridTwoChButton.clicked.connect(self.gridTwoCh.toggle)
+#        self.gridTwoCh82 = viewbox_tools.TwoColorGrid(self.vb, 82)
+#        self.gridTwoCh82Button.clicked.connect(self.gridTwoCh82.toggle)
+#        self.crosshair = viewbox_tools.Crosshair(self.vb)
+#        self.crosshairButton.clicked.connect(self.crosshair.toggle)
+#
+#        # x and y profiles
+#        xPlot = self.imageWidget.addPlot(row=0, col=1)
+#        xPlot.hideAxis('left')
+#        xPlot.hideAxis('bottom')
+#        self.xProfile = xPlot.plot()
+#        self.imageWidget.ci.layout.setRowMaximumHeight(0, 40)
+#        xPlot.setXLink(self.vb)
+#        yPlot = self.imageWidget.addPlot(row=1, col=0)
+#        yPlot.hideAxis('left')
+#        yPlot.hideAxis('bottom')
+#        self.yProfile = yPlot.plot()
+#        self.yProfile.rotate(90)
+#        self.imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
+#        yPlot.setYLink(self.vb)
+
+    def setSingleView(self):
+
+        self.vb = self.imageWidget.addViewBox(row=1, col=1)
+        self.vb.setMouseMode(pg.ViewBox.RectMode)
+        self.img = pg.ImageItem()
+        self.img.translate(-0.5, -0.5)
+        self.vb.addItem(self.img)
+        self.vb.setAspectLocked(True)
+        self.hist = pg.HistogramLUTItem(image=self.img)
+        self.hist.vb.setLimits(yMin=0, yMax=20000)
+        self.hist.gradient.setColorMap(self.cubehelixCM)
+        for tick in self.hist.gradient.ticks:
+            tick.hide()
+        self.imageWidget.addItem(self.hist, row=1, col=2)
+
+        self.grid = viewbox_tools.Grid(self.vb, self.shape)
+        self.gridButton.clicked.connect(self.grid.toggle)
+        self.gridTwoCh = viewbox_tools.TwoColorGrid(self.vb, 128)
+        self.gridTwoChButton.clicked.connect(self.gridTwoCh.toggle)
+        self.gridTwoCh82 = viewbox_tools.TwoColorGrid(self.vb, 82)
+        self.gridTwoCh82Button.clicked.connect(self.gridTwoCh82.toggle)
+        self.crosshair = viewbox_tools.Crosshair(self.vb)
+        self.crosshairButton.clicked.connect(self.crosshair.toggle)
+
+        # x and y profiles
+        xPlot = self.imageWidget.addPlot(row=0, col=1)
+        xPlot.hideAxis('left')
+        xPlot.hideAxis('bottom')
+        self.xProfile = xPlot.plot()
+        self.imageWidget.ci.layout.setRowMaximumHeight(0, 40)
+        xPlot.setXLink(self.vb)
+        yPlot = self.imageWidget.addPlot(row=1, col=0)
+        yPlot.hideAxis('left')
+        yPlot.hideAxis('bottom')
+        self.yProfile = yPlot.plot()
+        self.yProfile.rotate(90)
+        self.imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
+        yPlot.setYLink(self.vb)
+
+        self.dualView = False
 
     def flipperInPath(self, value):
         self.flipperButton.setChecked(not(value))
@@ -1189,8 +1244,12 @@ class TormentaGUI(QtGui.QMainWindow):
             self.viewtimer.start(20)
 
     def updateLevels(self, image):
-        cmin, cmax = guitools.bestLimits(image)
-        self.hist.setLevels(cmin, cmax)
+        if self.dualView:
+            self.hist.setLevels(*guitools.bestLimits(image[:self.side, :]))
+            self.hist1.setLevels(*guitools.bestLimits(image[-self.side:, :]))
+
+        else:
+            self.hist.setLevels(*guitools.bestLimits(image))
 #        std = np.std(image)
 #        self.hist.setLevels(np.min(image) - std, np.max(image) + std)
 
@@ -1277,12 +1336,13 @@ class TormentaGUI(QtGui.QMainWindow):
             self.fullChip()
 
         elif shapeStr.startswith('Two-colors'):
-            side = int(shapeStr.split()[1][:-2])
-            self.shape = (side*2 + 10, side*2 + 10)
-            self.frameStart = (256 - side - 5, int(0.5*(512 - (side*3 + 20))))
+            self.side = int(shapeStr.split()[1][:-2])
+            self.shape = (self.side*2 + 10, self.side*2 + 10)
+            self.frameStart = (256 - self.side - 5,
+                               int(0.5*(512 - (self.side*3 + 20))))
             self.changeParameter(self.adjustFrame)
-            self.gridTwoCh.changeToSmall(side)
-            self.gridTwoCh82.changeToSmall(side)
+            self.gridTwoCh.changeToSmall(self.side)
+            self.gridTwoCh82.changeToSmall(self.side)
 
         else:
             try:
@@ -1370,9 +1430,17 @@ class TormentaGUI(QtGui.QMainWindow):
 
         # Initial image
         self.image = np.transpose(self.andor.most_recent_image16(self.shape))
-        self.img.setImage(self.image, autoLevels=False)
+        if self.dualView:
+            self.img.setImage(self.image[:self.side, :])
+            self.img1.setImage(self.image[-self.side:, :])
+            self.vb1.scene().sigMouseMoved.connect(self.mouseMoved)
+        else:
+            self.img.setImage(self.image, autoLevels=False)
+
+        self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
         if update:
             self.updateLevels(self.image)
+
         self.viewtimer.start(20)
         self.moleculeWidget.enableBox.setEnabled(True)
         self.gridButton.setEnabled(True)
@@ -1382,8 +1450,6 @@ class TormentaGUI(QtGui.QMainWindow):
         self.snapShortcut.setEnabled(True)
         self.findTIRFAc.setEnabled(True)
         self.threeDAction.setEnabled(True)
-
-        self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
 
     def liveviewStop(self):
         self.findTIRFAc.setEnabled(False)
@@ -1411,7 +1477,13 @@ class TormentaGUI(QtGui.QMainWindow):
             self.andor.abort_acquisition()
 
         self.andor.shutter(0, 2, 0, 0, 0)
-        self.img.setImage(np.zeros(self.shape), autoLevels=False)
+
+        image = np.zeros(self.shape)
+        if self.dualView:
+            self.img.setImage(image[:self.side, :], autoLevels=False)
+            self.img1.setImage(image[-self.side:, :], autoLevels=False)
+        else:
+            self.img.setImage(image, autoLevels=False)
 
         self.liveviewEnds.emit()
 
@@ -1421,15 +1493,19 @@ class TormentaGUI(QtGui.QMainWindow):
         try:
             newData = self.andor.most_recent_image16(self.shape)
             self.image = np.transpose(newData)
-            if self.moleculeWidget.enabled:
-                self.moleculeWidget.graph.update(self.image)
-            self.img.setImage(self.image, autoLevels=False)
+            if self.dualView:
+                self.img.setImage(self.image[:self.side], autoLevels=False)
+                self.img1.setImage(self.image[-self.side:], autoLevels=False)
+            else:
+                if self.moleculeWidget.enabled:
+                    self.moleculeWidget.graph.update(self.image)
+                self.img.setImage(self.image, autoLevels=False)
 
-            if self.crosshair.showed:
-                ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
-                xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
-                self.xProfile.setData(self.image[:, ycoord])
-                self.yProfile.setData(self.image[xcoord])
+                if self.crosshair.showed:
+                    ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                    xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
+                    self.xProfile.setData(self.image[:, ycoord])
+                    self.yProfile.setData(self.image[xcoord])
 
             self.fpsMath()
 
