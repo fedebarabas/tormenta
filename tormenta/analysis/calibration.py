@@ -127,7 +127,6 @@ def analyzeBeam(savename, initialdir=None):
 
 def frame(image, center=(256, 256), shape=(128, 128)):
     # Untested for not centered frames
-
     return image[center[0] - int(shape[0] / 2):center[0] + int(shape[0] / 2),
                  center[1] - int(shape[1] / 2):center[1] + int(shape[1] / 2)]
 

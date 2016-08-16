@@ -323,16 +323,24 @@ class RecordingWidget(QtGui.QFrame):
         root.destroy()
 
     def updateGUI(self, image):
-        self.main.img.setImage(image, autoLevels=False)
 
-        if self.main.moleculeWidget.enabled:
-            self.main.moleculeWidget.graph.update(image)
+        if self.main.dualView:
+            im1 = np.transpose(image[:self.main.side, :])
+            self.hist1.setLevels(*guitools.bestLimits(im1))
+            im0 = np.transpose(image[-self.main.side:, :])
+            self.hist.setLevels(*guitools.bestLimits(im0))
 
-        if self.main.crosshair.showed:
-                ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
-                xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
-                self.xProfile.setData(image[:, ycoord])
-                self.yProfile.setData(image[xcoord])
+        else:
+            self.main.img.setImage(image, autoLevels=False)
+
+            if self.main.moleculeWidget.enabled:
+                self.main.moleculeWidget.graph.update(image)
+
+            if self.main.crosshair.showed:
+                    ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
+                    xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
+                    self.xProfile.setData(image[:, ycoord])
+                    self.yProfile.setData(image[xcoord])
 
         # fps calculation
         self.main.fpsMath()
@@ -530,7 +538,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    self.updateSignal.emit(newImages[-1])
 
                     newData = newImages[:, ::-1].astype(np.uint16)
 
@@ -563,7 +571,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    self.updateSignal.emit(newImages[-1])
                     newData = newImages[:, ::-1]
 
                     # This is done frame by frame in order to have contiguously
@@ -615,7 +623,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    self.updateSignal.emit(newImages[-1])
                     dataset[i - 1:self.j] = newImages[:, ::-1]
 
             # Crop dataset if it's stopped before finishing
@@ -651,7 +659,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(np.transpose(newImages[-1]))
+                    self.updateSignal.emit(newImages[-1])
                     data = newImages[:, ::-1]
 
                     # Corrected image
@@ -1086,8 +1094,13 @@ class TormentaGUI(QtGui.QMainWindow):
         else:
             self.imageWidget.removeItem(self.vb1)
             self.imageWidget.removeItem(self.hist1)
+            self.imageWidget.removeItem(self.hist)
+            self.imageWidget.removeItem(self.vb)
+            self.setSingleView()
+            self.updateLevels(self.andor.most_recent_image16(self.shape))
 
     def setDualView(self):
+
         self.vb1 = self.imageWidget.addViewBox(row=3, col=1)
         self.vb1.setMouseMode(pg.ViewBox.RectMode)
         self.img1 = pg.ImageItem()
@@ -1100,31 +1113,14 @@ class TormentaGUI(QtGui.QMainWindow):
         for tick in self.hist1.gradient.ticks:
             tick.hide()
         self.imageWidget.addItem(self.hist1, row=3, col=2)
+
         self.dualView = True
 
-#        self.grid = viewbox_tools.Grid(self.vb, self.shape)
-#        self.gridButton.clicked.connect(self.grid.toggle)
-#        self.gridTwoCh = viewbox_tools.TwoColorGrid(self.vb, 128)
-#        self.gridTwoChButton.clicked.connect(self.gridTwoCh.toggle)
-#        self.gridTwoCh82 = viewbox_tools.TwoColorGrid(self.vb, 82)
-#        self.gridTwoCh82Button.clicked.connect(self.gridTwoCh82.toggle)
-#        self.crosshair = viewbox_tools.Crosshair(self.vb)
-#        self.crosshairButton.clicked.connect(self.crosshair.toggle)
-#
-#        # x and y profiles
-#        xPlot = self.imageWidget.addPlot(row=0, col=1)
-#        xPlot.hideAxis('left')
-#        xPlot.hideAxis('bottom')
-#        self.xProfile = xPlot.plot()
-#        self.imageWidget.ci.layout.setRowMaximumHeight(0, 40)
-#        xPlot.setXLink(self.vb)
-#        yPlot = self.imageWidget.addPlot(row=1, col=0)
-#        yPlot.hideAxis('left')
-#        yPlot.hideAxis('bottom')
-#        self.yProfile = yPlot.plot()
-#        self.yProfile.rotate(90)
-#        self.imageWidget.ci.layout.setColumnMaximumWidth(0, 40)
-#        yPlot.setYLink(self.vb)
+        self.updateLevels(self.andor.most_recent_image16(self.shape))
+        self.vb1.setXRange(0, 266, padding=0)
+        self.vb1.setYRange(0, 128, padding=0)
+        self.vb.setXRange(0, 266, padding=0)
+        self.vb.setYRange(0, 128, padding=0)
 
     def setSingleView(self):
 
@@ -1245,8 +1241,10 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def updateLevels(self, image):
         if self.dualView:
-            self.hist.setLevels(*guitools.bestLimits(image[:self.side, :]))
-            self.hist1.setLevels(*guitools.bestLimits(image[-self.side:, :]))
+            im1 = np.transpose(image[:self.side, :])
+            self.hist1.setLevels(*guitools.bestLimits(im1))
+            im0 = np.transpose(image[-self.side:, :])
+            self.hist.setLevels(*guitools.bestLimits(im0))
 
         else:
             self.hist.setLevels(*guitools.bestLimits(image))
@@ -1431,9 +1429,8 @@ class TormentaGUI(QtGui.QMainWindow):
         # Initial image
         self.image = self.andor.most_recent_image16(self.shape)
         if self.dualView:
-            print(self.side)
-            self.img.setImage(np.transpose(self.image[:, :self.side]))
-            self.img1.setImage(np.transpose(self.image[:, -self.side:]))
+            self.img1.setImage(np.transpose(self.image[:, :self.side]))
+            self.img.setImage(np.transpose(self.image[:, -self.side:]))
             self.vb1.scene().sigMouseMoved.connect(self.mouseMoved)
         else:
             self.img.setImage(np.transpose(self.image), autoLevels=False)
@@ -1481,8 +1478,8 @@ class TormentaGUI(QtGui.QMainWindow):
 
         image = np.zeros(self.shape)
         if self.dualView:
-            self.img.setImage(image[:, :self.side], autoLevels=False)
-            self.img1.setImage(image[:, -self.side:], autoLevels=False)
+            self.img1.setImage(image[:, :self.side], autoLevels=False)
+            self.img.setImage(image[:, -self.side:], autoLevels=False)
         else:
             self.img.setImage(image, autoLevels=False)
 
@@ -1494,10 +1491,10 @@ class TormentaGUI(QtGui.QMainWindow):
         try:
             self.image = self.andor.most_recent_image16(self.shape)
             if self.dualView:
-                self.img.setImage(np.transpose(self.image[:self.side]),
-                                  autoLevels=False)
-                self.img1.setImage(np.transpose(self.image[-self.side:]),
+                self.img1.setImage(np.transpose(self.image[:self.side]),
                                    autoLevels=False)
+                self.img.setImage(np.transpose(self.image[-self.side:]),
+                                  autoLevels=False)
             else:
                 if self.moleculeWidget.enabled:
                     self.moleculeWidget.graph.update(self.image)

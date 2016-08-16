@@ -93,7 +93,7 @@ class TwoColorGrid():
 
         self.showed = False
         self.vb = viewBox
-        self.side = side
+        self.side = side              # side is 128 or 82, the grid size
         self.pxs = pxs
 
         pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
@@ -121,23 +121,24 @@ class TwoColorGrid():
                            self.side)
         self.sqrT.setRect(0.5*(self.pxs - self.side),
                           0.5*(self.pxs - self.side), self.side, self.side)
-        self.sqrR.setRect(0.5*(self.pxs - self.side),
-                          0.5*(self.pxs - (self.side*3 + 20)), self.side,
-                          self.side)
+#        self.sqrR.setRect(0.5*(self.pxs - self.side),
+#                          0.5*(self.pxs - (self.side*3 + 20)), self.side,
+#                          self.side)
         self.yLine.setPos(0.5*self.pxs)
         self.xLine.setPos(0.5*self.pxs)
         self.xLineR.setPos(0.5*self.pxs - self.side - 10)
 
     def changeToSmall(self, shape):
+        # shape is 128 or 82, the view size
         self.rectT.setRect(self.side - shape, 2*self.side + 10 - shape,
                            2*self.side + 8.5, self.side - 1)
         self.rectR.setRect(self.side - shape, self.side - shape,
                            2*self.side + 8.5, self.side - 1)
-        self.sqrT.setRect(0.5*(shape - self.side), 2*self.side + 10 - shape,
+        self.sqrT.setRect(shape + 5 - 0.5*self.size, 2*self.side + 10 - shape,
                           self.side - 1, self.side - 1)
-        self.sqrR.setRect(0.5*self.side - shape, 0.5*self.side - shape,
-                          self.side - 1, self.side - 1)
-        self.yLine.setPos(shape + 5)
+#        self.sqrR.setRect(0.5*(self.side - shape), 0.5*self.side - shape,
+#                          self.side - 1, self.side - 1)
+        self.yLine.setPos(0.5*shape + 5)
         self.xLine.setPos(1.5*self.side + 10 + self.side - shape)
         self.xLineR.setPos(0.5*self.side + self.side - shape)
 
