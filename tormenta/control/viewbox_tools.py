@@ -121,9 +121,9 @@ class TwoColorGrid():
                            self.side)
         self.sqrT.setRect(0.5*(self.pxs - self.side),
                           0.5*(self.pxs - self.side), self.side, self.side)
-#        self.sqrR.setRect(0.5*(self.pxs - self.side),
-#                          0.5*(self.pxs - (self.side*3 + 20)), self.side,
-#                          self.side)
+        self.sqrR.setRect(0.5*(self.pxs - self.side),
+                          0.5*(self.pxs - (self.side*3 + 20)), self.side,
+                          self.side)
         self.yLine.setPos(0.5*self.pxs)
         self.xLine.setPos(0.5*self.pxs)
         self.xLineR.setPos(0.5*self.pxs - self.side - 10)

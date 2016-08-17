@@ -1343,8 +1343,11 @@ class TormentaGUI(QtGui.QMainWindow):
                 applyParam = frameParam.param('Apply')
                 applyParam.sigActivated.connect(self.customFrame)
 
+            self.tree.viewParam.setValue('Simple')
+
         elif shapeStr == 'Full chip':
             self.fullChip()
+            self.tree.viewParam.setValue('Simple')
 
         elif shapeStr.startswith('Two-colors'):
             self.side = int(shapeStr.split()[1][:-2])
@@ -1366,6 +1369,7 @@ class TormentaGUI(QtGui.QMainWindow):
             self.frameStart = (start, start)
 
             self.changeParameter(self.adjustFrame)
+            self.tree.viewParam.setValue('Simple')
 
         self.recWidget.nChanged()
 
