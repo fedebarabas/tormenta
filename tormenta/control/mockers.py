@@ -426,7 +426,8 @@ class MockCamera(Driver):
         """
         im = self.image[self.p_0[0]:self.p_0[0]+self.image_size[0],
                         self.p_0[1]:self.p_0[1]+self.image_size[1]]
-        return np.transpose(im)
+        im = im*np.random.normal(1, 0.01)
+        return np.transpose(im.astype(np.uint16))
 
     def images16(self, first, last, shape, validfirst, validlast):
         halfw = shape[0]//2

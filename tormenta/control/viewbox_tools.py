@@ -128,10 +128,9 @@ class TwoColorGrid():
         self.xLine.setPos(0.5*self.pxs)
         self.xLineR.setPos(0.5*self.pxs - self.side - 10)
 
-    def changeToSmall(self, shape):
+    def changeToSmall(self):
         # shape is 128 or 82, the view size
-        self.rectT.setRect(self.side - shape, 2*self.side + 10 - shape,
-                           2*self.side + 8.5, self.side - 1)
+        self.rectT.setRect(0, self.side + 10, 2*self.side + 8.5, self.side - 1)
         self.rectR.setRect(self.side - shape, self.side - shape,
                            2*self.side + 8.5, self.side - 1)
         self.sqrT.setRect(shape + 5 - 0.5*self.size, 2*self.side + 10 - shape,

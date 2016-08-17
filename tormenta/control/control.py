@@ -16,7 +16,6 @@ from tkinter import Tk, filedialog, messagebox
 import h5py as hdf
 import tifffile as tiff     # http://www.lfd.uci.edu/~gohlke/pythonlibs/#vlfd
 from lantz import Q_
-import lantz.log
 
 from pyqtgraph.Qt import QtCore, QtGui
 import pyqtgraph as pg
@@ -35,7 +34,6 @@ import tormenta.control.guitools as guitools
 import tormenta.control.pyqtsubclasses as pyqtsub
 import tormenta.control.viewbox_tools as viewbox_tools
 import tormenta.analysis.registration as reg
-import tormenta.analysis.stack as stack
 
 
 class RecordingWidget(QtGui.QFrame):
@@ -735,8 +733,6 @@ class TormentaGUI(QtGui.QMainWindow):
                  aptMotor, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        lantz.log.log_to_screen(lantz.log.CRITICAL)
-
         self.andor = andor
         self.shape = self.andor.detector_shape
         self.frameStart = (1, 1)
@@ -1098,6 +1094,11 @@ class TormentaGUI(QtGui.QMainWindow):
             self.imageWidget.removeItem(self.vb)
             self.setSingleView()
             self.updateLevels(self.andor.most_recent_image16(self.shape))
+            self.vb.setXRange(0, self.shape[0], padding=0)
+            self.vb.setYRange(0, self.shape[1], padding=0)
+            self.hist.setHistogramRange(np.min(self.image), np.max(self.image))
+            self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5, minXRange=4,
+                              yMin=-0.5, yMax=self.shape[1] - 0.5, minYRange=4)
 
     def setDualView(self):
 
@@ -1117,10 +1118,21 @@ class TormentaGUI(QtGui.QMainWindow):
         self.dualView = True
 
         self.updateLevels(self.andor.most_recent_image16(self.shape))
-        self.vb1.setXRange(0, 266, padding=0)
-        self.vb1.setYRange(0, 128, padding=0)
-        self.vb.setXRange(0, 266, padding=0)
-        self.vb.setYRange(0, 128, padding=0)
+
+        # viewBox ranges
+        xrange = self.side*2 + 10
+        self.vb1.setXRange(0, xrange, padding=0)
+        self.vb1.setYRange(0, self.side, padding=0)
+        self.vb1.setLimits(xMin=-0.5, xMax=xrange - 0.5, minXRange=4,
+                           yMin=-0.5, yMax=self.side - 0.5, minYRange=4)
+        self.hist1.setHistogramRange(np.min(self.image[:, :self.side]),
+                                     np.max(self.image[:, :self.side]))
+        self.vb.setXRange(0, xrange, padding=0)
+        self.vb.setYRange(0, self.side, padding=0)
+        self.vb.setLimits(xMin=-0.5, xMax=xrange - 0.5, minXRange=4,
+                          yMin=-0.5, yMax=self.side - 0.5, minYRange=4)
+        self.hist.setHistogramRange(np.min(self.image[:, -self.side:]),
+                                    np.max(self.image[:, -self.side:]))
 
     def setSingleView(self):
 
@@ -1291,7 +1303,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.andor.set_image(shape=self.shape, p_0=self.frameStart)
         self.vb.setLimits(xMin=-0.5, xMax=self.shape[0] - 0.5, minXRange=4,
                           yMin=-0.5, yMax=self.shape[1] - 0.5, minYRange=4)
-
+        self.vb.setXRange(0, self.shape[0], padding=0)
+        self.vb.setYRange(0, self.shape[1], padding=0)
         self.updateTimings()
 
         self.grid.update(self.shape)
@@ -1339,8 +1352,8 @@ class TormentaGUI(QtGui.QMainWindow):
             self.frameStart = (256 - self.side - 5,
                                int(0.5*(512 - (self.side*3 + 20))))
             self.changeParameter(self.adjustFrame)
-            self.gridTwoCh.changeToSmall(self.side)
-            self.gridTwoCh82.changeToSmall(self.side)
+            self.gridTwoCh.changeToSmall()
+            self.gridTwoCh82.changeToSmall()
 
         else:
             try:
@@ -1429,11 +1442,17 @@ class TormentaGUI(QtGui.QMainWindow):
         # Initial image
         self.image = self.andor.most_recent_image16(self.shape)
         if self.dualView:
-            self.img1.setImage(np.transpose(self.image[:, :self.side]))
             self.img.setImage(np.transpose(self.image[:, -self.side:]))
+            self.hist.setHistogramRange(np.min(self.image[:, -self.side:]),
+                                        np.max(self.image[:, -self.side:]))
+            self.img1.setImage(np.transpose(self.image[:, :self.side]))
             self.vb1.scene().sigMouseMoved.connect(self.mouseMoved)
+            self.hist1.setHistogramRange(np.min(self.image[:, :self.side]),
+                                         np.max(self.image[:, :self.side]))
+
         else:
             self.img.setImage(np.transpose(self.image), autoLevels=False)
+            self.hist.setHistogramRange(np.min(self.image), np.max(self.image))
 
         self.vb.scene().sigMouseMoved.connect(self.mouseMoved)
         if update:
