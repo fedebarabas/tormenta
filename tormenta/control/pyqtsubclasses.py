@@ -206,7 +206,7 @@ class Calibrate3D(QtCore.QObject):
 
     doneSignal = QtCore.pyqtSignal()
 
-    def __init__(self, main, step=0.05, rangeUm=2, *args, **kwargs):
+    def __init__(self, main, step=0.025, rangeUm=2, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.main = main
         self.step = Q_(step, 'um')
@@ -222,18 +222,23 @@ class Calibrate3D(QtCore.QObject):
         name = '3Dcalibration_step{}'.format(self.step)
         savename = guitools.getUniqueName(os.path.join(path, name) + '.tiff')
 
-        steps = self.rangeUm // self.step
+        steps = (self.rangeUm // self.step).magnitude
         self.main.focusWidget.zMove(-0.5*steps*self.step)
         self.main.focusWidget.zMove(self.step)
 
-        with tiff.TiffWriter(savename, software='Tormenta') as calFile:
-            for s in np.arange(steps):
-                self.main.focusWidget.zMove(self.step)
-                image = self.main.andor.most_recent_image16(self.main.shape)
-                image = np.flipud(image.astype(np.uint16))
-                calFile.save(image, photometric='minisblack',
-                             resolution=(1/self.main.umxpx, 1/self.main.umxpx),
-                             extratags=[('resolution_unit', 'H', 1, 3, True)])
+        stack = np.zeros((int(steps), self.main.shape[0], self.main.shape[1]),
+                         dtype=np.uint16)
+
+        for s in np.arange(steps, dtype=int):
+            self.main.focusWidget.zMove(self.step)
+            time.sleep(0.1)     # Waiting for the motor to get to new position
+            image = self.main.img.image.astype(np.uint16)
+            stack[s] = image
+
+        tiff.imsave(savename, stack, software='Tormenta',
+                    photometric='minisblack',
+                    resolution=(1/self.main.umxpx, 1/self.main.umxpx),
+                    extratags=[('resolution_unit', 'H', 1, 3, True)])
 
         self.main.focusWidget.zMove(-0.5*steps*self.step)
 
