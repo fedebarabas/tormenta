@@ -36,8 +36,10 @@ class Grid():
         self.vb = viewBox
         self.shape = shape
 
-        pen = QtGui.QPen(QtCore.Qt.yellow, 1.5, QtCore.Qt.DotLine)
-        pen2 = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
+        pen = pg.mkPen(color=(255, 255, 0), width=1.5,
+                       style=QtCore.Qt.DotLine, antialias=True)
+        pen2 = pg.mkPen(color=(255, 255, 0), width=1,
+                        style=QtCore.Qt.SolidLine, antialias=True)
 
         self.yline3 = pg.InfiniteLine(pen=pen2)
         self.xline3 = pg.InfiniteLine(pen=pen2, angle=0)
@@ -96,8 +98,10 @@ class TwoColorGrid():
         self.side = side              # side is 128 or 82, the grid size
         self.pxs = pxs
 
-        pen = QtGui.QPen(QtCore.Qt.yellow, 1, QtCore.Qt.SolidLine)
-        pen2 = QtGui.QPen(QtCore.Qt.yellow, 0.75, QtCore.Qt.DotLine)
+        pen = pg.mkPen(color=(255, 255, 0), width=1,
+                       style=QtCore.Qt.SolidLine, antialias=True)
+        pen2 = pg.mkPen(color=(255, 255, 0), width=0.75,
+                        style=QtCore.Qt.DotLine, antialias=True)
 
         self.rectT = QtGui.QGraphicsRectItem()
         self.rectT.setPen(pen)
