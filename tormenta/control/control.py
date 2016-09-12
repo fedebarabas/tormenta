@@ -114,17 +114,14 @@ class RecordingWidget(QtGui.QFrame):
 
         # Recording buttons layout
         buttonWidget = QtGui.QWidget()
-        buttonGrid = QtGui.QGridLayout()
-        buttonWidget.setLayout(buttonGrid)
+        buttonGrid = QtGui.QGridLayout(buttonWidget)
         buttonGrid.addWidget(self.snapButton, 0, 0)
         buttonWidget.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                    QtGui.QSizePolicy.Expanding)
         buttonGrid.addWidget(self.recButton, 0, 2)
         buttonGrid.addWidget(self.recFormat, 0, 3)
 
-        recGrid = QtGui.QGridLayout()
-        self.setLayout(recGrid)
-
+        recGrid = QtGui.QGridLayout(self)
         recGrid.addWidget(recTitle, 0, 0, 1, 3)
         recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0)
         recGrid.addWidget(loadFolderButton, 1, 4)
@@ -940,8 +937,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.flipperButton.clicked.connect(self.daq.toggleFlipper)
 
         self.viewCtrl = QtGui.QWidget()
-        self.viewCtrlLayout = QtGui.QGridLayout()
-        self.viewCtrl.setLayout(self.viewCtrlLayout)
+        self.viewCtrlLayout = QtGui.QGridLayout(self.viewCtrl)
         self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 4)
         self.viewCtrlLayout.addWidget(self.gridButton, 1, 0)
         self.viewCtrlLayout.addWidget(self.gridTwoChButton, 1, 1)
@@ -1050,13 +1046,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.findTIRFAc.triggered.connect(self.laserWidgets.moveMotor.findTIRF)
 
         # Camera settings widget
-        self.cameraWidget = QtGui.QFrame()
+        self.cameraWidget = QtGui.QFrame(self)
         self.cameraWidget.setFrameStyle(QtGui.QFrame.Panel |
                                         QtGui.QFrame.Raised)
         cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
         cameraTitle.setTextFormat(QtCore.Qt.RichText)
-        cameraGrid = QtGui.QGridLayout()
-        self.cameraWidget.setLayout(cameraGrid)
+        cameraGrid = QtGui.QGridLayout(self.cameraWidget)
         cameraGrid.addWidget(cameraTitle, 0, 0)
         cameraGrid.addWidget(self.presetsMenu, 1, 0)
         cameraGrid.addWidget(self.loadPresetButton, 1, 1)
@@ -1067,8 +1062,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.setCentralWidget(self.cwidget)
 
         # Widgets' layout
-        self.layout = QtGui.QGridLayout()
-        self.cwidget.setLayout(self.layout)
+        self.layout = QtGui.QGridLayout(self.cwidget)
         self.layout.setColumnMinimumWidth(0, 350)
         self.layout.setColumnMinimumWidth(3, 1000)
         self.layout.setRowMinimumHeight(1, 720)
