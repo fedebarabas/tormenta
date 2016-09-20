@@ -225,6 +225,7 @@ class Calibrate3D(QtCore.QObject):
         steps = (self.rangeUm // self.step).magnitude
         self.main.focusWidget.zMove(-0.5*steps*self.step)
         self.main.focusWidget.zMove(self.step)
+        time.sleep(0.1)
 
         stack = np.zeros((int(steps), self.main.shape[0], self.main.shape[1]),
                          dtype=np.uint16)

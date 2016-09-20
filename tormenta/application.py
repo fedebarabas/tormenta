@@ -18,7 +18,7 @@ def main():
             instruments.Laser('mpb.vfl.VFL', 'COM3') as redlaser, \
             instruments.Laser('rgblasersystems.minilasevo.MiniLasEvo', 'COM7') as bluelaser, \
             instruments.Laser('laserquantum.ventus.Ventus', 'COM13') as greenlaser, \
-            instruments.DAQ() as daq, instruments.ScanZ(12) as scanZ:
+            instruments.DAQ() as daq, instruments.ScanZ(4) as scanZ:
 
         aptMotor = instruments.Motor()
 

@@ -1518,8 +1518,8 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.img.setImage(np.transpose(self.image), autoLevels=False)
 
                 if self.crosshair.showed:
-                    ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
-                    xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
+                    ycoord = int(np.round(self.crosshair.hLine.pos()[0]))
+                    xcoord = int(np.round(self.crosshair.vLine.pos()[1]))
                     self.xProfile.setData(self.image[:, ycoord])
                     self.yProfile.setData(self.image[xcoord])
 
