@@ -238,7 +238,10 @@ class RecordingWidget(QtGui.QFrame):
                                        [('Numpy arrays', '.npy')],
                                        self.folderEdit.text())
         self.H = np.load(self.Hname)
-        self.xlim, self.ylim, self.cropShape = reg.get_affine_shapes(self.H)
+        chShape = (self.main.side, self.main.shape[1])
+        print(chShape)
+        output = reg.get_affine_shapes(chShape, self.H)
+        self.xlim, self.ylim, self.cropShape = output
 
     def snap(self):
 
@@ -406,7 +409,8 @@ class RecordingWidget(QtGui.QFrame):
                                         shape, self.main.t_exp_real, name,
                                         recFormat, self.dataname,
                                         self.getAttrs(), twoColors, self.H,
-                                        self.cropShape, self.xlim, self.ylim)
+                                        self.cropShape, self.xlim, self.ylim,
+                                        self.main.side)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.recordingThread = QtCore.QThread(self)
                 self.worker.moveToThread(self.recordingThread)
@@ -459,13 +463,14 @@ class RecWorker(QtCore.QObject):
     doneSignal = QtCore.pyqtSignal()
 
     def __init__(self, andor, umPerPx, shape, t_exp, savename, fileformat,
-                 dataname, attrs, twoColors, H, cropShape, xlim, ylim,
+                 dataname, attrs, twoColors, H, cropShape, xlim, ylim, side,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.andor = andor
         self.umxpx = umPerPx
         self.shape = shape
+        self.side = side
         self.t_exp = t_exp
         self.savename = savename
         self.recFormat = fileformat
@@ -484,6 +489,7 @@ class RecWorker(QtCore.QObject):
             self.corrShape = None
         self.xlim = xlim
         self.ylim = ylim
+        print(self.xlim, self.ylim)
 
     def start(self):
 
@@ -583,7 +589,7 @@ class RecWorker(QtCore.QObject):
                                    self.ylim[0]:self.ylim[1]]
                         im0c = im0[self.xlim[0]:self.xlim[1],
                                    self.ylim[0]:self.ylim[1]]
-                        imc = np.hstack((im0c, im1c)).astype(np.uint16)
+                        imc = np.vstack((im0c, im1c)).astype(np.uint16)
                         cropFile.save(imc, photometric='minisblack',
                                       resolution=self.resolution,
                                       extratags=self.tags)
@@ -1341,6 +1347,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         elif shapeStr == 'Full chip':
             self.fullChip()
+            self.side = 512
             self.tree.viewParam.setValue('Simple')
 
         elif shapeStr.startswith('Two-colors'):
@@ -1357,9 +1364,9 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.ROI.hide()
             except:
                 pass
-            side = int(frameParam.param('Shape').value().split('x')[0])
-            self.shape = (side, side)
-            start = int(0.5*(self.andor.detector_shape[0] - side))
+            self.side = int(frameParam.param('Shape').value().split('x')[0])
+            self.shape = (self.side, self.side)
+            start = int(0.5*(self.andor.detector_shape[0] - self.side))
             self.frameStart = (start, start)
 
             self.changeParameter(self.adjustFrame)
@@ -1376,6 +1383,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.changeParameter(self.adjustFrame)
         self.ROI.hide()
         self.grid.update(self.shape)
+        self.side = self.shape[0]
         self.recWidget.shape = self.shape
         self.tree.fovGroup.param('Apply').hide()
 

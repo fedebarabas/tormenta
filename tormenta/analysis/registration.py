@@ -466,9 +466,9 @@ def find_largest_rectangle(a):
     return xlim, ylim
 
 
-def get_affine_shapes(shape, H):
+def get_affine_shapes(chShape, H):
 
-    data = np.ones(shape)
+    data = np.ones(chShape)
     datac = h_affine_transform(data, H)
 
 #    indices = np.where(datac == 1)
@@ -524,6 +524,7 @@ class HtransformStack(QtCore.QObject):
 
                     dat0 = f0['data']
                     xlim, ylim, cropShape = get_affine_shapes(dat0.shape, H)
+                    print(dat0.shape)
                     dat1 = self.mpStack(dat0, xlim, ylim, H)
 
                     # Store
