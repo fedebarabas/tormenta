@@ -738,6 +738,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.andor = andor
         self.shape = self.andor.detector_shape
+        self.side = 512
         self.frameStart = (1, 1)
         self.redlaser = redlaser
         self.greenlaser = greenlaser
