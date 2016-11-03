@@ -114,17 +114,14 @@ class RecordingWidget(QtGui.QFrame):
 
         # Recording buttons layout
         buttonWidget = QtGui.QWidget()
-        buttonGrid = QtGui.QGridLayout()
-        buttonWidget.setLayout(buttonGrid)
+        buttonGrid = QtGui.QGridLayout(buttonWidget)
         buttonGrid.addWidget(self.snapButton, 0, 0)
         buttonWidget.setSizePolicy(QtGui.QSizePolicy.Preferred,
                                    QtGui.QSizePolicy.Expanding)
         buttonGrid.addWidget(self.recButton, 0, 2)
         buttonGrid.addWidget(self.recFormat, 0, 3)
 
-        recGrid = QtGui.QGridLayout()
-        self.setLayout(recGrid)
-
+        recGrid = QtGui.QGridLayout(self)
         recGrid.addWidget(recTitle, 0, 0, 1, 3)
         recGrid.addWidget(QtGui.QLabel('Folder'), 1, 0)
         recGrid.addWidget(loadFolderButton, 1, 4)
@@ -241,7 +238,10 @@ class RecordingWidget(QtGui.QFrame):
                                        [('Numpy arrays', '.npy')],
                                        self.folderEdit.text())
         self.H = np.load(self.Hname)
-        self.xlim, self.ylim, self.cropShape = reg.get_affine_shapes(self.H)
+        chShape = (self.main.side, self.main.shape[1])
+        print(chShape)
+        output = reg.get_affine_shapes(chShape, self.H)
+        self.xlim, self.ylim, self.cropShape = output
 
     def snap(self):
 
@@ -409,7 +409,8 @@ class RecordingWidget(QtGui.QFrame):
                                         shape, self.main.t_exp_real, name,
                                         recFormat, self.dataname,
                                         self.getAttrs(), twoColors, self.H,
-                                        self.cropShape, self.xlim, self.ylim)
+                                        self.cropShape, self.xlim, self.ylim,
+                                        self.main.side)
                 self.worker.updateSignal.connect(self.updateGUI)
                 self.recordingThread = QtCore.QThread(self)
                 self.worker.moveToThread(self.recordingThread)
@@ -462,13 +463,14 @@ class RecWorker(QtCore.QObject):
     doneSignal = QtCore.pyqtSignal()
 
     def __init__(self, andor, umPerPx, shape, t_exp, savename, fileformat,
-                 dataname, attrs, twoColors, H, cropShape, xlim, ylim,
+                 dataname, attrs, twoColors, H, cropShape, xlim, ylim, side,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.andor = andor
         self.umxpx = umPerPx
         self.shape = shape
+        self.side = side
         self.t_exp = t_exp
         self.savename = savename
         self.recFormat = fileformat
@@ -487,6 +489,7 @@ class RecWorker(QtCore.QObject):
             self.corrShape = None
         self.xlim = xlim
         self.ylim = ylim
+        print(self.xlim, self.ylim)
 
     def start(self):
 
@@ -586,7 +589,7 @@ class RecWorker(QtCore.QObject):
                                    self.ylim[0]:self.ylim[1]]
                         im0c = im0[self.xlim[0]:self.xlim[1],
                                    self.ylim[0]:self.ylim[1]]
-                        imc = np.hstack((im0c, im1c)).astype(np.uint16)
+                        imc = np.vstack((im0c, im1c)).astype(np.uint16)
                         cropFile.save(imc, photometric='minisblack',
                                       resolution=self.resolution,
                                       extratags=self.tags)
@@ -735,6 +738,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         self.andor = andor
         self.shape = self.andor.detector_shape
+        self.side = 512
         self.frameStart = (1, 1)
         self.redlaser = redlaser
         self.greenlaser = greenlaser
@@ -940,8 +944,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.flipperButton.clicked.connect(self.daq.toggleFlipper)
 
         self.viewCtrl = QtGui.QWidget()
-        self.viewCtrlLayout = QtGui.QGridLayout()
-        self.viewCtrl.setLayout(self.viewCtrlLayout)
+        self.viewCtrlLayout = QtGui.QGridLayout(self.viewCtrl)
         self.viewCtrlLayout.addWidget(self.liveviewButton, 0, 0, 1, 4)
         self.viewCtrlLayout.addWidget(self.gridButton, 1, 0)
         self.viewCtrlLayout.addWidget(self.gridTwoChButton, 1, 1)
@@ -1050,13 +1053,12 @@ class TormentaGUI(QtGui.QMainWindow):
         self.findTIRFAc.triggered.connect(self.laserWidgets.moveMotor.findTIRF)
 
         # Camera settings widget
-        self.cameraWidget = QtGui.QFrame()
+        self.cameraWidget = QtGui.QFrame(self)
         self.cameraWidget.setFrameStyle(QtGui.QFrame.Panel |
                                         QtGui.QFrame.Raised)
         cameraTitle = QtGui.QLabel('<h2><strong>Camera settings</strong></h2>')
         cameraTitle.setTextFormat(QtCore.Qt.RichText)
-        cameraGrid = QtGui.QGridLayout()
-        self.cameraWidget.setLayout(cameraGrid)
+        cameraGrid = QtGui.QGridLayout(self.cameraWidget)
         cameraGrid.addWidget(cameraTitle, 0, 0)
         cameraGrid.addWidget(self.presetsMenu, 1, 0)
         cameraGrid.addWidget(self.loadPresetButton, 1, 1)
@@ -1067,8 +1069,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.setCentralWidget(self.cwidget)
 
         # Widgets' layout
-        self.layout = QtGui.QGridLayout()
-        self.cwidget.setLayout(self.layout)
+        self.layout = QtGui.QGridLayout(self.cwidget)
         self.layout.setColumnMinimumWidth(0, 350)
         self.layout.setColumnMinimumWidth(3, 1000)
         self.layout.setRowMinimumHeight(1, 720)
@@ -1347,6 +1348,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
         elif shapeStr == 'Full chip':
             self.fullChip()
+            self.side = 512
             self.tree.viewParam.setValue('Simple')
 
         elif shapeStr.startswith('Two-colors'):
@@ -1363,9 +1365,9 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.ROI.hide()
             except:
                 pass
-            side = int(frameParam.param('Shape').value().split('x')[0])
-            self.shape = (side, side)
-            start = int(0.5*(self.andor.detector_shape[0] - side))
+            self.side = int(frameParam.param('Shape').value().split('x')[0])
+            self.shape = (self.side, self.side)
+            start = int(0.5*(self.andor.detector_shape[0] - self.side))
             self.frameStart = (start, start)
 
             self.changeParameter(self.adjustFrame)
@@ -1382,6 +1384,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.changeParameter(self.adjustFrame)
         self.ROI.hide()
         self.grid.update(self.shape)
+        self.side = self.shape[0]
         self.recWidget.shape = self.shape
         self.tree.fovGroup.param('Apply').hide()
 
@@ -1524,8 +1527,8 @@ class TormentaGUI(QtGui.QMainWindow):
                 self.img.setImage(np.transpose(self.image), autoLevels=False)
 
                 if self.crosshair.showed:
-                    ycoord = int(np.round(self.crosshair.hLine.pos()[1]))
-                    xcoord = int(np.round(self.crosshair.vLine.pos()[0]))
+                    ycoord = int(np.round(self.crosshair.hLine.pos()[0]))
+                    xcoord = int(np.round(self.crosshair.vLine.pos()[1]))
                     self.xProfile.setData(self.image[:, ycoord])
                     self.yProfile.setData(self.image[xcoord])
 
