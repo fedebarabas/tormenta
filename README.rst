@@ -57,6 +57,12 @@ Launch Tormenta
 
        $ python -m tormenta
 
+Documentation
+~~~~~~~~~~~~~
+
+The documentation is under construction in
+`http://fedebarabas.github.io/tormenta/ <http://fedebarabas.github.io/tormenta/>`__
+
 Contact
 ~~~~~~~
 

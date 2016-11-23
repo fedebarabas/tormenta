@@ -37,7 +37,14 @@ import tormenta.analysis.registration as reg
 
 
 class RecordingWidget(QtGui.QFrame):
+    """
+    **Bases:** :class:`QtGui.QFrame`
 
+    QFrame that handles the recording parameters.
+
+    :param main: instance of
+    :class:`TormentaGUI <tormenta.control.TormentaGUI>`
+    """
     def __init__(self, main, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -366,12 +373,12 @@ class RecordingWidget(QtGui.QFrame):
     # Waits for the signal indicating intensity measurement has finished
     def waitForSignal(self):
         laserWidgets = self.main.laserWidgets
-        laserWidgets.worker.doneSignal.connect(self.startRecording)
+        laserWidgets.worker.sigDone.connect(self.startRecording)
         powerChanged = [c.powerChanged for c in laserWidgets.controls]
         if np.any(np.array(powerChanged)):
             laserWidgets.getIntensities()
         else:
-            laserWidgets.worker.doneSignal.emit()
+            laserWidgets.worker.sigDone.emit()
 
     def startRecording(self):
 
@@ -411,12 +418,12 @@ class RecordingWidget(QtGui.QFrame):
                                         self.getAttrs(), twoColors, self.H,
                                         self.cropShape, self.xlim, self.ylim,
                                         self.main.side)
-                self.worker.updateSignal.connect(self.updateGUI)
+                self.worker.sigUpdate.connect(self.updateGUI)
                 self.recordingThread = QtCore.QThread(self)
                 self.worker.moveToThread(self.recordingThread)
-                self.worker.doneSignal.connect(self.endRecording)
-                self.worker.doneSignal.connect(self.recordingThread.quit)
-                self.worker.doneSignal.connect(self.worker.deleteLater)
+                self.worker.sigDone.connect(self.endRecording)
+                self.worker.sigDone.connect(self.recordingThread.quit)
+                self.worker.sigDone.connect(self.worker.deleteLater)
                 self.recordingThread.started.connect(self.worker.start)
                 self.recordingThread.start()
 
@@ -452,15 +459,45 @@ class RecordingWidget(QtGui.QFrame):
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
         self.main.liveviewStart(update=False)
-        self.main.laserWidgets.worker.doneSignal.disconnect()
+        self.main.laserWidgets.worker.sigDone.disconnect()
         for c in self.main.laserWidgets.controls:
             c.powerChanged = False
 
 
 class RecWorker(QtCore.QObject):
+    """
+    **Bases:** :class:`QtCore.QObject`
 
-    updateSignal = QtCore.pyqtSignal(np.ndarray)
-    doneSignal = QtCore.pyqtSignal()
+    Class that handles image recording with a EMCCD Camera.
+
+    :param andor: object controlling a EMCCD camera
+    :param umPerPx: pixel size in microns
+    :param shape: size of recording data in (number of frames, width, heigth)
+    :param t_exp: Camera's configured exposition time for this measurement
+    :param savename: chosen filename for the recording data
+    :param fileformat: format for the recording data. Either 'tiff' or 'hdf5'
+    :param dataname: array name
+    :param attrs: data attributes for storing of system's configuration
+    :param twoColors: (bool) whether the recording is a twoColors measurement
+    :param H: affine transformation matrix between the channels
+    :param cropShape: shape of one of the channels if multichannel measurement
+    :param xlim: (tuple) x coordinate of the area to be saved of one of the
+    channels relative to the whole area of the channel
+    :param ylim: (tuple) y coordinate of the area to be saved of one of the
+    channels relative to the whole area of the channel
+    :param side: y size of each channel
+
+
+    ============================== ===========================================
+    **Signals:**
+    sigUpdate(self, array)         Emitted when there is new data to be
+                                   displayed in the image view.
+    sigDone(self)                  Emitted when the measurement is over.
+    ============================== ===========================================
+    """
+
+    sigUpdate = QtCore.pyqtSignal(np.ndarray)
+    sigDone = QtCore.pyqtSignal()
 
     def __init__(self, andor, umPerPx, shape, t_exp, savename, fileformat,
                  dataname, attrs, twoColors, H, cropShape, xlim, ylim, side,
@@ -489,7 +526,6 @@ class RecWorker(QtCore.QObject):
             self.corrShape = None
         self.xlim = xlim
         self.ylim = ylim
-        print(self.xlim, self.ylim)
 
     def start(self):
 
@@ -527,7 +563,7 @@ class RecWorker(QtCore.QObject):
             else:
                 self.twoColorHDF5()
 
-        self.doneSignal.emit()
+        self.sigDone.emit()
 
     def singleColorTIFF(self):
 
@@ -539,7 +575,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.sigUpdate.emit(newImages[-1])
 
                     newData = newImages[:, ::-1].astype(np.uint16)
 
@@ -572,7 +608,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.sigUpdate.emit(newImages[-1])
                     newData = newImages[:, ::-1]
 
                     # This is done frame by frame in order to have contiguously
@@ -624,7 +660,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.sigUpdate.emit(newImages[-1])
                     dataset[i - 1:self.j] = newImages[:, ::-1]
 
             # Crop dataset if it's stopped before finishing
@@ -660,7 +696,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.sigUpdate.emit(newImages[-1])
                     data = newImages[:, ::-1]
 
                     # Corrected image
@@ -693,6 +729,15 @@ class RecWorker(QtCore.QObject):
 
 
 class TemperatureStabilizer(QtCore.QObject):
+    """
+    **Bases:** :class:`QtCore.QObject`
+
+    Class that handles the communication to the EMCCD Camera's temperature
+    stabilization unit.
+
+    :param main: instance of
+    :class:`TormentaGUI <tormenta.control.TormentaGUI>`
+    """
 
     def __init__(self, main, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -728,9 +773,31 @@ class TemperatureStabilizer(QtCore.QObject):
 
 
 class TormentaGUI(QtGui.QMainWindow):
+    """
+    **Bases:** :class:`QtGui.QMainWindow`
 
-    liveviewStarts = QtCore.pyqtSignal()
-    liveviewEnds = QtCore.pyqtSignal()
+    Main Graphical User Interface class. It calls other modules in the
+    control folder for deploying features.
+
+    :param andor: object driver controlling a EMCCD camera
+    :param redlaser: object driver controlling a red laser
+    :param bluelaser: object driver controlling a blue laser
+    :param greenlaser: object driver controlling a green laser
+    :param scanZ: object driver controlling a motorized focus drive
+    :param daq: object driver controlling a DAQ
+    :param aptMotor: object driver controlling a Thorlabs' linear stage
+
+    ============================== ===========================================
+    **Signals:**
+    sigLiveviewStarted(self)       Emitted when live streaming from the camera
+                                   to the GUI is started
+    sigLiveviewEnded(self)         Emitted when live streaming from the camera
+                                   to the GUI is finished
+    ============================== ===========================================
+    """
+
+    sigLiveviewStarted = QtCore.pyqtSignal()
+    sigLiveviewEnded = QtCore.pyqtSignal()
 
     def __init__(self, andor, redlaser, bluelaser, greenlaser, scanZ, daq,
                  aptMotor, *args, **kwargs):
@@ -822,7 +889,7 @@ class TormentaGUI(QtGui.QMainWindow):
         self.calibrate3D = pyqtsub.Calibrate3D(self)
         self.calibrate3D.moveToThread(self.threeDThread)
         self.threeDAction.triggered.connect(self.threeDThread.start)
-        self.calibrate3D.doneSignal.connect(self.threeDThread.quit)
+        self.calibrate3D.sigDone.connect(self.threeDThread.quit)
         self.threeDThread.started.connect(self.calibrate3D.start)
 
         # Analysis menu
@@ -974,8 +1041,8 @@ class TormentaGUI(QtGui.QMainWindow):
         self.stabilizer.moveToThread(self.stabilizerThread)
         self.stabilizerThread.started.connect(self.stabilizer.start)
         self.stabilizerThread.start()
-        self.liveviewStarts.connect(self.stabilizer.stop)
-        self.liveviewEnds.connect(self.stabilizer.start)
+        self.sigLiveviewStarted.connect(self.stabilizer.stop)
+        self.sigLiveviewEnded.connect(self.stabilizer.start)
 
         # Recording settings widget
         self.recWidget = RecordingWidget(self)
@@ -1432,7 +1499,7 @@ class TormentaGUI(QtGui.QMainWindow):
 
     def liveviewStart(self, update):
 
-        self.liveviewStarts.emit()
+        self.sigLiveviewStarted.emit()
 
         idle = 'Camera is idle, waiting for instructions.'
         if self.andor.status != idle:
@@ -1509,7 +1576,7 @@ class TormentaGUI(QtGui.QMainWindow):
         else:
             self.img.setImage(image, autoLevels=False)
 
-        self.liveviewEnds.emit()
+        self.sigLiveviewEnded.emit()
 
     def updateView(self):
         """ Image update while in Liveview mode
