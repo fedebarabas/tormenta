@@ -10,34 +10,19 @@ Tormenta is an open source software developed in our Lab to drive microscopy har
 
 Contents:
 
+
 .. toctree::
    :maxdepth: 2
 
-Initiation: main
-=================
-	
-.. automodule:: tormenta
-   :members:
-
-The Graphical User Interface
-============================
-
-.. automodule:: control.control
-   :members:
-
-Instruments control
-===================
-
-Buffer for the instruments are created with these methods. They test if they are connected and if they aren't, they create dummy classes called Mockers to replace them for testing purposes.
-
-.. automodule:: control.instruments
-   :members:
+   GUI
+   code
 
    includeme
 
 Contact
 ==================
 
+Feel free to email me at:
 federico.barabas[AT]cibion.conicet.gov.ar
 
 Indices and tables
