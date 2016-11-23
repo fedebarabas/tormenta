@@ -1,5 +1,5 @@
 Tormenta
-******************************************************
+********
 
 Tormenta is provided with its own GUI to make it user-friendly. The global layout is defined in the widget called TormentaGUI, and individual layouts are defined within the code of each widget.
 

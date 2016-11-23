@@ -1,5 +1,5 @@
 .. Tormenta documentation master file, created by
-   sphinx-quickstart on Tue Nov 22 15:13:01 2016.
+   sphinx-quickstart on Wed Nov 23 17:18:48 2016.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
@@ -10,20 +10,13 @@ Tormenta is an open source software developed in our Lab to drive microscopy har
 
 Contents:
 
-
 .. toctree::
    :maxdepth: 2
 
-   main
+   includeme
+   mainGUI
    modules
 
-   includeme
-
-Contact
-==================
-
-Feel free to email me at:
-federico.barabas[AT]cibion.conicet.gov.ar
 
 Indices and tables
 ==================
