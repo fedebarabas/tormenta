@@ -14,7 +14,7 @@ Initiation: main
 Control: the GUI
 ==================
 
-.. automodule:: control.control
+.. automodule:: tormenta.control.control
    :members:
 
 Instruments control
@@ -22,5 +22,5 @@ Instruments control
 
 Buffer for the instruments are created with these methods. They test if they are connected and if they aren't, they create dummy classes called Mockers to replace them for testing purposes.
 
-.. automodule:: control.instruments
+.. automodule:: tormenta.control.instruments
    :members:
