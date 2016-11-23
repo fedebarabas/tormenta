@@ -26,7 +26,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="top" title="Tormenta 1.0 documentation" href="index.html" />
-    <link rel="prev" title="Tormenta’s Core: GUI and communication with hardware" href="main.html" />
+    <link rel="prev" title="Tormenta" href="main.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -45,92 +45,13 @@
   <div class="section" id="modules">
 <h1>Modules<a class="headerlink" href="#modules" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="illumination">
-<h2>#1 &#8211; illumination<a class="headerlink" href="#illumination" title="Permalink to this headline">¶</a></h2>
-<p>The illumination control module is meant to control the wavelength, intensity and mode of illumination. It is able to drive three continuous wave lasers from different manufacturers. Each laser control is instantiated from the same Python class, so it is straightforward to change laser units or add a new one. Besides setting the output power of each one, there is a checkbox for setting the laser’s shutter state; i.e. switching on and off any of the illumination sources. The button ‘Get Intensities’ triggers the power measurement of each laser with a photodiode and reports the intensity at the sample using a previous calibration.</p>
-<p>This module also controls a motorized linear stage (Thorlabs APT Motor) that permits to switch between epi and total internal reflection illumination (TIRF). A routine was implemented to automatically find the optimum stage position that maximizes the intensity detected by the camera for TIRF.</p>
-<span class="target" id="module-tormenta.control.lasercontrol"></span><p>Created on Tue Aug 12 11:51:21 2014</p>
-<p>&#64;author: Federico Barabas</p>
-<dl class="class">
-<dt id="tormenta.control.lasercontrol.IntensityWorker">
-<em class="property">class </em><code class="descclassname">tormenta.control.lasercontrol.</code><code class="descname">IntensityWorker</code><span class="sig-paren">(</span><em>main</em>, <em>scansPerS</em>, <em>port</em>, <em>calPath</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#tormenta.control.lasercontrol.IntensityWorker" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>Bases:</strong> <code class="xref py py-class docutils literal"><span class="pre">QtCore.QObject</span></code></p>
-<p>Object that handles the intensity measurement of the lasers with a
-photodiode</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>main</strong> &#8211; instance of</td>
-</tr>
-</tbody>
-</table>
-<p><code class="xref py py-class docutils literal"><span class="pre">TormentaGUI</span></code>
-:param scansPerS: number of measurements per second for the DAQ&#8217;s stream
-mode
-:param port: DAQ&#8217;s port connected to the photodiode
-:param calPath: file path to the calibration file</p>
-<table border="1" class="docutils">
-<colgroup>
-<col width="41%" />
-<col width="59%" />
-</colgroup>
-<tbody valign="top">
-<tr class="row-odd"><td><strong>Signals:</strong></td>
-<td>&nbsp;</td>
-</tr>
-<tr class="row-even"><td>sigUpdate(self)</td>
-<td>Emitted when the intensity measurement is
-finished, this signal carries the
-photodiode&#8217;s measured voltages</td>
-</tr>
-<tr class="row-odd"><td>sigDone(self)</td>
-<td>Emitted when the intensity measurement is
-finished</td>
-</tr>
-</tbody>
-</table>
-</dd></dl>
-
-<dl class="class">
-<dt id="tormenta.control.lasercontrol.LaserControl">
-<em class="property">class </em><code class="descclassname">tormenta.control.lasercontrol.</code><code class="descname">LaserControl</code><span class="sig-paren">(</span><em>laser</em>, <em>name</em>, <em>color</em>, <em>prange</em>, <em>tickInterval</em>, <em>singleStep</em>, <em>daq=None</em>, <em>port=None</em>, <em>invert=True</em>, <em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#tormenta.control.lasercontrol.LaserControl" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>Bases:</strong> <code class="xref py py-class docutils literal"><span class="pre">QtGui.QFrame</span></code></p>
-<p>Frame for controlling a single laser.</p>
-<table class="docutils field-list" frame="void" rules="none">
-<col class="field-name" />
-<col class="field-body" />
-<tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>laser</strong> &#8211; object driver controlling the laser</li>
-<li><strong>name</strong> &#8211; (str) displayed laser&#8217;s name</li>
-<li><strong>color</strong> &#8211; (r, g, b) laser color in RGB format</li>
-<li><strong>prange</strong> &#8211; (min, max) laser power limits</li>
-<li><strong>tickInterval</strong> &#8211; power interval for the slider&#8217;s ticks</li>
-<li><strong>singleStep</strong> &#8211; minimum power step</li>
-<li><strong>daq</strong> &#8211; object driver controlling the DAQ used to set shutter state</li>
-<li><strong>port</strong> &#8211; DAQ&#8217;s port number that drivers this laser&#8217;s shutter state</li>
-<li><strong>invert</strong> &#8211; (bool) whether the boolean state driving the shutter has</li>
-</ul>
-</td>
-</tr>
-</tbody>
-</table>
-<p>to be inverted to reflect its state according to True: open, False: closed</p>
-</dd></dl>
-
+<h2>Illumination<a class="headerlink" href="#illumination" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="focus-lock">
-<h2>#2 &#8211; focus lock<a class="headerlink" href="#focus-lock" title="Permalink to this headline">¶</a></h2>
-<p>The focus-lock module is designed to control a custom made focus stabilization unit. It monitors on a CMOS camera the reflection of a near-infrared laser beam sent to the sample through the objective in total internal reflection configuration. Any change in the sample-objective separation distance is detected as a shift in the position of the reflection on the CMOS sensor, and compensated by acting on the fine focus screw of the microscope with a stepper motor.</p>
-<p>A scrolling plot shows online the position (center of mass) of the reflected beam on the sensor. On the right there&#8217;s a live output of the CMOS camera, which is especially useful during alignment of the near-infrared beam. From this module one can start the proportional and integrative feedback control system that locks the focus position, as well as modify the proportional and integrative constants.</p>
-<span class="target" id="module-tormenta.control.focus"></span><p>Created on Wed Oct  1 13:41:48 2014</p>
-<p>&#64;authors: Federico Barabas, Luciano Masullo</p>
+<h2>Focus lock<a class="headerlink" href="#focus-lock" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="filter-table">
-<h2>#3 &#8211; filter table<a class="headerlink" href="#filter-table" title="Permalink to this headline">¶</a></h2>
-<p>The emission filters module consists of an editable table containing information about the installed fluorescence emission filters, which eventually could be integrated with a control routine for a motorized filter wheel.</p>
-<span class="target" id="module-tormenta.control.filter_table"></span><p>Created on Wed Jul  6 15:33:48 2016</p>
-<p>&#64;author: Federico Barabas</p>
+<h2>Filter table<a class="headerlink" href="#filter-table" title="Permalink to this headline">¶</a></h2>
 </div>
 </div>
 
@@ -143,9 +64,9 @@ finished</td>
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">Modules</a><ul>
-<li><a class="reference internal" href="#illumination">#1 &#8211; illumination</a></li>
-<li><a class="reference internal" href="#focus-lock">#2 &#8211; focus lock</a></li>
-<li><a class="reference internal" href="#filter-table">#3 &#8211; filter table</a></li>
+<li><a class="reference internal" href="#illumination">Illumination</a></li>
+<li><a class="reference internal" href="#focus-lock">Focus lock</a></li>
+<li><a class="reference internal" href="#filter-table">Filter table</a></li>
 </ul>
 </li>
 </ul>
@@ -153,7 +74,7 @@ finished</td>
 <h3>Related Topics</h3>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
-      <li>Previous: <a href="main.html" title="previous chapter">Tormenta&#8217;s Core: GUI and communication with hardware</a></li>
+      <li>Previous: <a href="main.html" title="previous chapter">Tormenta</a></li>
   </ul></li>
 </ul>
 </div>

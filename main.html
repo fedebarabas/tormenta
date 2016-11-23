@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Tormenta’s Core: GUI and communication with hardware &#8212; Tormenta 1.0 documentation</title>
+    <title>Tormenta &#8212; Tormenta 1.0 documentation</title>
     
     <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -43,19 +43,16 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="tormenta-s-core-gui-and-communication-with-hardware">
-<h1>Tormenta&#8217;s Core: GUI and communication with hardware<a class="headerlink" href="#tormenta-s-core-gui-and-communication-with-hardware" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="tormenta">
+<h1>Tormenta<a class="headerlink" href="#tormenta" title="Permalink to this headline">¶</a></h1>
 <p>Tormenta is provided with its own GUI to make it user-friendly. The global layout is defined in the widget called TormentaGUI, and individual layouts are defined within the code of each widget.</p>
 <p>The communication with the different instruments is initialized as soon as Tormenta is started; it tests if they are connected and creates an object to control them. Otherwise, it creates a Mocker, which has the same attributes but doesn&#8217;t correspond to any physical device, so it can run without hardware.</p>
-<div class="section" id="module-tormenta">
-<span id="initiation-main"></span><h2>Initiation: main<a class="headerlink" href="#module-tormenta" title="Permalink to this headline">¶</a></h2>
-</div>
-<div class="section" id="control-the-gui">
-<h2>Control: the GUI<a class="headerlink" href="#control-the-gui" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="graphical-user-interface">
+<h2>Graphical User Interface<a class="headerlink" href="#graphical-user-interface" title="Permalink to this headline">¶</a></h2>
 </div>
 <div class="section" id="instruments-control">
 <h2>Instruments control<a class="headerlink" href="#instruments-control" title="Permalink to this headline">¶</a></h2>
-<p>Buffer for the instruments are created with these methods. They test if they are connected and if they aren&#8217;t, they create dummy classes called Mockers to replace them for testing purposes.</p>
+<p>These methods create a buffer for the instruments. They test if they are connected and if they aren&#8217;t, they create dummy classes called Mockers to replace them for testing purposes.</p>
 </div>
 </div>
 
@@ -67,9 +64,8 @@
         <div class="sphinxsidebarwrapper">
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Tormenta&#8217;s Core: GUI and communication with hardware</a><ul>
-<li><a class="reference internal" href="#module-tormenta">Initiation: main</a></li>
-<li><a class="reference internal" href="#control-the-gui">Control: the GUI</a></li>
+<li><a class="reference internal" href="#">Tormenta</a><ul>
+<li><a class="reference internal" href="#graphical-user-interface">Graphical User Interface</a></li>
 <li><a class="reference internal" href="#instruments-control">Instruments control</a></li>
 </ul>
 </li>
