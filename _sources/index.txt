@@ -14,8 +14,8 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   GUI
-   code
+   main
+   modules
 
    includeme
 

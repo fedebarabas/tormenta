@@ -8,13 +8,13 @@ The communication with the different instruments is initialized as soon as Torme
 Initiation: main
 ==================
 	
-.. automodule:: tormenta.application
+.. automodule:: tormenta
    :members:
 
 Control: the GUI
 ==================
 
-.. automodule:: tormenta.control.control
+.. automodule:: control.control
    :members:
 
 Instruments control
@@ -22,5 +22,5 @@ Instruments control
 
 Buffer for the instruments are created with these methods. They test if they are connected and if they aren't, they create dummy classes called Mockers to replace them for testing purposes.
 
-.. automodule:: tormenta.control.instruments
+.. automodule:: control.instruments
    :members:
