@@ -9,6 +9,9 @@ import numpy as np
 from scipy.special import jn
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+from matplotlib import rc
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 16})
+# rc('text', usetex=True)
 
 
 def gaussian(x, fwhm):
