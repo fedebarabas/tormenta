@@ -160,7 +160,7 @@ class LaserWidget(QtGui.QFrame):
 
         # Intensity measurement in separate thread to keep the GUI responsive
         self.worker = IntensityWorker(self, 20, 3, self.calibrationPath)
-        self.worker.updateSignal.connect(self.updateIntensities)
+        self.worker.sigUpdate.connect(self.updateIntensities)
         self.intensityThread = QtCore.QThread(self)
         self.worker.moveToThread(self.intensityThread)
         self.intensityThread.started.connect(self.worker.start)
@@ -215,8 +215,6 @@ class LaserWidget(QtGui.QFrame):
 
 class MoveMotor(QtCore.QObject):
 
-    doneSignal = QtCore.pyqtSignal()
-
     def __init__(self, motor, laserwidget, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.motor = motor
@@ -270,8 +268,6 @@ class MoveMotor(QtCore.QObject):
 
 class UpdateMotorPos(QtCore.QObject):
 
-    doneSignal = QtCore.pyqtSignal()
-
     def __init__(self, motor, laserwidget, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.motor = motor
@@ -294,10 +290,31 @@ class UpdateMotorPos(QtCore.QObject):
 
 
 class IntensityWorker(QtCore.QObject):
+    """
+    **Bases:** :class:`QtCore.QObject`
 
+    Object that handles the intensity measurement of the lasers with a
+    photodiode
+
+    :param main: instance of
+    :class:`TormentaGUI <tormenta.control.TormentaGUI>`
+    :param scansPerS: number of measurements per second for the DAQ's stream
+    mode
+    :param port: DAQ's port connected to the photodiode
+    :param calPath: file path to the calibration file
+
+    ============================== ===========================================
+    **Signals:**
+    sigUpdate(self)                Emitted when the intensity measurement is
+                                   finished, this signal carries the
+                                   photodiode's measured voltages
+    sigDone(self)                  Emitted when the intensity measurement is
+                                   finished
+    ============================== ===========================================
+    """
     # This signal carries the photodiode's measured voltages
-    updateSignal = QtCore.pyqtSignal(np.ndarray)
-    doneSignal = QtCore.pyqtSignal()
+    sigUpdate = QtCore.pyqtSignal(np.ndarray)
+    sigDone = QtCore.pyqtSignal()
 
     def __init__(self, main, scansPerS, port, calPath, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -380,15 +397,29 @@ class IntensityWorker(QtCore.QObject):
             control.shutterBox.setChecked(shutterState[i])
             i += 1
 
-        self.updateSignal.emit(signal)
-        self.doneSignal.emit()
+        self.sigUpdate.emit(signal)
+        self.sigDone.emit()
 
 
 class LaserControl(QtGui.QFrame):
+    """
+    **Bases:** :class:`QtGui.QFrame`
 
+    Frame for controlling a single laser.
+
+    :param laser: object driver controlling the laser
+    :param name: (str) displayed laser's name
+    :param color: (r, g, b) laser color in RGB format
+    :param prange: (min, max) laser power limits
+    :param tickInterval: power interval for the slider's ticks
+    :param singleStep: minimum power step
+    :param daq: object driver controlling the DAQ used to set shutter state
+    :param port: DAQ's port number that drivers this laser's shutter state
+    :param invert: (bool) whether the boolean state driving the shutter has
+    to be inverted to reflect its state according to True: open, False: closed
+    """
     def __init__(self, laser, name, color, prange, tickInterval, singleStep,
-                 daq=None, port=None, invert=True, addArgs=None,
-                 *args, **kwargs):
+                 daq=None, port=None, invert=True, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.setFrameStyle(QtGui.QFrame.Panel | QtGui.QFrame.Raised)

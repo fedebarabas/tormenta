@@ -36,7 +36,7 @@ def load_tiff(filename):
 
     with tiff.TiffFile(filename) as ff:
         data = ff.asarray()
-        if len(data) > 0:
+        if len(data.shape) > 2:
             data = np.mean(data, 0)
         return split_images(data)
 
@@ -107,7 +107,8 @@ def points_registration(images):
     plt.close()
 
     if len(points[0]) != len(points[1]):
-        raise ValueError('The number of points in each channel is different')
+        input('The number of points in each channel is different')
+        raise ValueError('Number of points mismatch')
 
     # Replotting images
     fig = plt.figure()

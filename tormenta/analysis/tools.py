@@ -9,6 +9,9 @@ import numpy as np
 from scipy.special import jn
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+from matplotlib import rc
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern'], 'size': 16})
+# rc('text', usetex=True)
 
 
 def gaussian(x, fwhm):
@@ -44,15 +47,19 @@ def airy_vs_gauss():
     wavelength = 670        # nm
     NA = 1.42
 
-    x = np.arange(-2, 2, 0.01)
-    y = airy(x)
+#    x = np.arange(-1.5, 1.5, 0.01)
+    x = np.arange(-600, 600)
+    y = airy(NA * x / wavelength)
     fw = get_fwhm(wavelength, NA)
-    fit = best_gauss(x, 0, fw * NA / wavelength)
+    fit = best_gauss(x, 0, fw)
 
     print('FWHM is', np.round(fw))
 
-    plt.plot(x, y, label='Airy disk')
-    plt.plot(x, fit, label='Gaussian fit')
+    plt.figure()
+    plt.plot(x, y, label='Airy disk', lw=4)
+    plt.plot(x, fit, label='Gaussian fit', lw=4)
+    plt.xlabel('Position [nm]', fontsize='large')
+    plt.ylabel('Intensity', fontsize='large')
     plt.legend()
     plt.grid('on')
     plt.show()
