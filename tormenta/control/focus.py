@@ -195,7 +195,7 @@ class FocusWidget(QtGui.QFrame):
         self.sizeofData = np.size(self.graph.savedDataSignal)
         self.savedData = [np.ones(self.sizeofData)*self.setPoint,
                           self.graph.savedDataSignal, self.graph.savedDataTime]
-        np.savetxt('{}_focusdata'.format(self.main.filename()), self.savedData)
+        np.savetxt(self.main.name + '_focusdata', self.savedData)
         self.graph.savedDataSignal = []
         self.graph.savedDataTime = []
 

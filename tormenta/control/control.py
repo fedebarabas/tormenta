@@ -398,7 +398,7 @@ class RecordingWidget(QtGui.QFrame):
                 self.main.liveviewButton.setEnabled(False)
                 self.main.viewtimer.stop()
 
-                name = os.path.join(folder, self.filenameEdit.text())
+                self.name = os.path.join(folder, self.filenameEdit.text())
                 self.startTime = ptime.time()
 
                 imageFramePar = self.main.tree.p.param('Field of view')
@@ -406,7 +406,7 @@ class RecordingWidget(QtGui.QFrame):
                 twoColors = shapeStr.startswith('Two-colors')
                 twoColors = twoColors and (self.H is not None)
                 self.worker = RecWorker(self.main.andor, self.main.umxpx,
-                                        shape, self.main.t_exp_real, name,
+                                        shape, self.main.t_exp_real, self.name,
                                         recFormat, self.dataname,
                                         self.getAttrs(), twoColors, self.H,
                                         self.cropShape, self.xlim, self.ylim,
@@ -451,7 +451,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setChecked(False)
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
-        self.main.liveviewStart(update=False)
+        self.main.liveviewStart(update=True)
         self.main.laserWidgets.worker.doneSignal.disconnect()
         for c in self.main.laserWidgets.controls:
             c.powerChanged = False
@@ -489,7 +489,6 @@ class RecWorker(QtCore.QObject):
             self.corrShape = None
         self.xlim = xlim
         self.ylim = ylim
-        print(self.xlim, self.ylim)
 
     def start(self):
 
@@ -539,7 +538,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
 
                     newData = newImages[:, ::-1].astype(np.uint16)
 
@@ -572,11 +571,11 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
                     newData = newImages[:, ::-1]
 
                     # This is done frame by frame in order to have contiguously
-                    # saved tiff files so they're easily opened in ImageJ
+                    # saved tiff files so they're correctly opened in ImageJ
                     # or in python through tifffile
                     for frame in newData:
                         # Corrected image
@@ -624,7 +623,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
                     dataset[i - 1:self.j] = newImages[:, ::-1]
 
             # Crop dataset if it's stopped before finishing
@@ -660,7 +659,7 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-                    self.updateSignal.emit(newImages[-1])
+                    self.updateSignal.emit(np.transpose(newImages[-1]))
                     data = newImages[:, ::-1]
 
                     # Corrected image
