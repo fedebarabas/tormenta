@@ -458,7 +458,7 @@ class RecordingWidget(QtGui.QFrame):
         self.recButton.setChecked(False)
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
-        self.main.liveviewStart(update=True)
+        self.main.liveviewStart(update=False)
         self.main.laserWidgets.worker.sigDone.disconnect()
         for c in self.main.laserWidgets.controls:
             c.powerChanged = False
@@ -575,8 +575,8 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-#                    self.sigUpdate.emit(np.transpose(newImages[-1]))
-                    self.sigUpdate.emit(newImages[-1])
+                    self.sigUpdate.emit(np.transpose(newImages[-1]))
+#                    self.sigUpdate.emit(newImages[-1])
 
                     newData = newImages[:, ::-1].astype(np.uint16)
 
@@ -609,8 +609,8 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-#                    self.sigUpdate.emit(np.transpose(newImages[-1]))
-                    self.sigUpdate.emit(newImages[-1])
+                    self.sigUpdate.emit(np.transpose(newImages[-1]))
+#                    self.sigUpdate.emit(newImages[-1])
                     newData = newImages[:, ::-1]
 
                     # This is done frame by frame in order to have contiguously
@@ -662,8 +662,8 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-#                    self.sigUpdate.emit(np.transpose(newImages[-1]))
-                    self.sigUpdate.emit(newImages[-1])
+                    self.sigUpdate.emit(np.transpose(newImages[-1]))
+#                    self.sigUpdate.emit(newImages[-1])
                     dataset[i - 1:self.j] = newImages[:, ::-1]
 
             # Crop dataset if it's stopped before finishing

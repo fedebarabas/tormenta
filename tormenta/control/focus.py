@@ -52,7 +52,7 @@ class FocusWidget(QtGui.QFrame):
         self.kpEdit.setFixedWidth(60)
         self.kpEdit.textChanged.connect(self.unlockFocus)
         self.kpLabel = QtGui.QLabel('kp')
-        self.kiEdit = QtGui.QLineEdit('0.08')
+        self.kiEdit = QtGui.QLineEdit('0.01')
         self.kiEdit.setFixedWidth(60)
         self.kiEdit.textChanged.connect(self.unlockFocus)
         self.kiLabel = QtGui.QLabel('ki')

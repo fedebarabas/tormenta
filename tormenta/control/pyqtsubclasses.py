@@ -204,7 +204,7 @@ class CamParamTree(ParameterTree):
 
 class Calibrate3D(QtCore.QObject):
 
-    doneSignal = QtCore.pyqtSignal()
+    sigDone = QtCore.pyqtSignal()
 
     def __init__(self, main, step=0.025, rangeUm=2, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -246,7 +246,7 @@ class Calibrate3D(QtCore.QObject):
         self.main.recWidget.writable = True
         self.main.tree.writable = True
         self.main.liveviewButton.setEnabled(True)
-        self.doneSignal.emit()
+        self.sigDone.emit()
 
 
 # HDF <--> Tiff converter
