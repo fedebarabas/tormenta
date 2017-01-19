@@ -427,6 +427,9 @@ class RecordingWidget(QtGui.QFrame):
                 self.recordingThread.started.connect(self.worker.start)
                 self.recordingThread.start()
 
+                # Reset focus stats and time scale
+                self.main.focusWidget.graph.reset()
+
         else:
             self.worker.pressed = False
 

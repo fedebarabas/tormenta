@@ -151,6 +151,7 @@ class FocusWidget(QtGui.QFrame):
     def toggleFocus(self, delay=0):
         if self.lockButton.isChecked():
 
+            self.graph.reset()
             self.ProcessData.update(delay)
             self.setPoint = self.ProcessData.focusSignal
             self.graph.line = self.graph.plot.addLine(y=self.setPoint, pen='r')
@@ -276,8 +277,6 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.setAntialiasing(True)
 
         self.npoints = 400
-        self.data = np.zeros(self.npoints)
-        self.ptr = 0
 
         # Graph without a fixed range
         self.statistics = pg.LabelItem(justify='right')
@@ -289,11 +288,16 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.plot.showGrid(x=True, y=True)
         self.focusCurve = self.plot.plot(pen='y')
 
-        self.time = np.zeros(self.npoints)
-        self.startTime = ptime.time()
+        self.reset()
 
         if self.main is not None:
             self.recButton = self.main.recButton
+
+    def reset(self):
+        self.data = np.zeros(self.npoints)
+        self.time = np.zeros(self.npoints)
+        self.ptr = 0
+        self.startTime = ptime.time()
 
     def update(self):
         """ Update the data displayed in the graphs
