@@ -8,6 +8,7 @@ Created on Wed Oct  1 13:41:48 2014
 import numpy as np
 import time
 import scipy.ndimage as ndi
+import matplotlib.pyplot as plt
 
 import pyqtgraph as pg
 from pyqtgraph.Qt import QtCore, QtGui
@@ -36,7 +37,6 @@ class FocusWidget(QtGui.QFrame):
         self.z.zobject.HostBackLashEnable = False
 
         self.setPoint = 0
-        self.calibrationResult = [0, 0]
 
         self.V = Q_(1, 'V')
         self.um = Q_(1, 'um')
@@ -380,20 +380,19 @@ class FocusCalibration(QtCore.QObject):
         self.signalData = self.signalData[self.argmin:self.argmax]
         self.positionData = self.positionData[self.argmin:self.argmax]
 
-        self.poly = np.polyfit(self.positionData, self.signalData, 1)
+        self.calResult = np.polyfit(self.positionData, self.signalData, 1)
         self.export()
 
     def export(self):
 
-        np.savetxt(self.main.main.name + 'calibration', self.calibrationResult)
-        cal = np.around(np.abs(self.calibrationResult[0]), 1)
+        np.savetxt('calibration', self.calResult)
+        cal = np.around(np.abs(self.calResult[0]), 1)
         calText = '1 px --> {} nm'.format(cal)
-        self.main.calibrationDisplay.setText(calText)
+        self.mainwidget.calibrationDisplay.setText(calText)
         poly = np.polynomial.polynomial.polyval(self.positionData,
-                                                self.poly[::-1])
+                                                self.calResult[::-1])
         self.savedCalibData = [self.positionData, self.signalData, poly]
-        np.savetxt(self.main.main.name + 'calibrationcurves',
-                   self.savedCalibData)
+        np.savetxt('calibrationcurves', self.savedCalibData)
 
 if __name__ == '__main__':
 
