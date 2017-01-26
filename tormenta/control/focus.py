@@ -385,15 +385,15 @@ class FocusCalibration(QtCore.QObject):
 
     def export(self):
 
-        np.savetxt(self.main.name + 'calibration', self.calibrationResult)
+        np.savetxt(self.main.main.name + 'calibration', self.calibrationResult)
         cal = np.around(np.abs(self.calibrationResult[0]), 1)
         calText = '1 px --> {} nm'.format(cal)
         self.main.calibrationDisplay.setText(calText)
         poly = np.polynomial.polynomial.polyval(self.positionData,
                                                 self.poly[::-1])
         self.savedCalibData = [self.positionData, self.signalData, poly]
-        np.savetxt(self.main.name + 'calibrationcurves', self.savedCalibData)
-
+        np.savetxt(self.main.main.name + 'calibrationcurves',
+                   self.savedCalibData)
 
 if __name__ == '__main__':
 
