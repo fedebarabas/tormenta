@@ -357,7 +357,7 @@ class FocusCalibration(QtCore.QObject):
         self.nm = Q_(1, 'nm')
         self.step = 50 * self.nm
         self.z = mainwidget.z
-        self.mainwidget = mainwidget  # mainwidget será FocusLockWidget
+        self.main = mainwidget  # mainwidget será FocusLockWidget
 
     def start(self):
 
@@ -366,7 +366,7 @@ class FocusCalibration(QtCore.QObject):
         # Calibration centered in the initial position
         self.z.zMoveRelative(-0.5*steps*self.step)
         for i in range(steps):
-            self.focusCalibSignal = self.mainwidget.ProcessData.focusSignal
+            self.focusCalibSignal = self.main.ProcessData.focusSignal
             self.signalData.append(self.focusCalibSignal)
             self.positionData.append(self.z.zPosition.magnitude)
             self.z.zMoveRelative(self.step)
@@ -381,19 +381,18 @@ class FocusCalibration(QtCore.QObject):
         self.positionData = self.positionData[self.argmin:self.argmax]
 
         self.poly = np.polyfit(self.positionData, self.signalData, 1)
-        self.calibrationResult = np.around(self.poly, 2)
         self.export()
 
     def export(self):
 
-        np.savetxt('calibration', self.calibrationResult)
+        np.savetxt(self.main.name + 'calibration', self.calibrationResult)
         cal = np.around(np.abs(self.calibrationResult[0]), 1)
         calText = '1 px --> {} nm'.format(cal)
-        self.mainwidget.calibrationDisplay.setText(calText)
+        self.main.calibrationDisplay.setText(calText)
         poly = np.polynomial.polynomial.polyval(self.positionData,
-                                                self.calibrationResult[::-1])
+                                                self.poly[::-1])
         self.savedCalibData = [self.positionData, self.signalData, poly]
-        np.savetxt('calibrationcurves', self.savedCalibData)
+        np.savetxt(self.main.name + 'calibrationcurves', self.savedCalibData)
 
 
 if __name__ == '__main__':
