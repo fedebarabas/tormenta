@@ -1027,18 +1027,15 @@ class TormentaGUI(QtGui.QMainWindow):
         self.viewCtrlLayout.addWidget(self.flipperButton, 2, 0, 1, 4)
 
         # Status bar info
-        self.fpsBox = QtGui.QLabel()
-        self.fpsBox.setText('0 fps')
+        self.fpsBox = QtGui.QLabel('0 fps', self)
         self.statusBar().addPermanentWidget(self.fpsBox)
-        self.tempStatus = QtGui.QLabel()
+        self.tempStatus = QtGui.QLabel(self)
         self.statusBar().addPermanentWidget(self.tempStatus)
-        self.temp = QtGui.QLabel()
+        self.temp = QtGui.QLabel(self)
         self.statusBar().addPermanentWidget(self.temp)
-        self.cursorPos = QtGui.QLabel()
-        self.cursorPos.setText('0, 0')
+        self.cursorPos = QtGui.QLabel('0, 0', self)
         self.statusBar().addPermanentWidget(self.cursorPos)
-        self.cursorPosInt = QtGui.QLabel()
-        self.cursorPosInt.setText('0 counts')
+        self.cursorPosInt = QtGui.QLabel('0 counts', self)
         self.statusBar().addPermanentWidget(self.cursorPosInt)
 
         # Temperature stabilization functionality

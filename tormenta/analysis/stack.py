@@ -222,7 +222,6 @@ def bkg_estimation(data_stack, window=101):
 
 def subtractChunk(data):
     data = data - bkg_estimation(data)
-    data[data < 0] = 0
     return data.astype(np.uint16)
 
 

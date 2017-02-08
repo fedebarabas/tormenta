@@ -379,4 +379,5 @@ class BkgSubtractor(QtCore.QObject):
         results = pool.map(subtractChunk, args)
         pool.close()
         pool.join()
-        return np.concatenate(results[:])
+        result = np.concatenate(results[:])
+        return result - np.min(result)
