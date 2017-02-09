@@ -210,6 +210,7 @@ def bkg_estimation(data_stack, window=101):
     using an uniform filter.'''
 
     # Normalization
+    data_stack = data_stack.astype(np.int32)
     intensity = np.mean(data_stack, (1, 2))
     data_stack = data_stack / intensity[:, np.newaxis, np.newaxis]
 
@@ -221,8 +222,9 @@ def bkg_estimation(data_stack, window=101):
 
 
 def subtractChunk(data):
+    data = data.astype(np.int32)
     data = data - bkg_estimation(data)
-    return data.astype(np.uint16)
+    return data
 
 
 if __name__ == "__main__":

@@ -380,4 +380,5 @@ class BkgSubtractor(QtCore.QObject):
         pool.close()
         pool.join()
         result = np.concatenate(results[:])
-        return result - np.min(result)
+        result = result - np.min(result) + 400
+        return result.astype(np.uint16)
