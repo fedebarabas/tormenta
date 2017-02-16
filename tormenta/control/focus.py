@@ -202,12 +202,14 @@ class FocusWidget(QtGui.QFrame):
 
     def analizeFocus(self):
 
+        signal = self.ProcessData.focusSignal
+
         if self.n == 1:
-            self.mean = self.ProcessData.focusSignal
-            self.mean2 = self.ProcessData.focusSignal**2
+            self.mean = signal
+            self.mean2 = self.mean**2
         else:
-            self.mean += (self.ProcessData.focusSignal - self.mean)/self.n
-            self.mean2 += (self.ProcessData.focusSignal**2 - self.mean2)/self.n
+            self.mean += (signal - self.mean)/self.n
+            self.mean2 += (signal**2 - self.mean2)/self.n
 
         # Stats
         self.std = np.sqrt(self.mean2 - self.mean**2)
@@ -298,6 +300,11 @@ class FocusLockGraph(pg.GraphicsWindow):
         self.time = np.zeros(self.npoints)
         self.ptr = 0
         self.startTime = ptime.time()
+
+        self.focusWidget.n = 1
+        self.focusWidget.max_dev = 0
+        self.focusWidget.mean = self.focusWidget.ProcessData.focusSignal
+        self.focusWidget.std = 0
 
     def update(self):
         """ Update the data displayed in the graphs
