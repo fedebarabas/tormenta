@@ -72,6 +72,8 @@ class RecordingWidget(QtGui.QFrame):
         loadFolderButton = QtGui.QPushButton('Browse')
         loadFolderButton.clicked.connect(self.loadFolder)
         self.filenameEdit = QtGui.QLineEdit('filename')
+        self.name = os.path.join(self.folderEdit.text(),
+                                 self.filenameEdit.text())
 
         # Snap button
         self.snapButton = QtGui.QPushButton('Snap')

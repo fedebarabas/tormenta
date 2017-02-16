@@ -23,12 +23,12 @@ import tormenta.control.pi as pi
 
 class FocusWidget(QtGui.QFrame):
 
-    def __init__(self, scanZ, main=None, *args, **kwargs):
+    def __init__(self, scanZ, recWidget=None, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
         self.setMinimumSize(2, 350)
 
-        self.main = main  # main va a ser RecordingWidget de control.py
+        self.mainRec = recWidget
 
         self.webcam = instruments.Webcam()
 
@@ -70,7 +70,7 @@ class FocusWidget(QtGui.QFrame):
         self.focusDataBox = QtGui.QCheckBox('Save focus data')
         self.focusPropertiesDisplay = QtGui.QLabel(' st_dev = 0  max_dev = 0')
 
-        self.graph = FocusLockGraph(self, main)
+        self.graph = FocusLockGraph(self, self.mainRec)
 
         self.focusTime = 1000 / self.scansPerS
         self.focusTimer = QtCore.QTimer()
@@ -196,7 +196,7 @@ class FocusWidget(QtGui.QFrame):
         self.sizeofData = np.size(self.graph.savedDataSignal)
         self.savedData = [np.ones(self.sizeofData)*self.setPoint,
                           self.graph.savedDataSignal, self.graph.savedDataTime]
-        np.savetxt(self.main.name + '_focusdata', self.savedData)
+        np.savetxt(self.mainRec.name + '_focusdata', self.savedData)
         self.graph.savedDataSignal = []
         self.graph.savedDataTime = []
 
@@ -357,7 +357,7 @@ class FocusCalibration(QtCore.QObject):
         self.nm = Q_(1, 'nm')
         self.step = 50 * self.nm
         self.z = mainwidget.z
-        self.main = mainwidget  # mainwidget será FocusLockWidget
+        self.mainFocus = mainwidget  # mainwidget será FocusLockWidget
 
     def start(self):
 
@@ -366,7 +366,7 @@ class FocusCalibration(QtCore.QObject):
         # Calibration centered in the initial position
         self.z.zMoveRelative(-0.5*steps*self.step)
         for i in range(steps):
-            self.focusCalibSignal = self.main.ProcessData.focusSignal
+            self.focusCalibSignal = self.mainFocus.ProcessData.focusSignal
             self.signalData.append(self.focusCalibSignal)
             self.positionData.append(self.z.zPosition.magnitude)
             self.z.zMoveRelative(self.step)
@@ -385,14 +385,14 @@ class FocusCalibration(QtCore.QObject):
 
     def export(self):
 
-        np.savetxt(self.main.main.name + 'calibration', self.calResult)
+        np.savetxt(self.mainFocus.mainRec.name + 'calibration', self.calResult)
         cal = np.around(np.abs(self.calResult[0]), 1)
         calText = '1 px --> {} nm'.format(cal)
-        self.main.calibrationDisplay.setText(calText)
+        self.mainFocus.calibrationDisplay.setText(calText)
         poly = np.polynomial.polynomial.polyval(self.positionData,
                                                 self.calResult[::-1])
         self.savedCalibData = [self.positionData, self.signalData, poly]
-        np.savetxt(self.main.main.name + 'calibrationcurves',
+        np.savetxt(self.mainFocus.mainRec.name + 'calibrationcurves',
                    self.savedCalibData)
 
 if __name__ == '__main__':
