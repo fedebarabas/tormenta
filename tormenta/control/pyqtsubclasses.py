@@ -356,7 +356,6 @@ class BkgSubtractor(QtCore.QObject):
                 with tiff.TiffFile(filename) as tt:
 
                     self.data = tt.asarray()
-                    print(len(self.data), self.window)
                     if len(self.data) > self.window:
                         dataSub = self.mpSubtract()
                         tiff.imsave(filename2, dataSub)
@@ -379,6 +378,6 @@ class BkgSubtractor(QtCore.QObject):
         results = pool.map(subtractChunk, args)
         pool.close()
         pool.join()
-        result = np.concatenate(results[:])
-        result = result - np.min(result) + 400
-        return result.astype(np.uint16)
+        data = np.concatenate(results[:])
+        data -= np.min(data)
+        return data.astype(np.uint16)
