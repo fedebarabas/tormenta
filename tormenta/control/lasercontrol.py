@@ -92,7 +92,7 @@ class LaserWidget(QtGui.QFrame):
         self.redControl = LaserControl(self.redlaser, '<h3>642nm</h3>',
                                        color=(255, 11, 0), prange=(150, 1500),
                                        tickInterval=100, singleStep=10,
-                                       daq=self.daq, port=1)
+                                       daq=self.daq, port=1, invert=False)
         # Additional red laser temperature indicators
         self.redControl.tempFrame = QtGui.QFrame(self.redControl)
         self.redControl.tempFrame.setFrameStyle(self.Panel | self.Plain)

@@ -333,9 +333,9 @@ class RecordingWidget(QtGui.QFrame):
 
         if self.main.dualView:
             im1 = np.transpose(image[:self.main.side, :])
-            self.hist1.setLevels(*guitools.bestLimits(im1))
+            self.main.hist1.setLevels(*guitools.bestLimits(im1))
             im0 = np.transpose(image[-self.main.side:, :])
-            self.hist.setLevels(*guitools.bestLimits(im0))
+            self.main.hist.setLevels(*guitools.bestLimits(im0))
 
         else:
             self.main.img.setImage(image, autoLevels=False)
@@ -704,8 +704,8 @@ class RecWorker(QtCore.QObject):
                     i, self.j = self.andor.new_images_index
                     newImages = self.andor.images16(i, self.j, self.frameShape,
                                                     1, self.n)
-#                    self.sigUpdate.emit(np.transpose(newImages[-1]))
-                    self.sigUpdate.emit(newImages[-1])
+                    self.sigUpdate.emit(np.transpose(newImages[-1]))
+#                    self.sigUpdate.emit(newImages[-1])
                     data = newImages[:, ::-1]
 
                     # Corrected image
