@@ -3,7 +3,7 @@ Tormenta
 
 Measurement control and analysis for optical microscopy
 
-.. image:: https://github.com/fedebarabas/tormenta/blob/master/tormenta_screen.png
+.. image:: tormenta_screen.png
 
 Installation
 ~~~~~~~~~~~~
