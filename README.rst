@@ -65,7 +65,14 @@ Documentation
 The documentation is under construction in
 `http://fedebarabas.github.io/tormenta/ <http://fedebarabas.github.io/tormenta/>`__
 
-See also `Note: Tormenta: An open source Python-powered control software for camera based optical microscopy <http://aip.scitation.org/doi/abs/10.1063/1.4972392>`__
+How to cite
+~~~~~~~~~~~
+
+If you used the code/program for your paper, please cite
+
+Barabas et al., *Note: Tormenta: An open source Python-powered control software for camera based optical microscopy*, Review of Scientific Reports, 2016.
+
+https://doi.org/10.1063/1.4972392
 
 Contact
 ~~~~~~~
