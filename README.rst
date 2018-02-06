@@ -70,7 +70,7 @@ How to cite
 
 If you used the code/program for your paper, please cite
 
-Barabas et al., *Note: Tormenta: An open source Python-powered control software for camera based optical microscopy*, Review of Scientific Reports, 2016.
+Barabas et al., *Note: Tormenta: An open source Python-powered control software for camera based optical microscopy*, Review of Scientific Instruments, 2016.
 
 https://doi.org/10.1063/1.4972392
 
